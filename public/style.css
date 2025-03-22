@@ -1,25 +1,169 @@
-body {
-  font-family: Arial, sans-serif;
-  margin: 20px;
+/* ===== Global Reset & Base ===== */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
 }
 
+body {
+  font-family: 'Poppins', sans-serif;
+  background: linear-gradient(135deg, #1e1e2f, #252536);
+  color: #f1f1f1;
+  min-height: 100vh;
+  overflow: hidden;
+}
+
+/* Fullscreen container */
+.container {
+  width: 100%;
+  height: 100vh;
+  padding: 20px;
+  display: flex;
+  flex-direction: row;
+  gap: 20px;
+}
+
+/* ===== Live Video Area (Left) ===== */
+#liveVideo, #videoStream {
+  flex: 1 1 65%;
+  height: 100%;
+  background: #333;
+  border-radius: 12px;
+  border: 1px solid #444;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #aaa;
+  font-size: 1.6em;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  position: relative;
+}
+
+/* Placeholder style for video stream */
+.video-placeholder {
+  font-style: italic;
+}
+
+/* ===== Chat Box (Right) ===== */
 #chatBox {
-  margin-top: 20px;
+  flex: 1 1 35%;
+  height: 100%;
+  background: #2c2c3a;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.4);
+  display: flex;
+  flex-direction: column;
+}
+
+#chatBox h3 {
+  margin-bottom: 15px;
+  color: #ff7cf7;
+  text-align: center;
 }
 
 #chatMessages {
   list-style: none;
-  padding: 0;
-  max-height: 200px;
+  flex: 1;
   overflow-y: auto;
+  margin-bottom: 15px;
+  padding-right: 10px;
 }
 
-input {
-  padding: 8px;
-  margin: 5px 0;
+#chatMessages li {
+  background: #3a3a50;
+  padding: 8px 12px;
+  margin-bottom: 8px;
+  border-radius: 8px;
+  color: #eaeaea;
+  animation: fadeIn 0.3s ease;
 }
 
-button {
-  padding: 8px 16px;
+#chatMessages li i {
+  color: #aaa;
+  font-size: 0.9em;
+}
+
+/* ===== Input & Chat Controls ===== */
+#chatBox input[type="text"] {
+  width: calc(100% - 20px);
+  padding: 12px;
+  margin-bottom: 10px;
+  background: #1e1e2f;
+  border: 1px solid #555;
+  border-radius: 8px;
+  color: #fff;
+  transition: 0.3s;
+}
+
+#chatBox input[type="text"]::placeholder {
+  color: #888;
+}
+
+#chatBox input[type="text"]:focus {
+  border-color: #00ffea;
+  outline: none;
+}
+
+#sendBtn {
+  width: 100%;
+  padding: 12px;
+  background: linear-gradient(90deg, #ff7cf7, #a75fff);
+  border: none;
+  border-radius: 8px;
+  font-weight: bold;
+  color: #fff;
   cursor: pointer;
+  transition: 0.3s;
+  box-shadow: 0 0 10px rgba(255, 124, 247, 0.5);
+}
+
+#sendBtn:hover {
+  box-shadow: 0 0 20px rgba(255, 124, 247, 0.8);
+}
+
+/* ===== Viewer Count Overlay ===== */
+#viewerCount {
+  position: absolute;
+  top: 15px;
+  left: 15px;
+  font-weight: bold;
+  color: #00ffea;
+  font-size: 1.3em;
+  background: rgba(0, 0, 0, 0.6);
+  padding: 5px 10px;
+  border-radius: 8px;
+}
+
+/* ===== Animations ===== */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ===== Scrollbar Styling ===== */
+#chatMessages::-webkit-scrollbar {
+  width: 6px;
+}
+
+#chatMessages::-webkit-scrollbar-thumb {
+  background-color: #555;
+  border-radius: 3px;
+}
+
+/* ===== Responsive ===== */
+@media (max-width: 768px) {
+  .container {
+    flex-direction: column;
+  }
+  
+  #liveVideo, #videoStream {
+    width: 100%;
+    height: 50vh;
+  }
+  
+  #chatBox {
+    width: 100%;
+    height: 50vh;
+  }
 }

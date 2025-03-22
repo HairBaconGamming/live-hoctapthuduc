@@ -3,21 +3,28 @@
 <head>
   <meta charset="UTF-8">
   <title>Streamer Room - <%= room.title %></title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
 <body>
-  <h1>🔴 Bạn đang phát trực tiếp: <%= room.title %></h1>
-  <p>👀 Người xem: <span id="viewerCount">0</span></p>
-
-  <div id="videoStream">
-    <h2>[Đây là nơi phát video của bạn]</h2>
-    <p>Chủ phòng: <%= room.owner %></p>
-  </div>
-
-  <div id="chatBox">
-    <h3>💬 Chat trực tiếp với người xem</h3>
-    <ul id="chatMessages"></ul>
-    <input type="text" id="message" placeholder="Nhập tin nhắn...">
-    <button id="sendBtn">Gửi</button>
+  <div class="container">
+    <h1>🔴 Bạn đang phát trực tiếp: <%= room.title %></h1>
+    <p>👀 Người xem: <span id="viewerCount">0</span></p>
+    
+    <!-- Khung video của chủ phòng -->
+    <div id="videoStream">
+      <div class="video-placeholder">[Video Stream của bạn]</div>
+      <p>Chủ phòng: <%= room.owner %></p>
+    </div>
+    
+    <!-- Khung chat trực tiếp -->
+    <div id="chatBox">
+      <h3>💬 Chat trực tiếp với người xem</h3>
+      <ul id="chatMessages"></ul>
+      <input type="text" id="message" placeholder="Nhập tin nhắn...">
+      <button id="sendBtn">Gửi</button>
+    </div>
   </div>
 
   <script src="/socket.io/socket.io.js"></script>

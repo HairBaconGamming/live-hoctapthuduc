@@ -1,54 +1,83 @@
-<%- include('partials/header', { title: 'Xem Live Stream' }) %>
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title><%= room.title %> - Live Room</title>
+  <!-- Link tới file CSS hiện đại -->
+  <link rel="stylesheet" href="/style.css">
+  <!-- Google Fonts & Font Awesome -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+  <div class="live-header">
+    <div class="live-left">
+      <h1 class="live-title">
+        <i class="fas fa-video"></i> 
+        Live Stream: <span class="stream-title"><%= room.title %></span>
+      </h1>
+    </div>
+    <div class="live-right">
+      <p class="viewer-info">
+        <span class="viewer-icon">👀</span> Người xem: 
+        <span id="viewerCount">0</span>
+      </p>
+    </div>
+  </div>
+  <div class="container">
+    
+    <!-- Khung video phát trực tiếp -->
+    <div id="liveVideo">
+      <!-- Ví dụ: hiển thị một khung video giả -->
+      <div class="video-placeholder">[Live Video Stream]</div>
+    </div>
+    
+    <!-- Khung chat trực tiếp -->
+    <div id="chatBox">
+      <h3>💬 Chat trực tiếp</h3>
+      <ul id="chatMessages"></ul>
+      <input type="text" id="username" placeholder="Tên của bạn">
+      <input type="text" id="message" placeholder="Nhập tin nhắn...">
+      <button id="sendBtn">Gửi</button>
+    </div>
+  </div>
 
-<div id="liveVideo">
-  <!-- Đây có thể là iframe hoặc video embed -->
-  <h2>[Video Livestream]</h2>
-</div>
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+    const roomId = "<%= room.id %>";
+    const usernameInput = document.getElementById("username");
+    const messageInput = document.getElementById("message");
+    const sendBtn = document.getElementById("sendBtn");
+    const chatMessages = document.getElementById("chatMessages");
+    const viewerCount = document.getElementById("viewerCount");
 
-<p><i class="fas fa-eye"></i> Người xem: <span id="viewerCount">0</span></p>
+    // Tham gia phòng
+    socket.emit("joinRoom", { roomId, username: "Khách" });
 
-<div id="chatBox">
-  <h3><i class="fas fa-comments"></i> Chat trực tiếp</h3>
-  
-  <ul id="chatMessages">
-    <li><i>Hãy là người đầu tiên chat!</i></li>
-  </ul>
+    socket.on("userJoined", msg => {
+      const li = document.createElement("li");
+      li.innerHTML = `<i>${msg}</i>`;
+      chatMessages.appendChild(li);
+    });
 
-  <input type="text" id="chatInput" placeholder="Nhập tin nhắn..." />
-  <button id="sendBtn"><i class="fas fa-paper-plane"></i> Gửi</button>
-</div>
+    socket.on("newMessage", data => {
+      const li = document.createElement("li");
+      li.textContent = `${data.username}: ${data.message}`;
+      chatMessages.appendChild(li);
+    });
 
-<script>
-  const socket = io('http://localhost:5000');
-  const viewerCount = document.getElementById('viewerCount');
-  const chatMessages = document.getElementById('chatMessages');
-  const chatInput = document.getElementById('chatInput');
-  const sendBtn = document.getElementById('sendBtn');
+    socket.on("updateViewers", count => {
+      viewerCount.textContent = count;
+    });
 
-  // Thông báo server: "join room"
-  socket.emit('joinRoom', '<%= roomId %>');
-
-  socket.on('viewerCount', count => {
-    viewerCount.textContent = count;
-  });
-
-  socket.on('chatMessage', msg => {
-    const li = document.createElement('li');
-    li.textContent = msg;
-    chatMessages.appendChild(li);
-    chatMessages.scrollTop = chatMessages.scrollHeight;
-  });
-
-  sendBtn.addEventListener('click', () => {
-    const message = chatInput.value.trim();
-    if (!message) return;
-    socket.emit('chatMessage', { roomId: '<%= roomId %>', message });
-    chatInput.value = '';
-  });
-
-  chatInput.addEventListener('keyup', (e) => {
-    if (e.key === 'Enter') sendBtn.click();
-  });
-</script>
-
-<%- include('partials/footer') %>
+    sendBtn.addEventListener("click", () => {
+      const username = usernameInput.value.trim() || "Ẩn danh";
+      const message = messageInput.value.trim();
+      if (!message) return;
+      socket.emit("chatMessage", { roomId, username, message });
+      messageInput.value = "";
+    });
+  </script>
+</body>
+</html>
