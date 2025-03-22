@@ -25,7 +25,7 @@ let liveRooms = [];
     API TẠO ROOM LIVE STREAM
 ============================= */
 app.post("/api/createStream", (req, res) => {
-  const { roomOwnerId, title } = req.body;
+  const { roomOwnerId, roomOwnerName, title } = req.body;
 
   if (!roomOwnerId) {
     return res.status(400).json({ error: "Thiếu thông tin chủ phòng (roomOwnerId)." });
@@ -37,6 +37,7 @@ app.post("/api/createStream", (req, res) => {
   const newRoom = {
     id: roomId,
     owner: roomOwnerId,
+    ownername: roomOwnerName,
     title: title || "Live Stream không tiêu đề",
     liveStreamUrl,
     viewers: 0,
