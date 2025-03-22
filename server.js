@@ -1,77 +1,44 @@
 // server.js
 const express = require('express');
-const http = require('http');
-const socketIo = require('socket.io');
 const axios = require('axios');
-const { v4: uuidv4 } = require('uuid');
-
 const app = express();
-const server = http.createServer(app);
-const io = socketIo(server);
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// Middleware: Giả sử có middleware isLoggedIn để kiểm tra người dùng đã đăng nhập
+function isLoggedIn(req, res, next) {
+  if (req.user) return next();
+  res.status(401).json({ error: "Bạn cần đăng nhập để thực hiện chức năng này." });
+}
 
-// API: Xác minh tài khoản và tạo phòng live stream
-app.post("/livestream/create", async (req, res) => {
-  const { verificationToken } = req.body;
-  if (!verificationToken) {
-    return res.status(400).json({ error: "Không có token xác minh." });
-  }
-  
+// Route tạo link livestream
+app.post('/livestream/createLink', isLoggedIn, async (req, res) => {
   try {
-    // Gửi yêu cầu xác minh tới API của hoctap-9a3
-    const verificationResponse = await axios.post("https://hoctap-9a3.glitch.me/api/verifyAccount", {
-      token: verificationToken,
-      userId: req.user._id  // bạn có thể gửi thêm thông tin user nếu cần
+    // Lấy thông tin của user chủ phòng (owner)
+    const ownerId = req.user._id; // hoặc req.user.username nếu API cần tên
+    // Các tham số khác có thể được truyền lên từ client (ví dụ: title, mô tả)
+    const { title } = req.body;
+    
+    // Gọi API bên ngoài để tạo phòng livestream
+    const apiResponse = await axios.post('https://livestream.example.com/api/createRoom', {
+      ownerId, // thông tin chủ phòng
+      title: title || `Live Stream của ${req.user.username}`
     });
     
-    if (!verificationResponse.data.verified) {
-      return res.status(403).json({ error: "Xác minh tài khoản thất bại." });
+    // Giả sử API trả về { success: true, link: "https://livestream.example.com/room/abc123", ... }
+    if (apiResponse.data.success) {
+      const livestreamLink = apiResponse.data.link;
+      // Nếu cần, bạn có thể lưu thông tin phòng vào database
+      return res.json({ success: true, link: livestreamLink });
+    } else {
+      return res.status(400).json({ success: false, error: apiResponse.data.error || "Lỗi tạo phòng livestream" });
     }
-    
-    // Nếu xác minh thành công, tạo room live stream mới (ví dụ sử dụng UUID)
-    const roomId = uuidv4();
-    liveRooms[roomId] = { createdBy: req.user._id, createdAt: new Date() };
-    
-    res.json({ success: true, roomId });
   } catch (error) {
-    console.error("Error verifying account:", error);
-    return res.status(500).json({ error: "Lỗi xác minh tài khoản, hãy thử lại sau." });
+    console.error("Error creating livestream room:", error);
+    return res.status(500).json({ success: false, error: error.message });
   }
 });
 
-// Một đối tượng để lưu trữ thông tin phòng (ví dụ đơn giản, sử dụng memory)
-const liveRooms = {};
-
-// Xử lý kết nối Socket.IO
-io.on('connection', (socket) => {
-  console.log("Client connected:", socket.id);
-
-  // Client tham gia phòng live stream
-  socket.on('joinRoom', (roomId) => {
-    if (liveRooms[roomId]) {
-      socket.join(roomId);
-      console.log(`Socket ${socket.id} joined room ${roomId}`);
-      // Thông báo cho các client trong room
-      io.to(roomId).emit('userJoined', { socketId: socket.id });
-    } else {
-      socket.emit('error', { message: "Phòng không tồn tại." });
-    }
-  });
-
-  // Xử lý tín hiệu (signaling) nếu bạn triển khai WebRTC
-  socket.on('signal', (data) => {
-    // data should include: roomId, signal info
-    io.to(data.roomId).emit('signal', data);
-  });
-
-  socket.on('disconnect', () => {
-    console.log("Client disconnected:", socket.id);
-  });
-});
-
+// Khởi chạy server
 const port = process.env.PORT || 3000;
-server.listen(port, () => {
-  console.log("Server is running on port", port);
+app.listen(port, () => {
+  console.log(`Server đang chạy trên cổng ${port}`);
 });
