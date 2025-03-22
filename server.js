@@ -70,7 +70,7 @@ app.get("/room/:id", checkHoctapAuth, (req, res) => {
     return res.status(404).send("Room không tồn tại.");
   }
   // Ở đây req.user đã có { userId, username } do verify JWT
-  res.render("liveRoom", { room });
+  res.render("liveRoom", { room, user:req.user });
 });
 
 /* =============================

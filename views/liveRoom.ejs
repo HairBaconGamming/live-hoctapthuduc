@@ -25,10 +25,8 @@
     </div>
   </div>
   <div class="container">
-    
     <!-- Khung video phát trực tiếp -->
     <div id="liveVideo">
-      <!-- Ví dụ: hiển thị một khung video giả -->
       <div class="video-placeholder">[Live Video Stream]</div>
     </div>
     
@@ -36,8 +34,10 @@
     <div id="chatBox">
       <h3>💬 Chat trực tiếp</h3>
       <ul id="chatMessages"></ul>
-      <input type="text" id="username" placeholder="Tên của bạn">
-      <input type="text" id="message" placeholder="Nhập tin nhắn...">
+      <!-- Hiển thị tên tài khoản (đã xác thực) -->
+      <input type="hidden" id="username" value="<%= user.username %>">
+      <!-- Input nhập tin nhắn -->
+      <input type="text" id="message" placeholder="Nhập tin nhắn..." autocomplete="off">
       <button id="sendBtn">Gửi</button>
     </div>
   </div>
@@ -46,14 +46,14 @@
   <script>
     const socket = io();
     const roomId = "<%= room.id %>";
-    const usernameInput = document.getElementById("username");
+    const username = document.getElementById("username").value; // Lấy tên tài khoản từ input hidden
     const messageInput = document.getElementById("message");
     const sendBtn = document.getElementById("sendBtn");
     const chatMessages = document.getElementById("chatMessages");
     const viewerCount = document.getElementById("viewerCount");
 
-    // Tham gia phòng
-    socket.emit("joinRoom", { roomId, username: "Khách" });
+    // Tham gia phòng với tên tài khoản đã xác thực
+    socket.emit("joinRoom", { roomId, username });
 
     socket.on("userJoined", msg => {
       const li = document.createElement("li");
@@ -72,11 +72,18 @@
     });
 
     sendBtn.addEventListener("click", () => {
-      const username = usernameInput.value.trim() || "Ẩn danh";
       const message = messageInput.value.trim();
       if (!message) return;
       socket.emit("chatMessage", { roomId, username, message });
       messageInput.value = "";
+    });
+
+    // Cho phím Enter gửi tin nhắn
+    messageInput.addEventListener("keypress", function(e) {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        sendBtn.click();
+      }
     });
   </script>
 </body>
