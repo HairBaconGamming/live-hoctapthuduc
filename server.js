@@ -70,20 +70,14 @@ app.get("/room/:id", checkHoctapAuth, (req, res) => {
   if (!room) {
     return res.status(404).send("Room không tồn tại.");
   }
-  // Ở đây req.user đã có { userId, username } do verify JWT
-  res.render("liveRoom", { room, user:req.user });
-});
-
-/* =============================
-    TRANG STREAMER (GIAO DIỆN CHỦ PHÒNG)
-============================= */
-app.get("/streamer/:id", (req, res) => {
-  const room = liveRooms.find(r => r.id === req.params.id);
-  if (!room) {
-    return res.status(404).send("Room không tồn tại.");
+  // req.user có thuộc tính userId (được tạo từ JWT)
+  if (room.owner.toString() === req.user.userId) {
+    // Nếu user đăng nhập là chủ phòng, render view streamer
+    res.render("streamer", { room, user: req.user });
+  } else {
+    // Ngược lại, render view cho khách
+    res.render("liveRoom", { room, user: req.user });
   }
-
-  res.render("streamer", { room });
 });
 
 /* =============================
