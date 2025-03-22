@@ -1,44 +1,132 @@
-// server.js
-const express = require('express');
-const axios = require('axios');
+const express = require("express");
+const http = require("http");
+const { v4: uuidv4 } = require("uuid");
+const cors = require("cors");
+const bodyParser = require("body-parser");
+const socketIO = require("socket.io");
+
 const app = express();
+const server = http.createServer(app);
+const io = socketIO(server);
 
-// Middleware: Giả sử có middleware isLoggedIn để kiểm tra người dùng đã đăng nhập
-function isLoggedIn(req, res, next) {
-  if (req.user) return next();
-  res.status(401).json({ error: "Bạn cần đăng nhập để thực hiện chức năng này." });
-}
+const PORT = process.env.PORT || 3001;
 
-// Route tạo link livestream
-app.post('/livestream/createLink', isLoggedIn, async (req, res) => {
-  try {
-    // Lấy thông tin của user chủ phòng (owner)
-    const ownerId = req.user._id; // hoặc req.user.username nếu API cần tên
-    // Các tham số khác có thể được truyền lên từ client (ví dụ: title, mô tả)
-    const { title } = req.body;
-    
-    // Gọi API bên ngoài để tạo phòng livestream
-    const apiResponse = await axios.post('https://livestream.example.com/api/createRoom', {
-      ownerId, // thông tin chủ phòng
-      title: title || `Live Stream của ${req.user.username}`
-    });
-    
-    // Giả sử API trả về { success: true, link: "https://livestream.example.com/room/abc123", ... }
-    if (apiResponse.data.success) {
-      const livestreamLink = apiResponse.data.link;
-      // Nếu cần, bạn có thể lưu thông tin phòng vào database
-      return res.json({ success: true, link: livestreamLink });
-    } else {
-      return res.status(400).json({ success: false, error: apiResponse.data.error || "Lỗi tạo phòng livestream" });
-    }
-  } catch (error) {
-    console.error("Error creating livestream room:", error);
-    return res.status(500).json({ success: false, error: error.message });
+// Config
+app.use(cors());
+app.use(bodyParser.json());
+app.use(express.static("public"));
+app.set("view engine", "ejs");
+
+// Tạm lưu các room đã tạo
+let liveRooms = [];
+
+/* =============================
+    API TẠO ROOM LIVE STREAM
+============================= */
+app.post("/api/createStream", (req, res) => {
+  const { roomOwnerId, title } = req.body;
+
+  if (!roomOwnerId) {
+    return res.status(400).json({ error: "Thiếu thông tin chủ phòng (roomOwnerId)." });
   }
+
+  const roomId = uuidv4();
+  const liveStreamUrl = `https://live-hoctap-9a3.glitch.me/room/${roomId}`;
+
+  const newRoom = {
+    id: roomId,
+    owner: roomOwnerId,
+    title: title || "Live Stream không tiêu đề",
+    liveStreamUrl,
+    viewers: 0,
+    createdAt: new Date()
+  };
+
+  liveRooms.push(newRoom);
+
+  console.log("✅ Room created:", newRoom);
+
+  return res.json({
+    success: true,
+    liveStreamUrl,
+    roomId
+  });
 });
 
-// Khởi chạy server
-const port = process.env.PORT || 3000;
-app.listen(port, () => {
-  console.log(`Server đang chạy trên cổng ${port}`);
+/* =============================
+    XEM DANH SÁCH ROOM ĐANG LIVE
+============================= */
+app.get("/api/rooms", (req, res) => {
+  res.json(liveRooms);
+});
+
+/* =============================
+    TRANG XEM LIVE STREAM
+============================= */
+app.get("/room/:id", (req, res) => {
+  const room = liveRooms.find(r => r.id === req.params.id);
+  if (!room) {
+    return res.status(404).send("Room không tồn tại.");
+  }
+
+  res.render("liveRoom", { room });
+});
+
+/* =============================
+    TRANG STREAMER (GIAO DIỆN CHỦ PHÒNG)
+============================= */
+app.get("/streamer/:id", (req, res) => {
+  const room = liveRooms.find(r => r.id === req.params.id);
+  if (!room) {
+    return res.status(404).send("Room không tồn tại.");
+  }
+
+  res.render("streamer", { room });
+});
+
+/* =============================
+    SOCKET.IO CHAT REALTIME
+============================= */
+io.on("connection", socket => {
+  console.log("💡 New client connected");
+
+  // Khi người xem vào room
+  socket.on("joinRoom", ({ roomId, username }) => {
+    socket.join(roomId);
+    io.to(roomId).emit("userJoined", `${username} đã tham gia phòng.`);
+
+    const room = liveRooms.find(r => r.id === roomId);
+    if (room) {
+      room.viewers++;
+      io.to(roomId).emit("updateViewers", room.viewers);
+    }
+  });
+
+  // Gửi chat message
+  socket.on("chatMessage", ({ roomId, username, message }) => {
+    io.to(roomId).emit("newMessage", { username, message });
+  });
+
+  // Khi rời phòng
+  socket.on("disconnecting", () => {
+    const rooms = Array.from(socket.rooms);
+    rooms.forEach(roomId => {
+      const room = liveRooms.find(r => r.id === roomId);
+      if (room) {
+        room.viewers--;
+        io.to(roomId).emit("updateViewers", room.viewers);
+      }
+    });
+  });
+
+  socket.on("disconnect", () => {
+    console.log("👋 Client disconnected");
+  });
+});
+
+/* =============================
+    START SERVER
+============================= */
+server.listen(PORT, () => {
+  console.log(`🚀 Live server running on port ${PORT}`);
 });

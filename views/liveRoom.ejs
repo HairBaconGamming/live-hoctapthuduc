@@ -1,0 +1,54 @@
+<%- include('partials/header', { title: 'Xem Live Stream' }) %>
+
+<div id="liveVideo">
+  <!-- Đây có thể là iframe hoặc video embed -->
+  <h2>[Video Livestream]</h2>
+</div>
+
+<p><i class="fas fa-eye"></i> Người xem: <span id="viewerCount">0</span></p>
+
+<div id="chatBox">
+  <h3><i class="fas fa-comments"></i> Chat trực tiếp</h3>
+  
+  <ul id="chatMessages">
+    <li><i>Hãy là người đầu tiên chat!</i></li>
+  </ul>
+
+  <input type="text" id="chatInput" placeholder="Nhập tin nhắn..." />
+  <button id="sendBtn"><i class="fas fa-paper-plane"></i> Gửi</button>
+</div>
+
+<script>
+  const socket = io('http://localhost:5000');
+  const viewerCount = document.getElementById('viewerCount');
+  const chatMessages = document.getElementById('chatMessages');
+  const chatInput = document.getElementById('chatInput');
+  const sendBtn = document.getElementById('sendBtn');
+
+  // Thông báo server: "join room"
+  socket.emit('joinRoom', '<%= roomId %>');
+
+  socket.on('viewerCount', count => {
+    viewerCount.textContent = count;
+  });
+
+  socket.on('chatMessage', msg => {
+    const li = document.createElement('li');
+    li.textContent = msg;
+    chatMessages.appendChild(li);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+  });
+
+  sendBtn.addEventListener('click', () => {
+    const message = chatInput.value.trim();
+    if (!message) return;
+    socket.emit('chatMessage', { roomId: '<%= roomId %>', message });
+    chatInput.value = '';
+  });
+
+  chatInput.addEventListener('keyup', (e) => {
+    if (e.key === 'Enter') sendBtn.click();
+  });
+</script>
+
+<%- include('partials/footer') %>

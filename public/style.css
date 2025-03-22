@@ -1,0 +1,25 @@
+body {
+  font-family: Arial, sans-serif;
+  margin: 20px;
+}
+
+#chatBox {
+  margin-top: 20px;
+}
+
+#chatMessages {
+  list-style: none;
+  padding: 0;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+input {
+  padding: 8px;
+  margin: 5px 0;
+}
+
+button {
+  padding: 8px 16px;
+  cursor: pointer;
+}

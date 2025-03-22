@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title>Streamer Room - <%= room.title %></title>
+</head>
+<body>
+  <h1>🔴 Bạn đang phát trực tiếp: <%= room.title %></h1>
+  <p>👀 Người xem: <span id="viewerCount">0</span></p>
+
+  <div id="videoStream">
+    <h2>[Đây là nơi phát video của bạn]</h2>
+    <p>Chủ phòng: <%= room.owner %></p>
+  </div>
+
+  <div id="chatBox">
+    <h3>💬 Chat trực tiếp với người xem</h3>
+    <ul id="chatMessages"></ul>
+    <input type="text" id="message" placeholder="Nhập tin nhắn...">
+    <button id="sendBtn">Gửi</button>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+    const roomId = "<%= room.id %>";
+    const messageInput = document.getElementById("message");
+    const sendBtn = document.getElementById("sendBtn");
+    const chatMessages = document.getElementById("chatMessages");
+    const viewerCount = document.getElementById("viewerCount");
+
+    socket.emit("joinRoom", { roomId, username: "Chủ phòng" });
+
+    socket.on("userJoined", msg => {
+      const li = document.createElement("li");
+      li.innerHTML = `<i>${msg}</i>`;
+      chatMessages.appendChild(li);
+    });
+
+    socket.on("newMessage", data => {
+      const li = document.createElement("li");
+      li.textContent = `${data.username}: ${data.message}`;
+      chatMessages.appendChild(li);
+    });
+
+    socket.on("updateViewers", count => {
+      viewerCount.textContent = count;
+    });
+
+    sendBtn.addEventListener("click", () => {
+      const username = "Chủ phòng";
+      const message = messageInput.value.trim();
+      if (!message) return;
+      socket.emit("chatMessage", { roomId, username, message });
+      messageInput.value = "";
+    });
+  </script>
+</body>
+</html>
