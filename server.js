@@ -4,6 +4,7 @@ const { v4: uuidv4 } = require("uuid");
 const cors = require("cors");
 const bodyParser = require("body-parser");
 const socketIO = require("socket.io");
+const { checkHoctapAuth } = require("./middlewares/checkToken");
 
 const app = express();
 const server = http.createServer(app);
@@ -63,12 +64,12 @@ app.get("/api/rooms", (req, res) => {
 /* =============================
     TRANG XEM LIVE STREAM
 ============================= */
-app.get("/room/:id", (req, res) => {
+app.get("/room/:id", checkHoctapAuth, (req, res) => {
   const room = liveRooms.find(r => r.id === req.params.id);
   if (!room) {
     return res.status(404).send("Room không tồn tại.");
   }
-
+  // Ở đây req.user đã có { userId, username } do verify JWT
   res.render("liveRoom", { room });
 });
 
