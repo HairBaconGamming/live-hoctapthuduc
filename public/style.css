@@ -13,6 +13,83 @@ body {
   overflow: hidden;
 }
 
+/* Container chung cho thanh header */
+.live-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+  padding: 10px;
+  border-bottom: 1px solid #444;
+}
+
+/* Phần bên trái */
+.live-left {
+  display: flex;
+  align-items: center;
+}
+
+.live-title {
+  font-size: 1.8rem;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  gap: 8px; /* khoảng cách giữa icon và text */
+}
+
+/* Phần bên phải */
+.live-right {
+  display: flex;
+  align-items: center;
+}
+
+.viewer-info {
+  font-size: 1.2rem;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0; /* Xóa margin mặc định của p */
+}
+.viewer-count {
+  font-weight: bold;
+  color: #00ffea;
+  font-size: 1.3em;
+}
+
+/* Icon con mắt hoặc camera */
+.viewer-icon {
+  font-size: 1.4rem;
+}
+
+/* Tùy biến icon camera Font Awesome */
+.live-title i {
+  color: #ff7cf7; /* Màu icon camera */
+  font-size: 1.6rem;
+}
+
+/* Màu chữ “Live Stream:” */
+.stream-title {
+  color: #00ffea; /* Màu nhấn cho tiêu đề stream */
+}
+
+/* Responsive (tùy chỉnh nếu cần) */
+@media (max-width: 768px) {
+  .live-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  
+  .live-title {
+    font-size: 1.4rem;
+  }
+  
+  .viewer-info {
+    font-size: 1.1rem;
+  }
+}
+
 /* Fullscreen container */
 .container {
   width: 100%;
@@ -120,19 +197,6 @@ body {
 
 #sendBtn:hover {
   box-shadow: 0 0 20px rgba(255, 124, 247, 0.8);
-}
-
-/* ===== Viewer Count Overlay ===== */
-#viewerCount {
-  position: absolute;
-  top: 15px;
-  left: 15px;
-  font-weight: bold;
-  color: #00ffea;
-  font-size: 1.3em;
-  background: rgba(0, 0, 0, 0.6);
-  padding: 5px 10px;
-  border-radius: 8px;
 }
 
 /* ===== Animations ===== */
