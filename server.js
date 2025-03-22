@@ -126,6 +126,10 @@ io.on("connection", socket => {
   });
 });
 
+app.get("/", (req, res) => {
+    res.redirect("https://hoctap-9a3.glitch.me/");
+});
+
 /* =============================
     START SERVER
 ============================= */

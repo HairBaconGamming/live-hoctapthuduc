@@ -1,71 +1,91 @@
-<%- include('partials/header', { title: 'Các Live Stream', user: user, activePage: 'live' }) %>
-
-<section class="live-list-section">
-  <div class="container">
-    <h2>Các Live Stream</h2>
-    <ul id="liveList">
-      <li>Đang tải danh sách live stream...</li>
-    </ul>
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title><%= room.title %> - Live Room</title>
+  <!-- Link tới file CSS hiện đại -->
+  <link rel="stylesheet" href="/style.css">
+  <link rel="icon" type="image/png" href="https://cdn.glitch.global/71030012-56ea-4d26-a426-e0099201df1c/823029_library_512x512.png?v=1741523759119">
+  <!-- Google Fonts & Font Awesome -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+  <div class="live-header">
+    <div class="live-left">
+      <h1 class="live-title">
+        <i class="fas fa-video"></i> 
+        Live Stream: <span class="stream-title"><%= room.title %></span>
+      </h1>
+    </div>
+    <div class="live-right">
+      <p class="viewer-info">
+        <span class="viewer-icon">👀</span> Người xem: 
+        <span id="viewerCount" class="viewer-count">0</span>
+      </p>
+    </div>
   </div>
-</section>
+  <div class="container">
+    <!-- Khung video phát trực tiếp -->
+    <div id="liveVideo">
+      <div class="video-placeholder">[Live Video Stream]</div>
+    </div>
+    
+    <!-- Khung chat trực tiếp -->
+    <div id="chatBox">
+      <h3>💬 Chat trực tiếp</h3>
+      <ul id="chatMessages"></ul>
+      <!-- Hiển thị tên tài khoản (đã xác thực) -->
+      <input type="hidden" id="username" value="<%= user.username %>">
+      <!-- Input nhập tin nhắn -->
+      <input type="text" id="message" placeholder="Nhập tin nhắn..." autocomplete="off">
+      <button id="sendBtn">Gửi</button>
+    </div>
+  </div>
 
-<script>
-  // Hàm fetch danh sách live stream từ API của live-hoctap-9a3
-  async function fetchLives() {
-    try {
-      const response = await fetch('https://live-hoctap-9a3.glitch.me/api/rooms');
-      const lives = await response.json();
-      const liveList = document.getElementById('liveList');
-      liveList.innerHTML = ""; // Xóa nội dung ban đầu
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+    const roomId = "<%= room.id %>";
+    const username = document.getElementById("username").value; // Lấy tên tài khoản từ input hidden
+    const messageInput = document.getElementById("message");
+    const sendBtn = document.getElementById("sendBtn");
+    const chatMessages = document.getElementById("chatMessages");
+    const viewerCount = document.getElementById("viewerCount");
 
-      if (!Array.isArray(lives) || lives.length === 0) {
-        liveList.innerHTML = '<li>Không có live stream nào.</li>';
-      } else {
-        lives.forEach(live => {
-          const li = document.createElement('li');
-          li.className = "live-item";
-          li.innerHTML = `
-            <a href="#" class="live-link" data-room-id="${live.id}">
-              <strong>${live.title}</strong> 
-              <span class="live-owner">(Chủ phòng: ${live.ownername})</span><br>
-              <small>Đã tạo: ${new Date(live.createdAt).toLocaleString('vi-VN')}</small>
-            </a>
-          `;
-          liveList.appendChild(li);
-        });
-        attachLinkHandlers();
-      }
-    } catch (err) {
-      console.error("Lỗi khi lấy danh sách live stream:", err);
-      document.getElementById('liveList').innerHTML = '<li>Lỗi khi tải dữ liệu.</li>';
-    }
-  }
-  
-  // Gắn sự kiện click cho mỗi live link để lấy token an toàn
-  function attachLinkHandlers() {
-    document.querySelectorAll('.live-link').forEach(link => {
-      link.addEventListener('click', async function(e) {
-        e.preventDefault();
-        const roomId = this.getAttribute('data-room-id');
-        try {
-          // Gọi API nội bộ của hoctap-9a3 để lấy token
-          const res = await fetch(`/live/getToken?roomId=${roomId}`);
-          const data = await res.json();
-          if(data.error) {
-            alert("Lỗi: " + data.error);
-          } else {
-            // Redirect sang live server với token không hiển thị ban đầu
-            window.location.href = `https://live-hoctap-9a3.glitch.me/room/${roomId}?token=${data.token}`;
-          }
-        } catch (error) {
-          console.error(error);
-          alert("Có lỗi xảy ra khi lấy token, vui lòng thử lại.");
-        }
-      });
+    // Tham gia phòng với tên tài khoản đã xác thực
+    socket.emit("joinRoom", { roomId, username });
+
+    socket.on("userJoined", msg => {
+      const li = document.createElement("li");
+      li.innerHTML = `<i>${msg}</i>`;
+      chatMessages.appendChild(li);
     });
-  }
-  
-  fetchLives();
-</script>
 
-<%- include('partials/footer') %>
+    socket.on("newMessage", data => {
+      const li = document.createElement("li");
+      li.textContent = `${data.username}: ${data.message}`;
+      chatMessages.appendChild(li);
+    });
+
+    socket.on("updateViewers", count => {
+      viewerCount.textContent = count;
+    });
+
+    sendBtn.addEventListener("click", () => {
+      const message = messageInput.value.trim();
+      if (!message) return;
+      socket.emit("chatMessage", { roomId, username, message });
+      messageInput.value = "";
+    });
+
+    // Cho phím Enter gửi tin nhắn
+    messageInput.addEventListener("keypress", function(e) {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        sendBtn.click();
+      }
+    });
+  </script>
+</body>
+</html>
