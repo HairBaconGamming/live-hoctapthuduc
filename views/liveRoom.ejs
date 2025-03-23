@@ -2,7 +2,7 @@
 <html lang="vi">
 <head>
   <meta charset="UTF-8">
-  <title><%= room.title %> - Live Room</title>
+  <title>yo yo bro so suck - Live Room</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="icon" type="image/png" href="https://cdn.glitch.global/71030012-56ea-4d26-a426-e0099201df1c/823029_library_512x512.png?v=1741523759119">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap">
@@ -168,7 +168,7 @@
   <header>
     <h1 class="live-title">
       <i class="fas fa-video"></i>
-      Live Stream: <span class="stream-title"><%= room.title %></span>
+      Live Stream: <span class="stream-title">yo yo bro so suck</span>
     </h1>
     <p>Người xem: <span id="viewerCount">0</span></p>
   </header>
@@ -176,6 +176,7 @@
     <!-- Video Area -->
     <div class="video-area">
       <div class="video-wrapper">
+        <!-- Video element to display the remote stream -->
         <video id="liveVideo" class="video-element" autoplay playsinline controls muted></video>
         <div id="placeholder" class="video-placeholder">
           Chủ phòng hiện chưa chia sẻ màn hình
@@ -186,7 +187,6 @@
     <div class="chat-area" id="chatArea">
       <div class="chat-header">
         <span>Phòng Chat</span>
-        <!-- Nút toggle luôn hiển thị -->
         <button id="toggleChatBtn"><i class="fas fa-chevron-right"></i></button>
       </div>
       <div id="chatContent">
@@ -203,8 +203,8 @@
   <script>
     // Socket.IO & Chat logic
     const socket = io();
-    const roomId = "<%= room.id %>";
-    const username = "<%= user.username %>";
+    const roomId = "b81d0d6b-da2f-4fa3-86df-e91134d963e7";
+    const username = "System";
     const viewerCount = document.getElementById("viewerCount");
     const chatMessages = document.getElementById("chatMessages");
     const messageInput = document.getElementById("messageInput");
@@ -237,7 +237,7 @@
       }
     });
 
-    // Toggle Chat Area: chỉ ẩn nội dung chat (chatContent), giữ lại header với nút toggle
+    // Toggle Chat Area: hide/show chat content
     const toggleChatBtn = document.getElementById("toggleChatBtn");
     const chatArea = document.getElementById("chatArea");
     const chatContent = document.getElementById("chatContent");
@@ -255,22 +255,44 @@
       }
     });
 
-    // WebRTC logic để nhận stream từ chủ phòng
+    // WebRTC logic to receive stream from the host
     let pc;
+    // Global variables to hold the remote stream and to ensure play() is called only once:
+    let remoteStream = null;
+    let playInitiated = false;
+
     socket.on("webrtcOffer", async ({ offer, roomId: offerRoomId }) => {
       if (offerRoomId !== roomId) return;
-      // Tạo RTCPeerConnection cho viewer
+      
+      // Create RTCPeerConnection
       pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
       
-      pc.ontrack = event => {
-        const remoteStream = event.streams[0];
-        // Use the actual video element ID ("liveVideo") instead of "streamVideo"
-        const liveVideo = document.getElementById("liveVideo");
+      // Use our own global remoteStream (initialize once)
+      const liveVideo = document.getElementById("liveVideo");
+      if (!remoteStream) {
+        remoteStream = new MediaStream();
         if (liveVideo) {
           liveVideo.srcObject = remoteStream;
-          document.getElementById("placeholder").style.display = "none";
         } else {
           console.error("Live video element not found.");
+        }
+      }
+      
+      // When a track arrives, add it to remoteStream.
+      pc.ontrack = event => {
+        console.log("ontrack event triggered:", event);
+        // Add the track to our global remoteStream
+        remoteStream.addTrack(event.track);
+        document.getElementById("placeholder").style.display = "none";
+        // Call play() only once.
+        console.log(liveVideo.paused);
+        if (liveVideo && !playInitiated && liveVideo.paused) {
+          liveVideo.play().then(() => {
+            console.log("Remote video playing");
+            playInitiated = true;
+          }).catch(err => {
+            console.error("Error playing remote video:", err);
+          });
         }
       };
       
@@ -280,10 +302,14 @@
         }
       };
       
-      await pc.setRemoteDescription(new RTCSessionDescription(offer));
-      const answer = await pc.createAnswer();
-      await pc.setLocalDescription(answer);
-      socket.emit("webrtcAnswer", { roomId, answer });
+      try {
+        await pc.setRemoteDescription(new RTCSessionDescription(offer));
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+        socket.emit("webrtcAnswer", { roomId, answer });
+      } catch (error) {
+        console.error("Error handling WebRTC offer:", error);
+      }
     });
     
     socket.on("webrtcCandidate", async ({ candidate, roomId: candidateRoomId }) => {

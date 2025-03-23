@@ -91,7 +91,7 @@
   </div>
   <div class="container">
     
-    <!-- Control Panel với toggle -->
+    <!-- Control Panel with toggle -->
     <div class="control-panel" id="controlPanel">
       <button id="togglePanelBtn" class="panel-toggle-btn">
         <i class="fas fa-chevron-up"></i>
@@ -106,7 +106,7 @@
       </div>
     </div>
     
-    <!-- Khung chat -->
+    <!-- Chat box -->
     <div id="chatBox">
       <h3>💬 Chat trực tiếp với người xem</h3>
       <ul id="chatMessages"></ul>
@@ -117,6 +117,7 @@
   </div>
 
   <script src="/socket.io/socket.io.js"></script>
+  <!-- Using module so we can use top-level await if needed -->
   <script type="module">
     const socket = io();
     const roomId = "<%= room.id %>";
@@ -126,7 +127,7 @@
     const chatMessages = document.getElementById("chatMessages");
     const viewerCount = document.getElementById("viewerCount");
 
-    // Tham gia phòng
+    // Join Socket.IO room
     socket.emit("joinRoom", { roomId, username });
     socket.on("userJoined", msg => {
       const li = document.createElement("li");
@@ -172,84 +173,101 @@
       window.location.href = "https://hoctap-9a3.glitch.me/";
     });
 
-    // Realtime Screen Share: Sử dụng WebRTC signaling qua Socket.IO
+    // Realtime Screen Share using WebRTC signaling via Socket.IO
     let localStream = null;
     let pc; // RTCPeerConnection for screen share
     document.getElementById("shareScreenBtn").addEventListener("click", async () => {
       try {
-        // Get the display media stream and assign it to localStream
         localStream = await navigator.mediaDevices.getDisplayMedia({
           video: true,
           audio: true
         });
-
-        // Assign stream to preview local
         const screenVideo = document.getElementById("screenShareVideo");
         screenVideo.srcObject = localStream;
 
-        // Create RTCPeerConnection
+        // Create RTCPeerConnection and add tracks from localStream
         pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
-
-        // Add tracks to the RTCPeerConnection
         localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
 
-        // Handle ICE candidates
         pc.onicecandidate = event => {
           if (event.candidate) {
             socket.emit("webrtcCandidate", { roomId, candidate: event.candidate });
           }
         };
 
-        // Create and send offer via Socket.IO
         const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
         socket.emit("webrtcOffer", { roomId, offer });
 
-        // When the user stops sharing, clear the preview
+        // Handle when the user stops sharing
         localStream.getVideoTracks()[0].addEventListener("ended", () => {
           console.log("User stopped screen sharing");
           screenVideo.srcObject = null;
-          localStream = null; // optionally, reset localStream here
+          localStream = null;
         });
       } catch (err) {
         console.error("Error during screen sharing:", err);
         alert("Cannot share screen. Please ensure you have the proper permissions or try a different browser.");
       }
     });
-    
-    // When a new viewer joins, use the globally defined localStream to add tracks
-    socket.on("newViewer", async ({ viewerSocketId }) => {
-      // Check if the screen share stream exists before proceeding
-      if (!localStream) {
-        console.error("No local stream available for new viewer connection.");
-        return;
+
+    // --- Receiver (Liveroom) side: Handling incoming WebRTC offer ---
+
+    // Create a global variable to hold the remote stream
+    let remoteStream = new MediaStream();
+    let playInitiated = false;
+
+    socket.on("webrtcOffer", async ({ offer, roomId: offerRoomId }) => {
+      if (offerRoomId !== roomId) return;
+
+      // Create RTCPeerConnection for the viewer
+      pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
+
+      // Set up the video element once
+      const liveVideo = document.getElementById("liveVideo");
+      if (liveVideo) {
+        liveVideo.srcObject = remoteStream;
+      } else {
+        console.error("Live video element not found.");
       }
 
-      console.log("New viewer joined, socket id:", viewerSocketId);
-      const pcForViewer = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
+      // Instead of reassigning srcObject on every ontrack event,
+      // add incoming tracks to the shared remoteStream.
+      pc.ontrack = event => {
+        console.log("ontrack event triggered:", event);
+        remoteStream.addTrack(event.track);
+        document.getElementById("placeholder").style.display = "none";
 
-      // Add each track from localStream to the new connection
-      localStream.getTracks().forEach(track => {
-        pcForViewer.addTrack(track, localStream);
-      });
+        // Only call play() once to avoid interrupting an ongoing request.
+        if (liveVideo && !playInitiated) {
+          liveVideo
+            .play()
+            .then(() => {
+              console.log("Remote video is playing.");
+              playInitiated = true; // Mark as played so subsequent tracks do not trigger play()
+            })
+            .catch(err => {
+              console.error("Error playing remote video:", err);
+            });
+        }
+      };
 
-      pcForViewer.onicecandidate = event => {
+      pc.onicecandidate = event => {
         if (event.candidate) {
           socket.emit("webrtcCandidate", { roomId, candidate: event.candidate });
         }
       };
 
-      // Create an offer specifically for the new viewer
-      const offer = await pcForViewer.createOffer();
-      await pcForViewer.setLocalDescription(offer);
-      socket.emit("webrtcOffer", { roomId, offer, targetSocketId: viewerSocketId });
+      try {
+        await pc.setRemoteDescription(new RTCSessionDescription(offer));
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+        socket.emit("webrtcAnswer", { roomId, answer });
+      } catch (error) {
+        console.error("Error handling WebRTC offer:", error);
+      }
     });
 
-    // Nhận webrtcAnswer và ICE candidate từ khách (nếu có)
-    socket.on("webrtcAnswer", async ({ answer, roomId: answerRoomId }) => {
-      if (answerRoomId !== roomId || !pc) return;
-      await pc.setRemoteDescription(new RTCSessionDescription(answer));
-    });
     socket.on("webrtcCandidate", async ({ candidate, roomId: candidateRoomId }) => {
       if (candidateRoomId !== roomId || !pc) return;
       try {
@@ -258,6 +276,45 @@
         console.error("Error adding ICE candidate:", e);
       }
     });
+
+    // When a new viewer joins, send the screen share stream to that viewer.
+    socket.on("newViewer", async ({ viewerSocketId }) => {
+      if (!localStream) {
+        console.error("No local stream available for new viewer connection.");
+        return;
+      }
+      console.log("New viewer joined, socket id:", viewerSocketId);
+      const pcForViewer = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
+      localStream.getTracks().forEach(track => {
+        pcForViewer.addTrack(track, localStream);
+      });
+      pcForViewer.onicecandidate = event => {
+        if (event.candidate) {
+          socket.emit("webrtcCandidate", { roomId, candidate: event.candidate });
+        }
+      };
+      const offer = await pcForViewer.createOffer();
+      await pcForViewer.setLocalDescription(offer);
+      socket.emit("webrtcOffer", { roomId, offer, targetSocketId: viewerSocketId });
+    });
+
+    socket.on("webrtcAnswer", async ({ answer, roomId: answerRoomId }) => {
+      if (answerRoomId !== roomId || !pc) return;
+
+      // Only set the answer if the signaling state is "have-local-offer"
+      if (pc.signalingState === "have-local-offer") {
+        try {
+          await pc.setRemoteDescription(new RTCSessionDescription(answer));
+          console.log("Remote description set successfully");
+        } catch (error) {
+          console.error("Error setting remote description:", error);
+        }
+      } else {
+        console.warn("Peer connection signaling state is", pc.signalingState, 
+                     "- not setting remote description.");
+      }
+    });
+    
   </script>
 </body>
 </html>
