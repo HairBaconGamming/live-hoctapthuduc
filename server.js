@@ -166,7 +166,8 @@ io.on("connection", socket => {
   // WebRTC signaling: Offer
   socket.on("webrtcOffer", ({ roomId, offer, targetSocketId }) => {
     if (targetSocketId) {
-      io.to(targetSocketId).emit("webrtcOffer", { roomId, offer });
+      // Include streamer's socket id in the payload as streamerSocketId.
+      io.to(targetSocketId).emit("webrtcOffer", { roomId, offer, streamerSocketId: socket.id });
       console.log("webrtcOffer sent to target:", targetSocketId);
     } else {
       socket.to(roomId).emit("webrtcOffer", { roomId, offer });
@@ -178,7 +179,7 @@ io.on("connection", socket => {
   // --- Modified to include viewer's socket id in the forwarded answer ---
   socket.on("webrtcAnswer", ({ roomId, answer, targetSocketId }) => {
     if (targetSocketId) {
-      // Since the sender here is the viewer, attach its socket.id as targetSocketId
+      // Here, viewerSocketId is the sender's id.
       const viewerSocketId = socket.id;
       io.to(targetSocketId).emit("webrtcAnswer", { roomId, answer, targetSocketId: viewerSocketId });
       console.log("webrtcAnswer sent to target:", targetSocketId, "from viewer", viewerSocketId);

@@ -35,7 +35,7 @@
     .main-content {
       display: flex;
       width: 100%;
-      height: calc(100vh - 60px); /* subtract header height */
+      height: calc(100vh - 60px); /* trừ header */
     }
     /* ===== Video Area ===== */
     .video-area {
@@ -50,7 +50,7 @@
     .video-wrapper {
       width: 100%;
       position: relative;
-      /* Use aspect-ratio to maintain 16:9 */
+      /* Sử dụng aspect-ratio để giữ tỉ lệ 16:9 */
       aspect-ratio: 16/9;
     }
     .video-element {
@@ -108,7 +108,7 @@
       align-items: center;
       justify-content: center;
     }
-    /* Chat Content */
+    /* Bọc nội dung chat (tin nhắn và input) */
     #chatContent {
       display: flex;
       flex-direction: column;
@@ -150,7 +150,7 @@
       cursor: pointer;
       box-shadow: 0 0 10px rgba(255,124,247,0.5);
     }
-    /* Collapsed Chat */
+    /* Khi chat bị thu gọn: ẩn nội dung nhưng vẫn giữ header */
     .chat-hidden {
       width: 50px;
     }
@@ -176,7 +176,6 @@
     <!-- Video Area -->
     <div class="video-area">
       <div class="video-wrapper">
-        <!-- Video element for remote stream -->
         <video id="liveVideo" class="video-element" autoplay playsinline controls muted></video>
         <div id="placeholder" class="video-placeholder">
           Chủ phòng hiện chưa chia sẻ màn hình
@@ -187,6 +186,7 @@
     <div class="chat-area" id="chatArea">
       <div class="chat-header">
         <span>Phòng Chat</span>
+        <!-- Nút toggle luôn hiển thị -->
         <button id="toggleChatBtn"><i class="fas fa-chevron-right"></i></button>
       </div>
       <div id="chatContent">
@@ -201,9 +201,7 @@
   
   <script src="/socket.io/socket.io.js"></script>
   <script>
-    // =========================
     // Socket.IO & Chat logic
-    // =========================
     const socket = io();
     const roomId = "<%= room.id %>";
     const username = "<%= user.username %>";
@@ -239,7 +237,7 @@
       }
     });
 
-    // Toggle Chat Area
+    // Toggle Chat Area: chỉ ẩn nội dung chat (chatContent), giữ lại header với nút toggle
     const toggleChatBtn = document.getElementById("toggleChatBtn");
     const chatArea = document.getElementById("chatArea");
     const chatContent = document.getElementById("chatContent");
@@ -257,23 +255,15 @@
       }
     });
 
-    // ===============================
-    // WebRTC logic to receive stream from host
-    // ===============================
+    // WebRTC logic để nhận stream từ chủ phòng
     let pc;
-    // Create a global remoteStream and assign it to the video element once.
-    const liveVideo = document.getElementById("liveVideo");
-    const remoteStream = new MediaStream();
-    liveVideo.srcObject = remoteStream;
-    let playInitiated = false;
-    
-    socket.on("webrtcOffer", async ({ offer, roomId: offerRoomId }) => {
+    socket.on("webrtcOffer", async ({ offer, roomId: offerRoomId, streamerSocketId }) => {
       if (offerRoomId !== roomId) return;
 
-      // Create RTCPeerConnection
+      // Create RTCPeerConnection...
       pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
 
-      // When a track arrives, add it to our global remoteStream
+      // When a track arrives, add it to our global remoteStream (as already implemented)...
       pc.ontrack = event => {
         console.log("ontrack event triggered:", event);
         remoteStream.addTrack(event.track);
@@ -290,7 +280,7 @@
         }
       };
 
-      // ICE candidate handling
+      // ICE candidate handling...
       pc.onicecandidate = event => {
         if (event.candidate) {
           socket.emit("webrtcCandidate", { roomId, candidate: event.candidate });
@@ -301,13 +291,12 @@
         await pc.setRemoteDescription(new RTCSessionDescription(offer));
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
-        // <--- Modify the next line to include the targetSocketId.
-        socket.emit("webrtcAnswer", { roomId, answer, targetSocketId: socket.id });
+        // Now use the streamerSocketId provided by the server
+        socket.emit("webrtcAnswer", { roomId, answer, targetSocketId: streamerSocketId });
       } catch (error) {
         console.error("Error handling WebRTC offer:", error);
       }
     });
-    
     socket.on("webrtcCandidate", async ({ candidate, roomId: candidateRoomId }) => {
       if (candidateRoomId !== roomId || !pc) return;
       try {
