@@ -183,6 +183,9 @@
           socket.emit("webrtcCandidate", { roomId, candidate: event.candidate });
         }
       };
+      pc.oniceconnectionstatechange = () => {
+        console.log("ICE state:", pc.iceConnectionState);
+      };
       try {
         await pc.setRemoteDescription(new RTCSessionDescription(offer));
         const answer = await pc.createAnswer();
