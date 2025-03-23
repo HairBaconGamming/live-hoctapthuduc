@@ -267,6 +267,7 @@
         localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
         pc.onicecandidate = event => {
           if (event.candidate) {
+            console.log("New ICE candidate: ", event.candidate);
             socket.emit("webrtcCandidate", { roomId, candidate: event.candidate });
           }
         };
