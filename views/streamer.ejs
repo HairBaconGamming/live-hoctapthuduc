@@ -101,8 +101,6 @@
         <video id="screenShareVideo" autoplay muted playsinline></video>
       </div>
       <div class="panel-content">
-        <button id="startStreamBtn"><i class="fas fa-play"></i> Bắt đầu phát</button>
-        <button id="stopStreamBtn"><i class="fas fa-stop"></i> Dừng phát</button>
         <button id="endStreamBtn"><i class="fas fa-power-off"></i> Kết thúc live</button>
         <button id="shareScreenBtn"><i class="fas fa-desktop"></i> Chia sẻ màn hình</button>
       </div>
@@ -168,15 +166,6 @@
       }
     });
 
-    // Các nút điều khiển
-    document.getElementById("startStreamBtn").addEventListener("click", () => {
-      socket.emit("controlStream", { roomId, action: "start" });
-      alert("Bắt đầu phát!");
-    });
-    document.getElementById("stopStreamBtn").addEventListener("click", () => {
-      socket.emit("controlStream", { roomId, action: "stop" });
-      alert("Dừng phát tạm thời!");
-    });
     document.getElementById("endStreamBtn").addEventListener("click", () => {
       socket.emit("controlStream", { roomId, action: "end" });
       alert("Live stream đã kết thúc.");
