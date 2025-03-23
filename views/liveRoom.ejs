@@ -3,10 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <title><%= room.title %> - Live Room</title>
-  <!-- Link tới file CSS hiện đại -->
   <link rel="stylesheet" href="/style.css">
   <link rel="icon" type="image/png" href="https://cdn.glitch.global/71030012-56ea-4d26-a426-e0099201df1c/823029_library_512x512.png?v=1741523759119">
-  <!-- Google Fonts & Font Awesome -->
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
@@ -14,7 +12,7 @@
   <div class="live-header">
     <div class="live-left">
       <h1 class="live-title">
-        <i class="fas fa-video"></i> 
+        <i class="fas fa-video"></i>
         Live Stream: <span class="stream-title"><%= room.title %></span>
       </h1>
     </div>
@@ -31,14 +29,11 @@
       <h3>Live Video (Preview)</h3>
       <video id="streamVideo" autoplay muted playsinline style="width: 100%; max-width: 600px; border: 2px solid #00ffea; border-radius: 8px;"></video>
     </div>
-    
-    <!-- Khung chat trực tiếp -->
+    <!-- Khung chat -->
     <div id="chatBox">
       <h3>💬 Chat trực tiếp</h3>
       <ul id="chatMessages"></ul>
-      <!-- Hiển thị tên tài khoản (đã xác thực) -->
       <input type="hidden" id="username" value="<%= user.username %>">
-      <!-- Input nhập tin nhắn -->
       <input type="text" id="message" placeholder="Nhập tin nhắn..." autocomplete="off">
       <button id="sendBtn">Gửi</button>
     </div>
@@ -48,39 +43,32 @@
   <script>
     const socket = io();
     const roomId = "<%= room.id %>";
-    const username = document.getElementById("username").value; // Lấy tên tài khoản từ input hidden
+    const username = document.getElementById("username").value;
     const messageInput = document.getElementById("message");
     const sendBtn = document.getElementById("sendBtn");
     const chatMessages = document.getElementById("chatMessages");
     const viewerCount = document.getElementById("viewerCount");
 
-    // Tham gia phòng với tên tài khoản đã xác thực
     socket.emit("joinRoom", { roomId, username });
-
     socket.on("userJoined", msg => {
       const li = document.createElement("li");
       li.innerHTML = `<i>${msg}</i>`;
       chatMessages.appendChild(li);
     });
-
     socket.on("newMessage", data => {
       const li = document.createElement("li");
       li.textContent = `${data.username}: ${data.message}`;
       chatMessages.appendChild(li);
     });
-
     socket.on("updateViewers", count => {
       viewerCount.textContent = count;
     });
-
     sendBtn.addEventListener("click", () => {
       const message = messageInput.value.trim();
       if (!message) return;
       socket.emit("chatMessage", { roomId, username, message });
       messageInput.value = "";
     });
-
-    // Cho phím Enter gửi tin nhắn
     messageInput.addEventListener("keypress", function(e) {
       if (e.key === "Enter") {
         e.preventDefault();

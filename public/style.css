@@ -61,6 +61,11 @@ body {
   pointer-events: none; /* tắt tương tác */
 }
 
+.control-panel.collapsed .sigma {
+  opacity: 0;
+  pointer-events: none; /* tắt tương tác */
+}
+
 /* Style cho các nút bên trong panel */
 .control-panel button {
   margin: 5px;

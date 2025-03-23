@@ -7,16 +7,43 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
   <style>
-    /* Bổ sung style cho bảng điều khiển và live cam/screen */
+    /* Bổ sung style cho bảng điều khiển và screen share */
     .control-panel {
+      position: relative;
       background: rgba(0,0,0,0.7);
       border-radius: 8px;
       padding: 15px;
-      margin-top: 20px;
+      margin: 20px 0;
+      transition: height 0.3s ease, padding 0.3s ease;
+      overflow: hidden;
+    }
+    .control-panel.collapsed {
+      height: 50px;
+      padding: 5px;
+    }
+    .panel-toggle-btn {
+      position: absolute;
+      top: 5px;
+      right: 5px;
+      background: #ff7cf7;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      color: #fff;
+      width: 32px;
+      height: 32px;
       display: flex;
-      justify-content: space-around;
       align-items: center;
-      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .panel-content {
+      display: flex;
+      gap: 10px;
+      transition: opacity 0.3s ease;
+    }
+    .control-panel.collapsed .panel-content {
+      opacity: 0;
+      pointer-events: none;
     }
     .control-panel button {
       margin: 5px;
@@ -32,14 +59,15 @@
     .control-panel button:hover {
       background: #e06ac7;
     }
-    /* Live Cam Preview & Screen Share Preview */
-    #liveCamContainer, #screenShareContainer {
+    /* Screen Share Preview */
+    #screenShareContainer {
       margin-top: 20px;
       text-align: center;
     }
-    video {
+    #screenShareContainer video {
       width: 100%;
-      max-width: 600px;
+      max-width: 400px;
+      max-height: 400px;
       border: 2px solid #00ffea;
       border-radius: 8px;
       box-shadow: 0 0 15px rgba(0,255,234,0.6);
@@ -61,33 +89,26 @@
       </p>
     </div>
   </div>
-  
   <div class="container">
-    <!-- Khung video phát trực tiếp (ví dụ hiển thị preview từ server hoặc video của bạn) -->
+    <!-- Khung video phát trực tiếp -->
     <div id="videoStream">
       <div class="video-placeholder">[Video Stream của bạn]</div>
       <p>Chủ phòng: <%= room.ownername %></p>
     </div>
     
-    <!-- Bảng điều khiển gói trong .control-panel -->
+    <!-- Bảng điều khiển thu gọn/mở rộng -->
     <div class="control-panel" id="controlPanel">
       <!-- Nút toggle thu gọn/mở rộng -->
       <button id="togglePanelBtn" class="panel-toggle-btn">
         <i class="fas fa-chevron-up"></i>
       </button>
       
-      <!-- Live Cam Preview (Webcam) -->
-      <div id="liveCamContainer">
-        <h3>Live Camera Preview</h3>
-        <video id="liveCamVideo" autoplay muted playsinline></video>
-      </div>
-
       <!-- Screen Share Preview -->
       <div id="screenShareContainer">
         <h3>Screen Share Preview</h3>
         <video id="screenShareVideo" autoplay muted playsinline></video>
       </div>
-
+      
       <!-- Nội dung chính của panel -->
       <div class="panel-content">
         <button id="startStreamBtn"><i class="fas fa-play"></i> Bắt đầu phát</button>
@@ -116,23 +137,8 @@
     const sendBtn = document.getElementById("sendBtn");
     const chatMessages = document.getElementById("chatMessages");
     const viewerCount = document.getElementById("viewerCount");
-    // Tìm nút toggle và panel
-    const togglePanelBtn = document.getElementById('togglePanelBtn');
-    const controlPanel = document.getElementById('controlPanel');
 
-    togglePanelBtn.addEventListener('click', () => {
-      // Thêm hoặc gỡ class 'collapsed'
-      controlPanel.classList.toggle('collapsed');
-
-      // Đổi icon chevron tương ứng
-      if (controlPanel.classList.contains('collapsed')) {
-        togglePanelBtn.innerHTML = '<i class="fas fa-chevron-down"></i>';
-      } else {
-        togglePanelBtn.innerHTML = '<i class="fas fa-chevron-up"></i>';
-      }
-    });
-
-    // Tham gia phòng
+    // Tham gia phòng với tên chủ phòng
     socket.emit("joinRoom", { roomId, username });
     socket.on("userJoined", msg => {
       const li = document.createElement("li");
@@ -160,7 +166,19 @@
       }
     });
 
-    // Bảng điều khiển
+    // Bảng điều khiển toggle
+    const togglePanelBtn = document.getElementById('togglePanelBtn');
+    const controlPanel = document.getElementById('controlPanel');
+    togglePanelBtn.addEventListener('click', () => {
+      controlPanel.classList.toggle('collapsed');
+      if (controlPanel.classList.contains('collapsed')) {
+        togglePanelBtn.innerHTML = '<i class="fas fa-chevron-down"></i>';
+      } else {
+        togglePanelBtn.innerHTML = '<i class="fas fa-chevron-up"></i>';
+      }
+    });
+
+    // Các nút điều khiển
     document.getElementById("startStreamBtn").addEventListener("click", () => {
       socket.emit("controlStream", { roomId, action: "start" });
       alert("Bắt đầu phát!");
@@ -175,19 +193,6 @@
       window.location.href = "https://hoctap-9a3.glitch.me/";
     });
     
-    // Live Cam: Bật webcam của chủ phòng
-    async function startLiveCam() {
-      try {
-        const camStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-        const camVideo = document.getElementById("liveCamVideo");
-        camVideo.srcObject = camStream;
-      } catch (err) {
-        console.error("Error accessing webcam:", err);
-        alert("Không thể truy cập webcam, vui lòng kiểm tra quyền truy cập!");
-      }
-    }
-    startLiveCam();
-
     // Screen Share: Chọn màn hình
     document.getElementById("shareScreenBtn").addEventListener("click", async () => {
       try {
@@ -197,7 +202,6 @@
         });
         const screenVideo = document.getElementById("screenShareVideo");
         screenVideo.srcObject = screenStream;
-        // Khi người dùng dừng chia sẻ
         screenStream.getVideoTracks()[0].addEventListener("ended", () => {
           console.log("Người dùng đã dừng chia sẻ màn hình");
           screenVideo.srcObject = null;
