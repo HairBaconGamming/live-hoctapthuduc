@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
   <style>
-    /* Bổ sung style cho bảng điều khiển và screen share */
+    /* Control Panel */
     .control-panel {
       position: relative;
       background: rgba(0,0,0,0.7);
@@ -90,26 +90,21 @@
     </div>
   </div>
   <div class="container">
-    <!-- Khung video phát trực tiếp -->
+    <!-- Video Stream (preview từ server hoặc nguồn khác) -->
     <div id="videoStream">
       <div class="video-placeholder">[Video Stream của bạn]</div>
       <p>Chủ phòng: <%= room.ownername %></p>
     </div>
     
-    <!-- Bảng điều khiển thu gọn/mở rộng -->
+    <!-- Control Panel với toggle -->
     <div class="control-panel" id="controlPanel">
-      <!-- Nút toggle thu gọn/mở rộng -->
       <button id="togglePanelBtn" class="panel-toggle-btn">
         <i class="fas fa-chevron-up"></i>
       </button>
-      
-      <!-- Screen Share Preview -->
       <div id="screenShareContainer">
         <h3>Screen Share Preview</h3>
         <video id="screenShareVideo" autoplay muted playsinline></video>
       </div>
-      
-      <!-- Nội dung chính của panel -->
       <div class="panel-content">
         <button id="startStreamBtn"><i class="fas fa-play"></i> Bắt đầu phát</button>
         <button id="stopStreamBtn"><i class="fas fa-stop"></i> Dừng phát</button>
@@ -138,7 +133,7 @@
     const chatMessages = document.getElementById("chatMessages");
     const viewerCount = document.getElementById("viewerCount");
 
-    // Tham gia phòng với tên chủ phòng
+    // Tham gia phòng
     socket.emit("joinRoom", { roomId, username });
     socket.on("userJoined", msg => {
       const li = document.createElement("li");
@@ -166,7 +161,7 @@
       }
     });
 
-    // Bảng điều khiển toggle
+    // Control Panel Toggle
     const togglePanelBtn = document.getElementById('togglePanelBtn');
     const controlPanel = document.getElementById('controlPanel');
     togglePanelBtn.addEventListener('click', () => {
@@ -192,23 +187,54 @@
       alert("Live stream đã kết thúc.");
       window.location.href = "https://hoctap-9a3.glitch.me/";
     });
-    
-    // Screen Share: Chọn màn hình
+
+    // Realtime Screen Share: Sử dụng WebRTC signaling qua Socket.IO
+    let pc; // RTCPeerConnection for screen share
     document.getElementById("shareScreenBtn").addEventListener("click", async () => {
       try {
         const screenStream = await navigator.mediaDevices.getDisplayMedia({
           video: true,
           audio: true
         });
+        // Gán stream cho preview local
         const screenVideo = document.getElementById("screenShareVideo");
         screenVideo.srcObject = screenStream;
+        // Tạo RTCPeerConnection
+        pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
+        // Thêm các track từ screen share vào pc
+        screenStream.getTracks().forEach(track => pc.addTrack(track, screenStream));
+        // Xử lý ICE candidate và gửi qua signaling
+        pc.onicecandidate = event => {
+          if (event.candidate) {
+            socket.emit("webrtcCandidate", { roomId, candidate: event.candidate });
+          }
+        };
+        // Tạo offer và gửi offer qua Socket.IO
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        socket.emit("webrtcOffer", { roomId, offer });
+        // Khi người dùng dừng chia sẻ màn hình, gỡ stream preview
         screenStream.getVideoTracks()[0].addEventListener("ended", () => {
           console.log("Người dùng đã dừng chia sẻ màn hình");
           screenVideo.srcObject = null;
         });
       } catch (err) {
-        console.error("Lỗi khi chia sẻ màn hình:", err);
+        console.error("Lỗi khi chia sẻ màn hình realtime:", err);
         alert("Không thể chia sẻ màn hình, vui lòng kiểm tra quyền truy cập hoặc trình duyệt!");
+      }
+    });
+
+    // Nhận webrtcAnswer và ICE candidate từ khách (nếu có)
+    socket.on("webrtcAnswer", async ({ answer, roomId: answerRoomId }) => {
+      if (answerRoomId !== roomId || !pc) return;
+      await pc.setRemoteDescription(new RTCSessionDescription(answer));
+    });
+    socket.on("webrtcCandidate", async ({ candidate, roomId: candidateRoomId }) => {
+      if (candidateRoomId !== roomId || !pc) return;
+      try {
+        await pc.addIceCandidate(new RTCIceCandidate(candidate));
+      } catch (e) {
+        console.error("Error adding ICE candidate:", e);
       }
     });
   </script>
