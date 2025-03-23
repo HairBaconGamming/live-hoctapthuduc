@@ -25,8 +25,9 @@
       padding: 20px;
     }
     .video-wrapper {
-      width: 80%;
-      max-width: 1200px;
+      width: 100%;
+      /* Sử dụng aspect-ratio để giữ tỉ lệ 16:9 */
+      aspect-ratio: 16/9;
       position: relative;
     }
     .video-wrapper::before {
@@ -116,6 +117,16 @@
       cursor: pointer;
       box-shadow: 0 0 10px rgba(255,124,247,0.5);
     }
+    /* ===== Responsive: Khi chat thu gọn, video chiếm full màn hình ===== */
+    .chat-hidden .chat-content {
+      display: none;
+    }
+    .chat-hidden .chat-area {
+      width: 50px;
+    }
+    .chat-hidden .video-area {
+      flex: 1 1 100%;
+    }
   </style>
 </head>
 <body>
@@ -194,19 +205,16 @@
       }
     });
 
-    // Chat area toggle (thu gọn/mở rộng)
+    // Toggle Chat Content: nút toggle luôn nằm trong header của chat
     const toggleChatBtn = document.getElementById("toggleChatBtn");
-    const chatArea = document.querySelector(".chat-area");
-    const videoArea = document.querySelector(".video-area");
+    const chatContent = document.getElementById("chatContent");
     toggleChatBtn.addEventListener("click", () => {
-      if (chatArea.style.width === "0px") {
-        chatArea.style.width = "350px";
+      if (chatContent.classList.contains("collapsed")) {
+        chatContent.classList.remove("collapsed");
         toggleChatBtn.innerHTML = '<i class="fas fa-chevron-right"></i>';
-        videoArea.style.flex = "1";
       } else {
-        chatArea.style.width = "0";
+        chatContent.classList.add("collapsed");
         toggleChatBtn.innerHTML = '<i class="fas fa-chevron-left"></i>';
-        videoArea.style.flex = "1 1 100%";
       }
     });
 
