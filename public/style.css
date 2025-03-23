@@ -477,46 +477,50 @@ body {
       box-shadow: 0 0 15px rgba(0,255,234,0.6);
     }
 
+/* Overlay defaults */
 #roomEndedOverlay {
   position: fixed;
-  top: 0;
-  left: 0;
+  top: 0; left: 0;
   width: 100%;
   height: 100%;
-  background: rgba(20, 20, 20, 0.95);
-  color: #fff;
+  background-color: rgba(0, 0, 0, 0.85);
+  color: #ffffff;
   z-index: 9999;
-  display: none;
+  display: flex;
+  flex-direction: column;
   justify-content: center;
   align-items: center;
-  flex-direction: column;
-  text-align: center;
-  animation: fadeIn 0.5s ease-in-out;
+
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-20px);
+
+  transition: opacity 0.5s ease, transform 0.5s ease, visibility 0.5s;
 }
 
-.overlay-content h2 {
-  font-size: 2em;
+#roomEndedOverlay.active {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+#roomEndedOverlay h2 {
+  font-size: 2.5em;
   margin-bottom: 20px;
 }
 
-.return-button {
-  display: inline-block;
+#roomEndedOverlay button {
   padding: 12px 24px;
-  font-size: 1em;
-  background-color: #00ffea;
-  color: #1e1e2f;
-  text-decoration: none;
-  border-radius: 8px;
-  box-shadow: 0 0 10px rgba(0,255,234,0.6);
-  transition: background-color 0.3s, transform 0.3s;
+  font-size: 1.2em;
+  border: none;
+  border-radius: 6px;
+  background-color: #ff7cf7;
+  color: #fff;
+  cursor: pointer;
+  transition: background-color 0.3s ease, transform 0.3s ease;
 }
 
-.return-button:hover {
-  background-color: #00c2b0;
+#roomEndedOverlay button:hover {
+  background-color: #e06ac7;
   transform: scale(1.05);
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
 }

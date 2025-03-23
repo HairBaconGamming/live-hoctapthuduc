@@ -112,10 +112,10 @@
     
     <!-- Room Ended Overlay -->
     <div id="roomEndedOverlay">
-      <div class="overlay-content">
-        <h2>Phòng Live này đã kết thúc.</h2>
-        <a href="https://hoctap-9a3.glitch.me/live" class="return-button">Quay lại trang Live</a>
-      </div>
+      <h2>🔴 Buổi phát trực tiếp đã kết thúc</h2>
+      <button onclick="window.location.href='https://hoctap-9a3.glitch.me/live'">
+        Quay lại danh sách Live
+      </button>
     </div>
   </div>
   
@@ -219,15 +219,26 @@
     socket.on("roomEnded", () => {
       console.log("Room has ended!");
 
-      // Ẩn nội dung hiện tại
-      document.getElementById("mainContent").style.display = "none";
-      document.getElementById("chatArea").style.display = "none";
+      // Optional: hide the content
+      const mainContent = document.getElementById("mainContent");
+      if (mainContent) mainContent.style.display = "none";
 
-      // Hiển thị overlay thông báo kết thúc
-      document.getElementById("roomEndedOverlay").style.display = "flex";
+      // Show the overlay
+      const overlay = document.getElementById("roomEndedOverlay");
+      if (overlay) {
+        overlay.classList.add("active");
+      }
 
-      // Đóng kết nối peer nếu cần
-      if (pc) pc.close();
+      // Close WebRTC connection if any
+      if (pc) {
+        pc.close();
+        pc = null;
+      }
+
+      // OPTIONAL: Auto-redirect after a few seconds
+      setTimeout(() => {
+        window.location.href = "https://hoctap-9a3.glitch.me/live";
+      }, 10000); // 5 seconds
     });
   </script>
 </body>
