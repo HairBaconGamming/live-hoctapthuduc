@@ -117,7 +117,7 @@
   </div>
 
   <script src="/socket.io/socket.io.js"></script>
-  <script>
+  <script type="module">
     const socket = io();
     const roomId = "<%= room.id %>";
     const username = document.getElementById("username").value;
@@ -173,49 +173,62 @@
     });
 
     // Realtime Screen Share: Sử dụng WebRTC signaling qua Socket.IO
+    let localStream = null;
     let pc; // RTCPeerConnection for screen share
     document.getElementById("shareScreenBtn").addEventListener("click", async () => {
       try {
-        const screenStream = await navigator.mediaDevices.getDisplayMedia({
+        // Get the display media stream and assign it to localStream
+        localStream = await navigator.mediaDevices.getDisplayMedia({
           video: true,
           audio: true
         });
-        // Gán stream cho preview local
+
+        // Assign stream to preview local
         const screenVideo = document.getElementById("screenShareVideo");
-        screenVideo.srcObject = screenStream;
-        // Tạo RTCPeerConnection
+        screenVideo.srcObject = localStream;
+
+        // Create RTCPeerConnection
         pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
-        // Thêm các track từ screen share vào pc
-        screenStream.getTracks().forEach(track => pc.addTrack(track, screenStream));
-        // Xử lý ICE candidate và gửi qua signaling
+
+        // Add tracks to the RTCPeerConnection
+        localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+
+        // Handle ICE candidates
         pc.onicecandidate = event => {
           if (event.candidate) {
             socket.emit("webrtcCandidate", { roomId, candidate: event.candidate });
           }
         };
-        // Tạo offer và gửi offer qua Socket.IO
+
+        // Create and send offer via Socket.IO
         const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
         socket.emit("webrtcOffer", { roomId, offer });
-        // Khi người dùng dừng chia sẻ màn hình, gỡ stream preview
-        screenStream.getVideoTracks()[0].addEventListener("ended", () => {
-          console.log("Người dùng đã dừng chia sẻ màn hình");
+
+        // When the user stops sharing, clear the preview
+        localStream.getVideoTracks()[0].addEventListener("ended", () => {
+          console.log("User stopped screen sharing");
           screenVideo.srcObject = null;
+          localStream = null; // optionally, reset localStream here
         });
       } catch (err) {
-        console.error("Lỗi khi chia sẻ màn hình realtime:", err);
-        alert("Không thể chia sẻ màn hình, vui lòng kiểm tra quyền truy cập hoặc trình duyệt!");
+        console.error("Error during screen sharing:", err);
+        alert("Cannot share screen. Please ensure you have the proper permissions or try a different browser.");
       }
     });
     
-    // Khi chủ phòng (streamer) nhận được sự kiện "newViewer"
+    // When a new viewer joins, use the globally defined localStream to add tracks
     socket.on("newViewer", async ({ viewerSocketId }) => {
-      console.log("Có viewer mới, socket id:", viewerSocketId);
-      // Tạo một RTCPeerConnection mới cho viewer mới
+      // Check if the screen share stream exists before proceeding
+      if (!localStream) {
+        console.error("No local stream available for new viewer connection.");
+        return;
+      }
+
+      console.log("New viewer joined, socket id:", viewerSocketId);
       const pcForViewer = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
 
-      // Giả sử bạn đã có stream từ màn hình/chia sẻ của chủ phòng, ví dụ: camStream
-      // Và bạn đã lưu stream đó trong biến "localStream"
+      // Add each track from localStream to the new connection
       localStream.getTracks().forEach(track => {
         pcForViewer.addTrack(track, localStream);
       });
@@ -226,10 +239,9 @@
         }
       };
 
-      // Tạo offer dành riêng cho viewer đó
+      // Create an offer specifically for the new viewer
       const offer = await pcForViewer.createOffer();
       await pcForViewer.setLocalDescription(offer);
-      // Gửi offer trực tiếp tới viewer (targetSocketId)
       socket.emit("webrtcOffer", { roomId, offer, targetSocketId: viewerSocketId });
     });
 
