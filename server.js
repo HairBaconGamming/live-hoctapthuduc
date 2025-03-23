@@ -1,4 +1,3 @@
-// server.js
 const express = require("express");
 const http = require("http");
 const { v4: uuidv4 } = require("uuid");
@@ -13,13 +12,6 @@ const io = socketIO(server);
 
 const PORT = process.env.PORT || 3001;
 const SECRET_KEY = process.env.JWT_SECRET || "your_secret_key";
-
-// Middleware: isLoggedIn (đơn giản, ví dụ kiểm tra session hoặc token)
-function isLoggedIn(req, res, next) {
-  // Ví dụ: nếu có req.user thì đã đăng nhập
-  if (req.user) return next();
-  return res.status(401).send("Unauthorized: Please log in.");
-}
 
 // Middleware: kiểm tra token từ live-hoctap-9a3
 function checkHoctapAuth(req, res, next) {
@@ -36,13 +28,12 @@ function checkHoctapAuth(req, res, next) {
   }
 }
 
-// Cấu hình middleware
 app.use(cors());
 app.use(bodyParser.json());
 app.use(express.static("public"));
 app.set("view engine", "ejs");
 
-// Tạm lưu các room đã tạo (có thể thay bằng database trong sản xuất)
+// Tạm lưu các room (trong production dùng DB)
 let liveRooms = [];
 
 /* =============================
@@ -66,15 +57,11 @@ app.post("/api/createStream", (req, res) => {
   };
   liveRooms.push(newRoom);
   console.log("✅ Room created:", newRoom);
-  return res.json({
-    success: true,
-    liveStreamUrl,
-    roomId
-  });
+  return res.json({ success: true, liveStreamUrl, roomId });
 });
 
 /* =============================
-    API LẤY DANH SÁCH ROOM ĐANG LIVE
+    API LẤY DS ROOM LIVE STREAM
 ============================= */
 app.get("/api/rooms", (req, res) => {
   res.json(liveRooms);
@@ -83,7 +70,11 @@ app.get("/api/rooms", (req, res) => {
 /* =============================
     API LẤY TOKEN cho live stream
 ============================= */
-app.get("/live/getToken", isLoggedIn, (req, res) => {
+app.get("/live/getToken", (req, res) => {
+  // Giả sử hệ thống hoctap-9a3 đã kiểm tra đăng nhập và gán req.user
+  if (!req.user) {
+    return res.status(401).json({ error: "Chưa đăng nhập." });
+  }
   const roomId = req.query.roomId;
   if (!roomId) {
     return res.status(400).json({ error: "RoomId không hợp lệ." });
@@ -102,7 +93,7 @@ app.get("/live/getToken", isLoggedIn, (req, res) => {
 app.get("/room/:id", checkHoctapAuth, (req, res) => {
   const room = liveRooms.find(r => r.id === req.params.id);
   if (!room) return res.status(404).send("Room không tồn tại.");
-  // Nếu ownerid của room bằng userId từ token, thì user là chủ phòng
+  // Nếu ownerid của room bằng userId từ token, thì là chủ phòng
   if (room.ownerid.toString() === req.user.userId.toString()) {
     res.render("streamer", { room, user: req.user });
   } else {
@@ -111,10 +102,13 @@ app.get("/room/:id", checkHoctapAuth, (req, res) => {
 });
 
 /* =============================
-    SOCKET.IO CHAT & CONTROL
+    SIGNALING với WebRTC qua Socket.IO
 ============================= */
+// Dùng để lưu các peerConnection của broadcaster cho từng watcher
+const peerConnections = {};
+
 io.on("connection", socket => {
-  console.log("💡 New client connected");
+  console.log("💡 New client connected:", socket.id);
   
   socket.on("joinRoom", ({ roomId, username }) => {
     socket.join(roomId);
@@ -126,10 +120,26 @@ io.on("connection", socket => {
     }
   });
 
-  socket.on("chatMessage", ({ roomId, username, message }) => {
-    io.to(roomId).emit("newMessage", { username, message });
+  // Dành cho broadcaster: khi có watcher mới, server thông báo cho broadcaster
+  socket.on("broadcaster", (roomId) => {
+    socket.broadcast.to(roomId).emit("watcher", socket.id);
   });
 
+  // Chuyển tiếp signaling offer từ broadcaster đến watcher
+  socket.on("offer", ({ offer, roomId, to }) => {
+    io.to(to).emit("offer", { offer, from: socket.id });
+  });
+  
+  // Chuyển tiếp signaling answer từ watcher đến broadcaster
+  socket.on("answer", ({ answer, roomId, to }) => {
+    io.to(to).emit("answer", { answer, watcherId: socket.id });
+  });
+  
+  // Chuyển tiếp ICE candidate
+  socket.on("candidate", ({ candidate, roomId, to }) => {
+    io.to(to).emit("candidate", { candidate, from: socket.id });
+  });
+  
   socket.on("controlStream", ({ roomId, action }) => {
     io.to(roomId).emit("streamControl", { action });
     console.log(`Control stream action: ${action} in room ${roomId}`);
@@ -144,31 +154,15 @@ io.on("connection", socket => {
         io.to(roomId).emit("updateViewers", room.viewers);
       }
     });
-    
-    // Các sự kiện signaling, ví dụ:
-    socket.on("offer", data => {
-      // data: { roomId, offer }
-      socket.to(data.roomId).emit("offer", data);
-    });
-
-    socket.on("answer", data => {
-      // data: { roomId, answer }
-      socket.to(data.roomId).emit("answer", data);
-    });
-
-    socket.on("ice-candidate", data => {
-      // data: { roomId, candidate }
-      socket.to(data.roomId).emit("ice-candidate", data);
-    });
   });
 
   socket.on("disconnect", () => {
-    console.log("👋 Client disconnected");
+    console.log("👋 Client disconnected:", socket.id);
   });
 });
 
 /* =============================
-    Redirect root
+    REDIRECT ROOT
 ============================= */
 app.get("/", (req, res) => {
   res.redirect("https://hoctap-9a3.glitch.me/");

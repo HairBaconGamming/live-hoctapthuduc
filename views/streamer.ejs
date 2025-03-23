@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
   <style>
-    /* Bổ sung style cho bảng điều khiển và live cam */
+    /* Bổ sung style cho bảng điều khiển và live cam/screen */
     .control-panel {
       background: rgba(0,0,0,0.7);
       border-radius: 8px;
@@ -32,22 +32,17 @@
     .control-panel button:hover {
       background: #e06ac7;
     }
-    /* Live Cam / Screen Preview */
-    #liveCamContainer {
+    /* Live Cam Preview & Screen Share Preview */
+    #liveCamContainer, #screenShareContainer {
       margin-top: 20px;
       text-align: center;
     }
-    #liveCamVideo, #screenShareVideo {
+    video {
       width: 100%;
       max-width: 600px;
       border: 2px solid #00ffea;
       border-radius: 8px;
       box-shadow: 0 0 15px rgba(0,255,234,0.6);
-      margin-top: 10px;
-    }
-    #screenShareContainer {
-      margin-top: 20px;
-      text-align: center;
     }
   </style>
 </head>
@@ -66,20 +61,19 @@
       </p>
     </div>
   </div>
-
+  
   <div class="container">
-    <!-- Khung video phát trực tiếp của chủ phòng -->
+    <!-- Khung video phát trực tiếp (ví dụ hiển thị preview từ server hoặc video của bạn) -->
     <div id="videoStream">
       <div class="video-placeholder">[Video Stream của bạn]</div>
       <p>Chủ phòng: <%= room.ownername %></p>
     </div>
-
-    <!-- Bảng điều khiển dành cho chủ phòng -->
+    
+    <!-- Bảng điều khiển của chủ phòng -->
     <div class="control-panel">
       <button id="startStreamBtn"><i class="fas fa-play"></i> Bắt đầu phát</button>
       <button id="stopStreamBtn"><i class="fas fa-stop"></i> Dừng phát</button>
       <button id="endStreamBtn"><i class="fas fa-power-off"></i> Kết thúc live</button>
-      <!-- Nút chia sẻ màn hình -->
       <button id="shareScreenBtn"><i class="fas fa-desktop"></i> Chia sẻ màn hình</button>
     </div>
     
@@ -88,14 +82,14 @@
       <h3>Live Camera Preview</h3>
       <video id="liveCamVideo" autoplay muted playsinline></video>
     </div>
-
+    
     <!-- Screen Share Preview -->
     <div id="screenShareContainer">
       <h3>Screen Share Preview</h3>
       <video id="screenShareVideo" autoplay muted playsinline></video>
     </div>
     
-    <!-- Khung chat trực tiếp -->
+    <!-- Khung chat -->
     <div id="chatBox">
       <h3>💬 Chat trực tiếp với người xem</h3>
       <ul id="chatMessages"></ul>
@@ -115,32 +109,27 @@
     const chatMessages = document.getElementById("chatMessages");
     const viewerCount = document.getElementById("viewerCount");
 
-    // Tham gia phòng với tên chủ phòng
+    // Tham gia phòng
     socket.emit("joinRoom", { roomId, username });
-
     socket.on("userJoined", msg => {
       const li = document.createElement("li");
       li.innerHTML = `<i>${msg}</i>`;
       chatMessages.appendChild(li);
     });
-
     socket.on("newMessage", data => {
       const li = document.createElement("li");
       li.textContent = `${data.username}: ${data.message}`;
       chatMessages.appendChild(li);
     });
-
     socket.on("updateViewers", count => {
       viewerCount.textContent = count;
     });
-
     sendBtn.addEventListener("click", () => {
       const message = messageInput.value.trim();
       if (!message) return;
       socket.emit("chatMessage", { roomId, username, message });
       messageInput.value = "";
     });
-
     messageInput.addEventListener("keypress", function(e) {
       if (e.key === "Enter") {
         e.preventDefault();
@@ -148,7 +137,7 @@
       }
     });
 
-    // Bảng điều khiển (control panel)
+    // Bảng điều khiển
     document.getElementById("startStreamBtn").addEventListener("click", () => {
       socket.emit("controlStream", { roomId, action: "start" });
       alert("Bắt đầu phát!");
@@ -162,32 +151,30 @@
       alert("Live stream đã kết thúc.");
       window.location.href = "https://hoctap-9a3.glitch.me/";
     });
-
-    // --- Live Cam: Khởi tạo webcam stream ---
-    async function startLocalCam() {
+    
+    // Live Cam: Bật webcam của chủ phòng
+    async function startLiveCam() {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-        const videoElement = document.getElementById("liveCamVideo");
-        videoElement.srcObject = stream;
+        const camStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        const camVideo = document.getElementById("liveCamVideo");
+        camVideo.srcObject = camStream;
       } catch (err) {
         console.error("Error accessing webcam:", err);
         alert("Không thể truy cập webcam, vui lòng kiểm tra quyền truy cập!");
       }
     }
-    startLocalCam();
+    startLiveCam();
 
-    // --- Screen Share: Khởi tạo quay màn hình ---
-    const shareScreenBtn = document.getElementById("shareScreenBtn");
-    shareScreenBtn.addEventListener("click", async () => {
+    // Screen Share: Chọn màn hình
+    document.getElementById("shareScreenBtn").addEventListener("click", async () => {
       try {
         const screenStream = await navigator.mediaDevices.getDisplayMedia({
           video: true,
-          audio: true // Cho phép chia sẻ âm thanh hệ thống (nếu trình duyệt hỗ trợ)
+          audio: true
         });
         const screenVideo = document.getElementById("screenShareVideo");
         screenVideo.srcObject = screenStream;
-
-        // Khi người dùng dừng chia sẻ màn hình
+        // Khi người dùng dừng chia sẻ
         screenStream.getVideoTracks()[0].addEventListener("ended", () => {
           console.log("Người dùng đã dừng chia sẻ màn hình");
           screenVideo.srcObject = null;
