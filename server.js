@@ -49,24 +49,38 @@ let liveRooms = [];
 ============================= */
 app.post("/api/createStream", (req, res) => {
   const { roomOwnerId, roomOwnerName, title } = req.body;
+
   if (!roomOwnerId) {
     return res
       .status(400)
       .json({ error: "Thiếu thông tin chủ phòng (roomOwnerId)." });
   }
+
+  // ✅ Kiểm tra nếu user đã có 1 phòng live chưa
+  const existingRoom = liveRooms.find(room => room.ownerid === roomOwnerId);
+  if (existingRoom) {
+    return res.status(400).json({
+      error: "Bạn đã có một phòng live đang hoạt động.",
+      existingRoomUrl: existingRoom.liveStreamUrl,
+      roomId: existingRoom.id
+    });
+  }
+
   const roomId = uuidv4();
   const liveStreamUrl = `https://live-hoctap-9a3.glitch.me/room/${roomId}`;
   const newRoom = {
     id: roomId,
-    owner: roomOwnerName,         
+    owner: roomOwnerName,
     ownerid: roomOwnerId,
     title: title || "Live Stream không tiêu đề",
     liveStreamUrl,
     viewers: 0,
     createdAt: new Date(),
   };
+
   liveRooms.push(newRoom);
   console.log("✅ Room created:", newRoom);
+
   return res.json({
     success: true,
     liveStreamUrl,

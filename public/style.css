@@ -517,10 +517,29 @@ body {
   background-color: #ff7cf7;
   color: #fff;
   cursor: pointer;
-  transition: background-color 0.3s ease, transform 0.3s ease;
+
+  /* Glow effect */
+  box-shadow: 0 0 15px rgba(255, 124, 247, 0.7),
+              0 0 30px rgba(255, 124, 247, 0.5),
+              0 0 45px rgba(255, 124, 247, 0.3);
+
+  /* Smooth transitions */
+  transition: background-color 0.3s ease,
+              transform 0.3s ease,
+              box-shadow 0.3s ease;
 }
 
 #roomEndedOverlay button:hover {
   background-color: #e06ac7;
   transform: scale(1.05);
+
+  /* Intensify the glow on hover */
+  box-shadow: 0 0 20px rgba(255, 124, 247, 1),
+              0 0 40px rgba(255, 124, 247, 0.8),
+              0 0 60px rgba(255, 124, 247, 0.6);
+}
+
+#roomEndedOverlay button:active {
+  transform: scale(0.98);
+  box-shadow: 0 0 10px rgba(255, 124, 247, 0.7);
 }

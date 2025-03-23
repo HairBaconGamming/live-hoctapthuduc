@@ -110,13 +110,12 @@
       </div>
     </div>
     
-    <!-- Room Ended Overlay -->
-    <div id="roomEndedOverlay">
-      <h2>🔴 Buổi phát trực tiếp đã kết thúc</h2>
-      <button onclick="window.location.href='https://hoctap-9a3.glitch.me/live'">
-        Quay lại danh sách Live
-      </button>
-    </div>
+  </div>
+  <div id="roomEndedOverlay">
+    <h2>🔴 Buổi phát trực tiếp đã kết thúc</h2>
+    <button onclick="window.location.href='https://hoctap-9a3.glitch.me/live'">
+      Quay lại danh sách Live
+    </button>
   </div>
   
   <script src="/socket.io/socket.io.js"></script>
@@ -217,28 +216,26 @@
     
     // Khi phòng live kết thúc
     socket.on("roomEnded", () => {
-      console.log("Room has ended!");
+      console.log("Room has ended event received!");
 
-      // Optional: hide the content
-      const mainContent = document.getElementById("mainContent");
-      if (mainContent) mainContent.style.display = "none";
+      const overlay = document.getElementById('roomEndedOverlay');
+      const mainContent = document.getElementById('mainContent');
 
-      // Show the overlay
-      const overlay = document.getElementById("roomEndedOverlay");
-      if (overlay) {
-        overlay.classList.add("active");
-      }
+      if (mainContent) mainContent.style.display = 'none';
 
-      // Close WebRTC connection if any
-      if (pc) {
-        pc.close();
-        pc = null;
-      }
+      // Remove active if somehow already there (safe reset)
+      overlay.classList.remove('active');
 
-      // OPTIONAL: Auto-redirect after a few seconds
+      // Force reflow/repaint
+      void overlay.offsetWidth;
+
+      // Now add active -> triggers transition!
+      overlay.classList.add('active');
+
+      // Optional auto redirect after 5 seconds
       setTimeout(() => {
         window.location.href = "https://hoctap-9a3.glitch.me/live";
-      }, 10000); // 5 seconds
+      }, 15000);
     });
   </script>
 </body>
