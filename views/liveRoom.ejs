@@ -8,11 +8,34 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
   <style>
-    /* ===== Layout: Video Area + Chat Area ===== */
+    /* ===== Global Layout ===== */
+    body {
+      font-family: 'Poppins', sans-serif;
+      background: linear-gradient(135deg, #1e1e2f, #252536);
+      color: #f1f1f1;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+    }
+    header {
+      height: 60px;
+      background: #111;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      padding: 0 20px;
+    }
+    header h1 {
+      font-size: 1.4em;
+      margin-right: auto;
+    }
+    header p {
+      margin-left: auto;
+    }
     .main-content {
       display: flex;
       width: 100%;
-      height: calc(100vh - 60px); /* trừ chiều cao header */
+      height: calc(100vh - 60px); /* trừ header */
     }
     /* ===== Video Area ===== */
     .video-area {
@@ -21,23 +44,16 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      position: relative;
       padding: 20px;
+      position: relative;
     }
     .video-wrapper {
       width: 100%;
-      max-height: 90%;
-      aspect-ratio: 16/9;
       position: relative;
-    }
-    .video-wrapper::before {
-      content: "";
-      display: block;
+      /* Sử dụng aspect-ratio để giữ tỉ lệ 16:9 */
       aspect-ratio: 16/9;
     }
     .video-element {
-      position: absolute;
-      top: 0; left: 0; right: 0; bottom: 0;
       width: 100%;
       height: 100%;
       background: #333;
@@ -48,7 +64,10 @@
     }
     .video-placeholder {
       position: absolute;
-      top: 0; left: 0; right: 0; bottom: 0;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -62,23 +81,21 @@
       background: #2c2c3a;
       display: flex;
       flex-direction: column;
-      transition: width 0.3s;
-      position: relative; /* Cho phép định vị tuyệt đối bên trong */
-    }
-    .chat-header span {
-      flex-grow: 1;  /* Chiếm không gian còn lại */
+      transition: width 0.3s ease;
+      position: relative;
     }
     .chat-header {
       background: rgba(0,0,0,0.7);
       padding: 10px;
       display: flex;
       align-items: center;
-      min-height: 52px;  /* Đảm bảo header luôn có chiều cao nhất định */
+      min-height: 52px;
       color: #fff;
     }
-    /* Nút toggle: luôn định vị bên phải header */
+    .chat-header span {
+      flex-grow: 1;
+    }
     .chat-header button {
-      /* Bỏ absolute, dùng margin-left để đẩy về bên phải */
       margin-left: auto;
       background: #ff7cf7;
       border: none;
@@ -91,10 +108,17 @@
       align-items: center;
       justify-content: center;
     }
-    /* Để danh sách tin nhắn mở rộng chiếm không gian và cuộn khi cần */
+    /* Bọc nội dung chat (tin nhắn và input) */
+    #chatContent {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      transition: height 0.3s, opacity 0.3s;
+    }
     .chat-messages {
       flex: 1;
       overflow-y: auto;
+      padding: 10px;
     }
     .chat-messages li {
       background: #3a3a50;
@@ -107,7 +131,7 @@
       padding: 10px;
       display: flex;
       gap: 10px;
-      background: #2c2c3a; /* nếu cần thêm nền cho phần dưới cùng */
+      background: #2c2c3a;
     }
     .chat-input input {
       flex: 1;
@@ -126,45 +150,33 @@
       cursor: pointer;
       box-shadow: 0 0 10px rgba(255,124,247,0.5);
     }
-    /* ===== Chế độ chat thu gọn ===== */
-    #chatContent {
-      display: flex;
-      flex-direction: column;
-      height: 100%;
-      transition: opacity 0.3s, height 0.3s;
-    }
-    
+    /* Khi chat bị thu gọn: ẩn nội dung nhưng vẫn giữ header */
     .chat-hidden {
       width: 50px;
     }
-
     .chat-hidden #chatContent {
       height: 0;
       opacity: 0;
       overflow: hidden;
     }
-
-    /* Khi chat bị thu gọn, ẩn tiêu đề để chỉ hiển thị nút toggle */
     .chat-hidden .chat-header span {
       display: none;
     }
   </style>
 </head>
 <body>
-  <!-- Header cố định -->
-  <header style="height: 60px; background: #111; color: #fff; display: flex; align-items: center; padding: 0 20px;">
+  <header>
     <h1 class="live-title">
       <i class="fas fa-video"></i>
       Live Stream: <span class="stream-title"><%= room.title %></span>
     </h1>
-    <p style="margin-left: auto;">Người xem: <span id="viewerCount">0</span></p>
+    <p>Người xem: <span id="viewerCount">0</span></p>
   </header>
-
-  <div class="main-content">
+  <div class="main-content" id="mainContent">
     <!-- Video Area -->
     <div class="video-area">
       <div class="video-wrapper">
-        <video id="streamVideo" class="video-element" autoplay playsinline controls muted></video>
+        <video id="liveVideo" class="video-element" autoplay playsinline controls muted></video>
         <div id="placeholder" class="video-placeholder">
           Chủ phòng hiện chưa chia sẻ màn hình
         </div>
@@ -174,7 +186,7 @@
     <div class="chat-area" id="chatArea">
       <div class="chat-header">
         <span>Phòng Chat</span>
-        <!-- Nút toggle luôn hiển thị trong header -->
+        <!-- Nút toggle luôn hiển thị -->
         <button id="toggleChatBtn"><i class="fas fa-chevron-right"></i></button>
       </div>
       <div id="chatContent">
@@ -186,9 +198,10 @@
       </div>
     </div>
   </div>
+  
   <script src="/socket.io/socket.io.js"></script>
   <script>
-    // Socket.IO cho chat và signaling
+    // Socket.IO & Chat logic
     const socket = io();
     const roomId = "<%= room.id %>";
     const username = "<%= user.username %>";
@@ -197,10 +210,7 @@
     const messageInput = document.getElementById("messageInput");
     const sendBtn = document.getElementById("sendBtn");
 
-    // Tham gia phòng
     socket.emit("joinRoom", { roomId, username });
-
-    // Xử lý các sự kiện chat
     socket.on("userJoined", msg => {
       const li = document.createElement("li");
       li.innerHTML = `<i>${msg}</i>`;
@@ -214,7 +224,6 @@
     socket.on("updateViewers", count => {
       viewerCount.textContent = count;
     });
-
     sendBtn.addEventListener("click", () => {
       const msg = messageInput.value.trim();
       if (!msg) return;
@@ -228,18 +237,21 @@
       }
     });
 
-    // Refactor Toggle Chat: dùng classList.toggle cho sự đơn giản và hiệu quả
+    // Toggle Chat Area: chỉ ẩn nội dung chat (chatContent), giữ lại header với nút toggle
     const toggleChatBtn = document.getElementById("toggleChatBtn");
     const chatArea = document.getElementById("chatArea");
-
+    const chatContent = document.getElementById("chatContent");
     toggleChatBtn.addEventListener("click", () => {
-      // Thêm hoặc bớt class "chat-hidden"
-      chatArea.classList.toggle("chat-hidden");
-      // Cập nhật icon: Nếu chat đang ẩn, hiển thị icon mở rộng (chevron-right); nếu chat đang mở, hiển thị icon thu gọn (chevron-left)
-      if (chatArea.classList.contains("chat-hidden")) {
-        toggleChatBtn.innerHTML = '<i class="fas fa-chevron-left"></i>';
-      } else {
+      if (chatContent.style.height === "0px" || chatContent.style.opacity === "0") {
+        chatContent.style.height = "";
+        chatContent.style.opacity = "1";
+        chatArea.style.width = "350px";
         toggleChatBtn.innerHTML = '<i class="fas fa-chevron-right"></i>';
+      } else {
+        chatContent.style.height = "0";
+        chatContent.style.opacity = "0";
+        chatArea.style.width = "50px";
+        toggleChatBtn.innerHTML = '<i class="fas fa-chevron-left"></i>';
       }
     });
 
@@ -247,6 +259,7 @@
     let pc;
     socket.on("webrtcOffer", async ({ offer, roomId: offerRoomId }) => {
       if (offerRoomId !== roomId) return;
+      // Tạo RTCPeerConnection cho viewer
       pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
       pc.ontrack = event => {
         const remoteStream = event.streams[0];

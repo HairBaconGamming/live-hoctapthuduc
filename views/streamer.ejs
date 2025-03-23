@@ -218,6 +218,31 @@
         alert("Không thể chia sẻ màn hình, vui lòng kiểm tra quyền truy cập hoặc trình duyệt!");
       }
     });
+    
+    // Khi chủ phòng (streamer) nhận được sự kiện "newViewer"
+    socket.on("newViewer", async ({ viewerSocketId }) => {
+      console.log("Có viewer mới, socket id:", viewerSocketId);
+      // Tạo một RTCPeerConnection mới cho viewer mới
+      const pcForViewer = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
+
+      // Giả sử bạn đã có stream từ màn hình/chia sẻ của chủ phòng, ví dụ: camStream
+      // Và bạn đã lưu stream đó trong biến "localStream"
+      localStream.getTracks().forEach(track => {
+        pcForViewer.addTrack(track, localStream);
+      });
+
+      pcForViewer.onicecandidate = event => {
+        if (event.candidate) {
+          socket.emit("webrtcCandidate", { roomId, candidate: event.candidate });
+        }
+      };
+
+      // Tạo offer dành riêng cho viewer đó
+      const offer = await pcForViewer.createOffer();
+      await pcForViewer.setLocalDescription(offer);
+      // Gửi offer trực tiếp tới viewer (targetSocketId)
+      socket.emit("webrtcOffer", { roomId, offer, targetSocketId: viewerSocketId });
+    });
 
     // Nhận webrtcAnswer và ICE candidate từ khách (nếu có)
     socket.on("webrtcAnswer", async ({ answer, roomId: answerRoomId }) => {

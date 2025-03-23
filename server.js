@@ -119,17 +119,22 @@ io.on("connection", socket => {
   // Khi user vào phòng
   socket.on("joinRoom", ({ roomId, username }) => {
     socket.join(roomId);
-    // Lưu username trên socket để sử dụng khi disconnect
     socket.username = username;
-    
     const room = liveRooms.find(r => r.id === roomId);
     if (room) {
-      // Chỉ tăng viewer count nếu người tham gia không phải là chủ phòng
-      if (username !== room.owner) {
+      // Nếu là chủ phòng, lưu socket id của streamer
+      if (username === room.owner) {
+        room.streamerSocketId = socket.id;
+      } else {
+        // Nếu là khách, tăng viewer count
         room.viewers++;
+        io.to(roomId).emit("updateViewers", room.viewers);
+        io.to(roomId).emit("userJoined", `${username} đã tham gia phòng.`);
+        // Thông báo cho chủ phòng (streamer) có khách mới
+        if (room.streamerSocketId) {
+          io.to(room.streamerSocketId).emit("newViewer", { viewerSocketId: socket.id });
+        }
       }
-      io.to(roomId).emit("updateViewers", room.viewers);
-      io.to(roomId).emit("userJoined", `${username} đã tham gia phòng.`);
     }
   });
 
@@ -140,22 +145,51 @@ io.on("connection", socket => {
 
   // Xử lý điều khiển stream: start, stop, end
   socket.on("controlStream", ({ roomId, action }) => {
-    // Tùy chọn: nếu cần kiểm tra quyền, bạn có thể kiểm tra socket.username so với chủ phòng
-    io.to(roomId).emit("streamControl", { action });
-    console.log(`Control stream action: ${action} in room ${roomId}`);
+    if (action === "end") {
+      // Phát sự kiện cho tất cả client thông báo live stream kết thúc
+      io.to(roomId).emit("streamEnded", { message: "Live stream đã kết thúc." });
+      
+      // Lấy danh sách các client trong room và cho họ rời phòng
+      const clients = io.sockets.adapter.rooms.get(roomId);
+      if (clients) {
+        for (const clientId of clients) {
+          const clientSocket = io.sockets.sockets.get(clientId);
+          clientSocket.leave(roomId);
+          // Nếu muốn chuyển hướng client, có thể emit sự kiện "redirect" cho họ
+          clientSocket.emit("redirect", { url: "https://hoctap-9a3.glitch.me/live" });
+        }
+      }
+      
+      // Xóa room khỏi mảng liveRooms
+      liveRooms = liveRooms.filter(r => r.id !== roomId);
+      console.log(`Room ${roomId} đã bị xóa.`);
+    } else {
+      // Với các action khác ("start", "stop"), chuyển tiếp đến tất cả client
+      io.to(roomId).emit("streamControl", { action });
+      console.log(`Control stream action: ${action} in room ${roomId}`);
+    }
   });
 
   // Xử lý signaling WebRTC
-  socket.on("webrtcOffer", ({ roomId, offer }) => {
-    // Forward offer đến tất cả user khác trong room (trừ sender)
-    socket.to(roomId).emit("webrtcOffer", { roomId, offer });
-    console.log("webrtcOffer forwarded to room:", roomId);
+  socket.on("webrtcOffer", ({ roomId, offer, targetSocketId }) => {
+    // Nếu có targetSocketId, gửi trực tiếp đến khách đó (chủ phòng tạo offer riêng cho khách mới)
+    if (targetSocketId) {
+      io.to(targetSocketId).emit("webrtcOffer", { roomId, offer });
+      console.log("webrtcOffer sent to target:", targetSocketId);
+    } else {
+      socket.to(roomId).emit("webrtcOffer", { roomId, offer });
+      console.log("webrtcOffer forwarded to room:", roomId);
+    }
   });
 
-  socket.on("webrtcAnswer", ({ roomId, answer }) => {
-    // Forward answer
-    socket.to(roomId).emit("webrtcAnswer", { roomId, answer });
-    console.log("webrtcAnswer forwarded to room:", roomId);
+   socket.on("webrtcAnswer", ({ roomId, answer, targetSocketId }) => {
+    if (targetSocketId) {
+      io.to(targetSocketId).emit("webrtcAnswer", { roomId, answer });
+      console.log("webrtcAnswer sent to target:", targetSocketId);
+    } else {
+      socket.to(roomId).emit("webrtcAnswer", { roomId, answer });
+      console.log("webrtcAnswer forwarded to room:", roomId);
+    }
   });
 
   socket.on("webrtcCandidate", ({ roomId, candidate }) => {
