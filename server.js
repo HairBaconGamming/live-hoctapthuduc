@@ -167,7 +167,13 @@ io.on("connection", socket => {
       }
     }
   });
+  
+  socket.on("keepAlive", ({ roomId }) => {
+    console.log(`Keep-alive received for room ${roomId} from socket ${socket.id}`);
+    // Optionally update a timestamp, reset a timeout, or perform any necessary action
+  });
 
+  
   // Chat message
   socket.on("chatMessage", ({ roomId, username, message }) => {
     io.to(roomId).emit("newMessage", { username, message });

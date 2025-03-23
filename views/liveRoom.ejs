@@ -270,6 +270,13 @@
         window.location.href = "https://hoctap-9a3.glitch.me/live";
       }, 15000);
     });
+    
+    setInterval(() => {
+      if (socket && roomId) {
+        socket.emit("keepAlive", { roomId });
+        console.log("Keep-alive sent for room:", roomId);
+      }
+    }, 15000);
   </script>
 </body>
 </html>
