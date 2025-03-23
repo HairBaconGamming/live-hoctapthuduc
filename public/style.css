@@ -13,6 +13,70 @@ body {
   overflow: hidden;
 }
 
+/* Bảng điều khiển chung */
+.control-panel {
+  position: relative;
+  background: rgba(0,0,0,0.7);
+  border-radius: 8px;
+  padding: 15px;
+  margin-top: 20px;
+  transition: height 0.3s ease, padding 0.3s ease;
+  overflow: hidden; /* ẩn nội dung bị thu gọn */
+}
+
+/* Trạng thái khi thu gọn */
+.control-panel.collapsed {
+  height: 50px;  /* chiều cao khi thu gọn */
+  width: 50px;
+  padding: 5px;  /* giảm padding khi thu gọn */
+}
+
+/* Nút toggle ở góc phải */
+.panel-toggle-btn {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  background: #ff7cf7;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  color: #fff;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Nội dung chính của panel */
+.panel-content {
+  display: flex;
+  gap: 10px;
+  transition: opacity 0.3s ease;
+}
+
+/* Khi thu gọn, ẩn nội dung */
+.control-panel.collapsed .panel-content {
+  opacity: 0;
+  pointer-events: none; /* tắt tương tác */
+}
+
+/* Style cho các nút bên trong panel */
+.control-panel button {
+  margin: 5px;
+  padding: 10px 15px;
+  font-size: 1em;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  background: #ff7cf7;
+  color: #fff;
+  transition: background 0.3s ease;
+}
+.control-panel button:hover {
+  background: #e06ac7;
+}
+
 /* Container chung cho thanh header */
 .live-header {
   display: flex;

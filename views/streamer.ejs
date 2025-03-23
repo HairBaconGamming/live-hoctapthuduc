@@ -69,24 +69,32 @@
       <p>Chủ phòng: <%= room.ownername %></p>
     </div>
     
-    <!-- Bảng điều khiển của chủ phòng -->
-    <div class="control-panel">
-      <button id="startStreamBtn"><i class="fas fa-play"></i> Bắt đầu phát</button>
-      <button id="stopStreamBtn"><i class="fas fa-stop"></i> Dừng phát</button>
-      <button id="endStreamBtn"><i class="fas fa-power-off"></i> Kết thúc live</button>
-      <button id="shareScreenBtn"><i class="fas fa-desktop"></i> Chia sẻ màn hình</button>
-    </div>
-    
-    <!-- Live Cam Preview (Webcam) -->
-    <div id="liveCamContainer">
-      <h3>Live Camera Preview</h3>
-      <video id="liveCamVideo" autoplay muted playsinline></video>
-    </div>
-    
-    <!-- Screen Share Preview -->
-    <div id="screenShareContainer">
-      <h3>Screen Share Preview</h3>
-      <video id="screenShareVideo" autoplay muted playsinline></video>
+    <!-- Bảng điều khiển gói trong .control-panel -->
+    <div class="control-panel" id="controlPanel">
+      <!-- Nút toggle thu gọn/mở rộng -->
+      <button id="togglePanelBtn" class="panel-toggle-btn">
+        <i class="fas fa-chevron-up"></i>
+      </button>
+      
+      <!-- Live Cam Preview (Webcam) -->
+      <div id="liveCamContainer">
+        <h3>Live Camera Preview</h3>
+        <video id="liveCamVideo" autoplay muted playsinline></video>
+      </div>
+
+      <!-- Screen Share Preview -->
+      <div id="screenShareContainer">
+        <h3>Screen Share Preview</h3>
+        <video id="screenShareVideo" autoplay muted playsinline></video>
+      </div>
+
+      <!-- Nội dung chính của panel -->
+      <div class="panel-content">
+        <button id="startStreamBtn"><i class="fas fa-play"></i> Bắt đầu phát</button>
+        <button id="stopStreamBtn"><i class="fas fa-stop"></i> Dừng phát</button>
+        <button id="endStreamBtn"><i class="fas fa-power-off"></i> Kết thúc live</button>
+        <button id="shareScreenBtn"><i class="fas fa-desktop"></i> Chia sẻ màn hình</button>
+      </div>
     </div>
     
     <!-- Khung chat -->
@@ -108,6 +116,21 @@
     const sendBtn = document.getElementById("sendBtn");
     const chatMessages = document.getElementById("chatMessages");
     const viewerCount = document.getElementById("viewerCount");
+    // Tìm nút toggle và panel
+    const togglePanelBtn = document.getElementById('togglePanelBtn');
+    const controlPanel = document.getElementById('controlPanel');
+
+    togglePanelBtn.addEventListener('click', () => {
+      // Thêm hoặc gỡ class 'collapsed'
+      controlPanel.classList.toggle('collapsed');
+
+      // Đổi icon chevron tương ứng
+      if (controlPanel.classList.contains('collapsed')) {
+        togglePanelBtn.innerHTML = '<i class="fas fa-chevron-down"></i>';
+      } else {
+        togglePanelBtn.innerHTML = '<i class="fas fa-chevron-up"></i>';
+      }
+    });
 
     // Tham gia phòng
     socket.emit("joinRoom", { roomId, username });
