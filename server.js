@@ -119,11 +119,17 @@ io.on("connection", socket => {
   // Khi user vào phòng
   socket.on("joinRoom", ({ roomId, username }) => {
     socket.join(roomId);
-    io.to(roomId).emit("userJoined", `${username} đã tham gia phòng.`);
+    // Lưu username trên socket để sử dụng khi disconnect
+    socket.username = username;
+    
     const room = liveRooms.find(r => r.id === roomId);
     if (room) {
-      room.viewers++;
+      // Chỉ tăng viewer count nếu người tham gia không phải là chủ phòng
+      if (username !== room.owner) {
+        room.viewers++;
+      }
       io.to(roomId).emit("updateViewers", room.viewers);
+      io.to(roomId).emit("userJoined", `${username} đã tham gia phòng.`);
     }
   });
 
@@ -132,8 +138,9 @@ io.on("connection", socket => {
     io.to(roomId).emit("newMessage", { username, message });
   });
 
-  // Điều khiển stream (start/stop/end)
+  // Xử lý điều khiển stream: start, stop, end
   socket.on("controlStream", ({ roomId, action }) => {
+    // Tùy chọn: nếu cần kiểm tra quyền, bạn có thể kiểm tra socket.username so với chủ phòng
     io.to(roomId).emit("streamControl", { action });
     console.log(`Control stream action: ${action} in room ${roomId}`);
   });
@@ -162,7 +169,8 @@ io.on("connection", socket => {
     const rooms = Array.from(socket.rooms);
     rooms.forEach(roomId => {
       const room = liveRooms.find(r => r.id === roomId);
-      if (room) {
+      // Nếu socket có lưu username và không phải chủ phòng thì giảm viewer count
+      if (room && socket.username && socket.username !== room.owner) {
         room.viewers--;
         io.to(roomId).emit("updateViewers", room.viewers);
       }
