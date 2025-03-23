@@ -126,7 +126,6 @@ app.get("/room/:id", checkHoctapAuth, (req, res) => {
 /* =============================
     SOCKET.IO CHAT & CONTROL
 ============================= */
-// SOCKET.IO CHAT & CONTROL
 io.on("connection", socket => {
   console.log("💡 New client connected");
 

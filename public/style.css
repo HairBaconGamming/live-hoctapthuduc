@@ -486,7 +486,7 @@ body {
   background: rgba(20, 20, 20, 0.95);
   color: #fff;
   z-index: 9999;
-  display: flex;
+  display: none;
   justify-content: center;
   align-items: center;
   flex-direction: column;

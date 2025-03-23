@@ -182,7 +182,7 @@
     });
 
     document.getElementById("endStreamBtn").addEventListener("click", () => {
-      socket.emit("roomEnded", { roomId });
+      socket.emit("endRoom", { roomId });
       alert("Live stream đã kết thúc.");
       window.location.href = "https://hoctap-9a3.glitch.me/";
     });
