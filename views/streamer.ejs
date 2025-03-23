@@ -255,8 +255,12 @@
 
     // When the streamer receives an answer from a viewer
     socket.on("webrtcAnswer", async ({ answer, targetSocketId }) => {
+      console.log("Received answer for: ", targetSocketId, pcs[targetSocketId]);
       const pcForViewer = pcs[targetSocketId];
-      if (!pcForViewer) return;
+      if (!pcForViewer) {
+        console.error("No peer connection found for viewer: ", targetSocketId);
+        return;
+      }
       await pcForViewer.setRemoteDescription(new RTCSessionDescription(answer));
     });
 
