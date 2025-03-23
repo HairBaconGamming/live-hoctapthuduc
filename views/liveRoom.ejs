@@ -165,7 +165,17 @@
 
     socket.on("webrtcOffer", async ({ offer, roomId: offerRoomId, streamerSocketId }) => {
       if (offerRoomId !== roomId) return;
-      pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
+      pc = new RTCPeerConnection({
+  iceServers: [
+    { urls: 'stun:stun.l.google.com:19302' },
+    // Thêm TURN server với thông tin chính xác từ nhà cung cấp hoặc từ cài đặt coturn của bạn
+    {
+      urls: 'turn:relay1.expressturn.com:3478',
+      username: 'efENPNJI04ST2ENN3C',
+      credential: 'udPrjk4AqDfSh8SY'
+    }
+  ]
+});
       pc.ontrack = event => {
         // Nếu event.streams[0] tồn tại, sử dụng nó làm nguồn cho video.
         if (event.streams && event.streams[0]) {
