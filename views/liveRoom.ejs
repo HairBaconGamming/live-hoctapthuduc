@@ -2,7 +2,7 @@
 <html lang="vi">
 <head>
   <meta charset="UTF-8">
-  <title>yo yo bro so suck - Live Room</title>
+  <title><%= room.title %> - Live Room</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="icon" type="image/png" href="https://cdn.glitch.global/71030012-56ea-4d26-a426-e0099201df1c/823029_library_512x512.png?v=1741523759119">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap">
@@ -168,7 +168,7 @@
   <header>
     <h1 class="live-title">
       <i class="fas fa-video"></i>
-      Live Stream: <span class="stream-title">yo yo bro so suck</span>
+      Live Stream: <span class="stream-title"><%= room.title %></span>
     </h1>
     <p>Người xem: <span id="viewerCount">0</span></p>
   </header>
@@ -203,8 +203,8 @@
   <script>
     // Socket.IO & Chat logic
     const socket = io();
-    const roomId = "b81d0d6b-da2f-4fa3-86df-e91134d963e7";
-    const username = "System";
+    const roomId = "<%= room.id %>";
+    const username = "<%= user.username %>";
     const viewerCount = document.getElementById("viewerCount");
     const chatMessages = document.getElementById("chatMessages");
     const messageInput = document.getElementById("messageInput");
@@ -237,7 +237,7 @@
       }
     });
 
-    // Toggle Chat Area: hide/show chat content
+    // Toggle Chat Area: ẩn/hiện nội dung chat
     const toggleChatBtn = document.getElementById("toggleChatBtn");
     const chatArea = document.getElementById("chatArea");
     const chatContent = document.getElementById("chatContent");
@@ -257,42 +257,30 @@
 
     // WebRTC logic to receive stream from the host
     let pc;
-    // Global variables to hold the remote stream and to ensure play() is called only once:
-    let remoteStream = null;
-    let playInitiated = false;
-
     socket.on("webrtcOffer", async ({ offer, roomId: offerRoomId }) => {
       if (offerRoomId !== roomId) return;
-      
       // Create RTCPeerConnection
       pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
       
-      // Use our own global remoteStream (initialize once)
-      const liveVideo = document.getElementById("liveVideo");
-      if (!remoteStream) {
-        remoteStream = new MediaStream();
-        if (liveVideo) {
-          liveVideo.srcObject = remoteStream;
-        } else {
-          console.error("Live video element not found.");
-        }
-      }
-      
-      // When a track arrives, add it to remoteStream.
       pc.ontrack = event => {
         console.log("ontrack event triggered:", event);
-        // Add the track to our global remoteStream
-        remoteStream.addTrack(event.track);
-        document.getElementById("placeholder").style.display = "none";
-        // Call play() only once.
-        console.log(liveVideo.paused);
-        if (liveVideo && !playInitiated && liveVideo.paused) {
-          liveVideo.play().then(() => {
-            console.log("Remote video playing");
-            playInitiated = true;
-          }).catch(err => {
-            console.error("Error playing remote video:", err);
-          });
+        if (event.streams && event.streams[0]) {
+          const remoteStream = event.streams[0];
+          const liveVideo = document.getElementById("liveVideo");
+          if (liveVideo) {
+            liveVideo.srcObject = remoteStream;
+            // Attempt to explicitly start playback
+            liveVideo.play().then(() => {
+              console.log("Remote video playing");
+            }).catch(err => {
+              console.error("Error playing remote video:", err);
+            });
+            document.getElementById("placeholder").style.display = "none";
+          } else {
+            console.error("Live video element not found.");
+          }
+        } else {
+          console.error("No stream found in ontrack event.");
         }
       };
       
