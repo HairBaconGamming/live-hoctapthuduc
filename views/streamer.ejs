@@ -85,7 +85,8 @@
     <div class="live-right">
       <p class="viewer-info">
         <span class="viewer-icon">👀</span> Người xem: 
-        <span id="viewerCount" class="viewer-count">0</span>
+        <span id="viewerCount" class="viewer-count">0</span> | 
+        Thời gian mở: <span id="openTime">00:00:00</span>
       </p>
     </div>
   </div>
@@ -125,6 +126,20 @@
     const sendBtn = document.getElementById("sendBtn");
     const chatMessages = document.getElementById("chatMessages");
     const viewerCount = document.getElementById("viewerCount");
+
+    // Cập nhật thời gian mở phòng (dựa trên createdAt từ server)
+    const roomCreatedAt = new Date("<%= room.createdAt %>");
+    function updateOpenTime() {
+      const now = new Date();
+      const diff = now - roomCreatedAt;
+      const hours = Math.floor(diff / (1000 * 60 * 60));
+      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+      document.getElementById("openTime").textContent =
+        `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+    }
+    setInterval(updateOpenTime, 1000);
+    updateOpenTime();
 
     // Tham gia phòng
     socket.emit("joinRoom", { roomId, username });
@@ -167,7 +182,7 @@
     });
 
     document.getElementById("endStreamBtn").addEventListener("click", () => {
-      socket.emit("controlStream", { roomId, action: "end" });
+      socket.emit("roomEnded", { roomId });
       alert("Live stream đã kết thúc.");
       window.location.href = "https://hoctap-9a3.glitch.me/";
     });
@@ -262,7 +277,7 @@
     // On the streamer side
     const pcs = {};
 
-    // When the streamer receives an answer from a viewer
+    // Khi streamer nhận được answer từ viewer
     socket.on("webrtcAnswer", async ({ answer, targetSocketId }) => {
       let pcForViewer = pcs[targetSocketId];
       if (!pcForViewer) {
@@ -295,7 +310,7 @@
       await pcForViewer.setRemoteDescription(new RTCSessionDescription(answer));
     });
 
-    // Handle ICE candidates from viewers
+    // Xử lý ICE candidates từ viewer
     socket.on("webrtcCandidate", async ({ candidate, targetSocketId }) => {
       const pcForViewer = pcs[targetSocketId];
       if (!pcForViewer) return;

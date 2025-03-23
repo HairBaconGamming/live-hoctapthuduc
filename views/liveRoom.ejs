@@ -74,6 +74,7 @@
       background: rgba(0,0,0,0.6);
     }
     
+    
     /* Chat styles omitted for brevity */
   </style>
 </head>
@@ -106,6 +107,14 @@
           <input type="text" id="messageInput" placeholder="Nhập tin nhắn..." autocomplete="off" />
           <button id="sendBtn">Gửi</button>
         </div>
+      </div>
+    </div>
+    
+    <!-- Room Ended Overlay -->
+    <div id="roomEndedOverlay" style="display: none;">
+      <div class="overlay-content">
+        <h2>Phòng Live này đã kết thúc.</h2>
+        <a href="https://hoctap-9a3.glitch.me/live" class="return-button">Quay lại trang Live</a>
       </div>
     </div>
   </div>
@@ -204,6 +213,21 @@
       liveVideo.srcObject = remoteStream;
       // Display the placeholder
       document.getElementById("placeholder").style.display = "flex";
+    });
+    
+    // Khi phòng live kết thúc
+    socket.on("roomEnded", () => {
+      console.log("Room has ended!");
+
+      // Ẩn nội dung hiện tại
+      document.getElementById("mainContent").style.display = "none";
+      document.getElementById("chatArea").style.display = "none";
+
+      // Hiển thị overlay thông báo kết thúc
+      document.getElementById("roomEndedOverlay").style.display = "flex";
+
+      // Đóng kết nối peer nếu cần
+      if (pc) pc.close();
     });
   </script>
 </body>

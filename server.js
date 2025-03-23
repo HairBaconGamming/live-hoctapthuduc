@@ -63,7 +63,7 @@ app.post("/api/createStream", (req, res) => {
     title: title || "Live Stream không tiêu đề",
     liveStreamUrl,
     viewers: 0,
-    createdAt: new Date()
+    createdAt: new Date(),
   };
   liveRooms.push(newRoom);
   console.log("✅ Room created:", newRoom);
@@ -126,26 +126,30 @@ app.get("/room/:id", checkHoctapAuth, (req, res) => {
 /* =============================
     SOCKET.IO CHAT & CONTROL
 ============================= */
+// SOCKET.IO CHAT & CONTROL
 io.on("connection", socket => {
   console.log("💡 New client connected");
-  
+
   // Khi user vào phòng
   socket.on("joinRoom", ({ roomId, username }) => {
     socket.join(roomId);
     socket.username = username;
+
     const room = liveRooms.find(r => r.id === roomId);
     if (room) {
-      // Nếu là chủ phòng, lưu socket id của streamer
+      // Nếu là chủ phòng, lưu socket id của streamer (chủ phòng)
       if (username === room.owner) {
-        room.streamerSocketId = socket.id;
+        room.hostSocketId = socket.id; // ✅ Lưu hostSocketId ở đây!
+        console.log(`✅ Chủ phòng ${username} đã vào với socketId: ${socket.id}`);
       } else {
         // Nếu là khách, tăng viewer count
         room.viewers++;
         io.to(roomId).emit("updateViewers", room.viewers);
         io.to(roomId).emit("userJoined", `${username} đã tham gia phòng.`);
+
         // Thông báo cho chủ phòng (streamer) có khách mới
-        if (room.streamerSocketId) {
-          io.to(room.streamerSocketId).emit("newViewer", { viewerSocketId: socket.id });
+        if (room.hostSocketId) {
+          io.to(room.hostSocketId).emit("newViewer", { viewerSocketId: socket.id });
         }
       }
     }
@@ -156,61 +160,60 @@ io.on("connection", socket => {
     io.to(roomId).emit("newMessage", { username, message });
   });
 
-  // Xử lý điều khiển stream: start, stop, end
-  socket.on("controlStream", ({ roomId, action }) => {
-    if (action === "end") {
-      io.to(roomId).emit("streamEnded", { message: "Live stream đã kết thúc." });
-      const clients = io.sockets.adapter.rooms.get(roomId);
-      if (clients) {
-        for (const clientId of clients) {
-          const clientSocket = io.sockets.sockets.get(clientId);
-          clientSocket.leave(roomId);
-          clientSocket.emit("redirect", { url: "https://hoctap-9a3.glitch.me/" });
-        }
-      }
-      liveRooms = liveRooms.filter(r => r.id !== roomId);
-      console.log(`Room ${roomId} đã bị xóa.`);
-    } else {
-      io.to(roomId).emit("streamControl", { action });
-      console.log(`Control stream action: ${action} in room ${roomId}`);
+  // ✅ Xử lý kết thúc phòng chỉ dành cho chủ phòng
+  socket.on("endRoom", ({ roomId }) => {
+    const room = liveRooms.find(r => r.id === roomId);
+
+    if (!room) {
+      socket.emit("errorMessage", "Phòng không tồn tại.");
+      console.log(`❌ Phòng ${roomId} không tồn tại khi socket ${socket.id} cố gắng kết thúc.`);
+      return;
     }
+
+    if (socket.id !== room.hostSocketId) {
+      socket.emit("errorMessage", "Bạn không có quyền kết thúc phòng này.");
+      console.log(`❌ Socket ${socket.id} cố gắng kết thúc phòng ${roomId} nhưng không phải chủ phòng (${room.hostSocketId}).`);
+      return;
+    }
+
+    // Nếu là chủ phòng, tiếp tục xóa phòng và thông báo
+    io.to(roomId).emit("roomEnded");
+    liveRooms = liveRooms.filter(r => r.id !== roomId);
+    console.log(`✅ Phòng ${roomId} đã bị kết thúc bởi chủ phòng (socketId: ${socket.id}).`);
   });
-  
+
   socket.on("screenShareEnded", ({ roomId }) => {
     io.to(roomId).emit("screenShareEnded");
-    console.log(`Screen share ended in room: ${roomId}`);
+    console.log(`📺 Screen share ended in room: ${roomId}`);
   });
 
   // WebRTC signaling: Offer
   socket.on("webrtcOffer", ({ roomId, offer, targetSocketId }) => {
     if (targetSocketId) {
-      // Include streamer's socket id in the payload as streamerSocketId.
       io.to(targetSocketId).emit("webrtcOffer", { roomId, offer, streamerSocketId: socket.id });
-      console.log("webrtcOffer sent to target:", targetSocketId);
+      console.log("📡 webrtcOffer sent to target:", targetSocketId);
     } else {
       socket.to(roomId).emit("webrtcOffer", { roomId, offer });
-      console.log("webrtcOffer forwarded to room:", roomId);
+      console.log("📡 webrtcOffer forwarded to room:", roomId);
     }
   });
 
   // WebRTC signaling: Answer  
-  // --- Modified to include viewer's socket id in the forwarded answer ---
   socket.on("webrtcAnswer", ({ roomId, answer, targetSocketId }) => {
     if (targetSocketId) {
-      // Here, viewerSocketId is the sender's id.
       const viewerSocketId = socket.id;
       io.to(targetSocketId).emit("webrtcAnswer", { roomId, answer, targetSocketId: viewerSocketId });
-      console.log("webrtcAnswer sent to target:", targetSocketId, "from viewer", viewerSocketId);
+      console.log("📡 webrtcAnswer sent to target:", targetSocketId, "from viewer", viewerSocketId);
     } else {
       socket.to(roomId).emit("webrtcAnswer", { roomId, answer });
-      console.log("webrtcAnswer forwarded to room:", roomId);
+      console.log("📡 webrtcAnswer forwarded to room:", roomId);
     }
   });
 
   // WebRTC signaling: ICE Candidate
   socket.on("webrtcCandidate", ({ roomId, candidate }) => {
     socket.to(roomId).emit("webrtcCandidate", { roomId, candidate });
-    console.log("webrtcCandidate forwarded to room:", roomId);
+    console.log("❄️ webrtcCandidate forwarded to room:", roomId);
   });
 
   // Khi user rời phòng
@@ -219,14 +222,14 @@ io.on("connection", socket => {
     rooms.forEach(roomId => {
       const room = liveRooms.find(r => r.id === roomId);
       if (room && socket.username && socket.username !== room.owner) {
-        room.viewers--;
+        room.viewers = Math.max(0, room.viewers - 1);
         io.to(roomId).emit("updateViewers", room.viewers);
       }
     });
   });
 
   socket.on("disconnect", () => {
-    console.log("👋 Client disconnected");
+    console.log("👋 Client disconnected", socket.id);
   });
 });
 
