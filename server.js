@@ -162,6 +162,11 @@ io.on("connection", socket => {
       console.log(`Control stream action: ${action} in room ${roomId}`);
     }
   });
+  
+  socket.on("screenShareEnded", ({ roomId }) => {
+    io.to(roomId).emit("screenShareEnded");
+    console.log(`Screen share ended in room: ${roomId}`);
+  });
 
   // WebRTC signaling: Offer
   socket.on("webrtcOffer", ({ roomId, offer, targetSocketId }) => {

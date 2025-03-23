@@ -35,7 +35,7 @@
     .main-content {
       display: flex;
       width: 100%;
-      height: calc(100vh - 60px); /* trừ header */
+      height: calc(100vh - 60px); /* subtract header */
     }
     /* ===== Video Area ===== */
     .video-area {
@@ -50,7 +50,7 @@
     .video-wrapper {
       width: 100%;
       position: relative;
-      /* Sử dụng aspect-ratio để giữ tỉ lệ 16:9 */
+      /* Use aspect-ratio to maintain 16:9 */
       aspect-ratio: 16/9;
     }
     .video-element {
@@ -108,7 +108,7 @@
       align-items: center;
       justify-content: center;
     }
-    /* Bọc nội dung chat (tin nhắn và input) */
+    /* Container for chat messages and input */
     #chatContent {
       display: flex;
       flex-direction: column;
@@ -150,7 +150,7 @@
       cursor: pointer;
       box-shadow: 0 0 10px rgba(255,124,247,0.5);
     }
-    /* Khi chat bị thu gọn: ẩn nội dung nhưng vẫn giữ header */
+    /* When chat is collapsed */
     .chat-hidden {
       width: 50px;
     }
@@ -172,6 +172,7 @@
     </h1>
     <p>Người xem: <span id="viewerCount">0</span></p>
   </header>
+
   <div class="main-content" id="mainContent">
     <!-- Video Area -->
     <div class="video-area">
@@ -182,11 +183,11 @@
         </div>
       </div>
     </div>
+
     <!-- Chat Area -->
     <div class="chat-area" id="chatArea">
       <div class="chat-header">
         <span>Phòng Chat</span>
-        <!-- Nút toggle luôn hiển thị -->
         <button id="toggleChatBtn"><i class="fas fa-chevron-right"></i></button>
       </div>
       <div id="chatContent">
@@ -199,9 +200,10 @@
     </div>
   </div>
   
+  <!-- Socket.IO -->
   <script src="/socket.io/socket.io.js"></script>
   <script>
-    // Socket.IO & Chat logic
+    // ===== Socket.IO & Chat Setup =====
     const socket = io();
     const roomId = "<%= room.id %>";
     const username = "<%= user.username %>";
@@ -211,25 +213,30 @@
     const sendBtn = document.getElementById("sendBtn");
 
     socket.emit("joinRoom", { roomId, username });
+
     socket.on("userJoined", msg => {
       const li = document.createElement("li");
       li.innerHTML = `<i>${msg}</i>`;
       chatMessages.appendChild(li);
     });
+
     socket.on("newMessage", data => {
       const li = document.createElement("li");
       li.textContent = `${data.username}: ${data.message}`;
       chatMessages.appendChild(li);
     });
+
     socket.on("updateViewers", count => {
       viewerCount.textContent = count;
     });
+
     sendBtn.addEventListener("click", () => {
       const msg = messageInput.value.trim();
       if (!msg) return;
       socket.emit("chatMessage", { roomId, username, message: msg });
       messageInput.value = "";
     });
+
     messageInput.addEventListener("keypress", function(e) {
       if (e.key === "Enter") {
         e.preventDefault();
@@ -237,17 +244,20 @@
       }
     });
 
-    // Toggle Chat Area: chỉ ẩn nội dung chat (chatContent), giữ lại header với nút toggle
+    // ===== Toggle Chat Area =====
     const toggleChatBtn = document.getElementById("toggleChatBtn");
     const chatArea = document.getElementById("chatArea");
     const chatContent = document.getElementById("chatContent");
+
     toggleChatBtn.addEventListener("click", () => {
       if (chatContent.style.height === "0px" || chatContent.style.opacity === "0") {
+        // Expand chat
         chatContent.style.height = "";
         chatContent.style.opacity = "1";
         chatArea.style.width = "350px";
         toggleChatBtn.innerHTML = '<i class="fas fa-chevron-right"></i>';
       } else {
+        // Collapse chat
         chatContent.style.height = "0";
         chatContent.style.opacity = "0";
         chatArea.style.width = "50px";
@@ -255,19 +265,35 @@
       }
     });
 
-    // WebRTC logic để nhận stream từ chủ phòng
+    // ===== WebRTC Setup for Viewer =====
     let pc;
+    
+    // 1. Create a MediaStream to hold the incoming tracks
+    let remoteStream = new MediaStream();
+
+    // 2. Reference the <video> element and set its source
+    const liveVideo = document.getElementById("liveVideo");
+    liveVideo.srcObject = remoteStream;
+
+    // A flag to track whether we've initiated video playback
+    let playInitiated = false;
+
+    // Listen for a WebRTC offer from the streamer
     socket.on("webrtcOffer", async ({ offer, roomId: offerRoomId, streamerSocketId }) => {
       if (offerRoomId !== roomId) return;
 
-      // Create RTCPeerConnection...
-      pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
+      // Create a new RTCPeerConnection
+      pc = new RTCPeerConnection({
+        iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
+      });
 
-      // When a track arrives, add it to our global remoteStream (as already implemented)...
+      // When a track is received, add it to our remoteStream
       pc.ontrack = event => {
         console.log("ontrack event triggered:", event);
         remoteStream.addTrack(event.track);
         document.getElementById("placeholder").style.display = "none";
+
+        // Ensure the video plays once a track is added
         if (!playInitiated && liveVideo.paused) {
           liveVideo.play()
             .then(() => {
@@ -280,23 +306,27 @@
         }
       };
 
-      // ICE candidate handling...
+      // Handle ICE candidates
       pc.onicecandidate = event => {
         if (event.candidate) {
           socket.emit("webrtcCandidate", { roomId, candidate: event.candidate });
         }
       };
 
+      // Set the remote description and create an answer
       try {
         await pc.setRemoteDescription(new RTCSessionDescription(offer));
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
-        // Now use the streamerSocketId provided by the server
+
+        // Send the answer back to the streamer
         socket.emit("webrtcAnswer", { roomId, answer, targetSocketId: streamerSocketId });
       } catch (error) {
         console.error("Error handling WebRTC offer:", error);
       }
     });
+
+    // Listen for ICE candidates from the streamer and add them
     socket.on("webrtcCandidate", async ({ candidate, roomId: candidateRoomId }) => {
       if (candidateRoomId !== roomId || !pc) return;
       try {

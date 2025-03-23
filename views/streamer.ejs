@@ -177,20 +177,27 @@
     let pc; // RTCPeerConnection for screen share
     document.getElementById("shareScreenBtn").addEventListener("click", async () => {
       try {
-        // Get the display media stream and assign it to localStream
+        // Get display media stream
         localStream = await navigator.mediaDevices.getDisplayMedia({
           video: true,
           audio: true
         });
 
-        // Assign stream to preview local
+        // Set preview for screen sharing
         const screenVideo = document.getElementById("screenShareVideo");
         screenVideo.srcObject = localStream;
 
-        // Create RTCPeerConnection
-        pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
+        // Listen for when the streamer stops sharing screen
+        localStream.getVideoTracks()[0].addEventListener("ended", () => {
+          console.log("User stopped screen sharing");
+          screenVideo.srcObject = null;
+          localStream = null;
+          // Emit event to notify viewers
+          socket.emit("screenShareEnded", { roomId });
+        });
 
-        // Add tracks to the RTCPeerConnection
+        // Create RTCPeerConnection and add tracks
+        pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
         localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
 
         // Handle ICE candidates
@@ -200,63 +207,64 @@
           }
         };
 
-        // Create and send offer via Socket.IO
+        // Create and send offer
         const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
         socket.emit("webrtcOffer", { roomId, offer });
-
-        // When the user stops sharing, clear the preview
-        localStream.getVideoTracks()[0].addEventListener("ended", () => {
-          console.log("User stopped screen sharing");
-          screenVideo.srcObject = null;
-          localStream = null; // optionally, reset localStream here
-        });
       } catch (err) {
         console.error("Error during screen sharing:", err);
         alert("Cannot share screen. Please ensure you have the proper permissions or try a different browser.");
       }
     });
     
-    // When a new viewer joins, use the globally defined localStream to add tracks
-    socket.on("newViewer", async ({ viewerSocketId }) => {
-      // Check if screen sharing is active.
-      if (!localStream) {
-        console.error("No local stream available for new viewer connection. Please start screen sharing.");
-        // Optionally: update your UI here to alert the streamer.
-        return;
-      }
+    // On the streamer side
+    const pcs = {};
 
-      // ... else handle new viewer normally
-      const pcForViewer = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
+    socket.on("newViewer", async ({ viewerSocketId }) => {
+      const pcForViewer = new RTCPeerConnection({
+        iceServers: [
+          { urls: "stun:stun.l.google.com:19302" }
+        ]
+      });
+      pcs[viewerSocketId] = pcForViewer;
+
+      // Add your local screen tracks
       localStream.getTracks().forEach(track => pcForViewer.addTrack(track, localStream));
 
       pcForViewer.onicecandidate = event => {
         if (event.candidate) {
-          socket.emit("webrtcCandidate", { roomId, candidate: event.candidate });
+          socket.emit("webrtcCandidate", {
+            roomId,
+            candidate: event.candidate,
+            targetSocketId: viewerSocketId
+          });
         }
       };
 
-      try {
-        const offer = await pcForViewer.createOffer();
-        await pcForViewer.setLocalDescription(offer);
-        socket.emit("webrtcOffer", { roomId, offer, targetSocketId: viewerSocketId });
-      } catch (error) {
-        console.error("Error handling new viewer offer:", error);
-      }
+      // Create offer for this viewer
+      const offer = await pcForViewer.createOffer();
+      await pcForViewer.setLocalDescription(offer);
+
+      // Send the offer to this viewer
+      socket.emit("webrtcOffer", {
+        roomId,
+        offer,
+        targetSocketId: viewerSocketId
+      });
     });
 
-    // Nhận webrtcAnswer và ICE candidate từ khách (nếu có)
-    socket.on("webrtcAnswer", async ({ answer, roomId: answerRoomId }) => {
-      if (answerRoomId !== roomId || !pc) return;
-      await pc.setRemoteDescription(new RTCSessionDescription(answer));
+    // When the streamer receives an answer from a viewer
+    socket.on("webrtcAnswer", async ({ answer, targetSocketId }) => {
+      const pcForViewer = pcs[targetSocketId];
+      if (!pcForViewer) return;
+      await pcForViewer.setRemoteDescription(new RTCSessionDescription(answer));
     });
-    socket.on("webrtcCandidate", async ({ candidate, roomId: candidateRoomId }) => {
-      if (candidateRoomId !== roomId || !pc) return;
-      try {
-        await pc.addIceCandidate(new RTCIceCandidate(candidate));
-      } catch (e) {
-        console.error("Error adding ICE candidate:", e);
-      }
+
+    // Handle ICE candidates from viewers
+    socket.on("webrtcCandidate", async ({ candidate, targetSocketId }) => {
+      const pcForViewer = pcs[targetSocketId];
+      if (!pcForViewer) return;
+      await pcForViewer.addIceCandidate(new RTCIceCandidate(candidate));
     });
   </script>
 </body>
