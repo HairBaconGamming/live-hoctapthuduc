@@ -35,7 +35,7 @@
     .main-content {
       display: flex;
       width: 100%;
-      height: calc(100vh - 60px); /* trừ header */
+      height: calc(100vh - 60px); /* subtract header height */
     }
     /* ===== Video Area ===== */
     .video-area {
@@ -50,7 +50,7 @@
     .video-wrapper {
       width: 100%;
       position: relative;
-      /* Sử dụng aspect-ratio để giữ tỉ lệ 16:9 */
+      /* Use aspect-ratio to maintain 16:9 */
       aspect-ratio: 16/9;
     }
     .video-element {
@@ -108,7 +108,7 @@
       align-items: center;
       justify-content: center;
     }
-    /* Bọc nội dung chat (tin nhắn và input) */
+    /* Chat Content */
     #chatContent {
       display: flex;
       flex-direction: column;
@@ -150,7 +150,7 @@
       cursor: pointer;
       box-shadow: 0 0 10px rgba(255,124,247,0.5);
     }
-    /* Khi chat bị thu gọn: ẩn nội dung nhưng vẫn giữ header */
+    /* Collapsed Chat */
     .chat-hidden {
       width: 50px;
     }
@@ -176,7 +176,7 @@
     <!-- Video Area -->
     <div class="video-area">
       <div class="video-wrapper">
-        <!-- Video element to display the remote stream -->
+        <!-- Video element for remote stream -->
         <video id="liveVideo" class="video-element" autoplay playsinline controls muted></video>
         <div id="placeholder" class="video-placeholder">
           Chủ phòng hiện chưa chia sẻ màn hình
@@ -201,7 +201,9 @@
   
   <script src="/socket.io/socket.io.js"></script>
   <script>
+    // =========================
     // Socket.IO & Chat logic
+    // =========================
     const socket = io();
     const roomId = "<%= room.id %>";
     const username = "<%= user.username %>";
@@ -237,7 +239,7 @@
       }
     });
 
-    // Toggle Chat Area: ẩn/hiện nội dung chat
+    // Toggle Chat Area
     const toggleChatBtn = document.getElementById("toggleChatBtn");
     const chatArea = document.getElementById("chatArea");
     const chatContent = document.getElementById("chatContent");
@@ -255,46 +257,52 @@
       }
     });
 
-    // WebRTC logic to receive stream from the host
+    // ===============================
+    // WebRTC logic to receive stream from host
+    // ===============================
     let pc;
+    // Create a global remoteStream and assign it to the video element once.
+    const liveVideo = document.getElementById("liveVideo");
+    const remoteStream = new MediaStream();
+    liveVideo.srcObject = remoteStream;
+    let playInitiated = false;
+    
     socket.on("webrtcOffer", async ({ offer, roomId: offerRoomId }) => {
       if (offerRoomId !== roomId) return;
+
       // Create RTCPeerConnection
       pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
-      
+
+      // When a track arrives, add it to our global remoteStream
       pc.ontrack = event => {
         console.log("ontrack event triggered:", event);
-        if (event.streams && event.streams[0]) {
-          const remoteStream = event.streams[0];
-          const liveVideo = document.getElementById("liveVideo");
-          if (liveVideo) {
-            liveVideo.srcObject = remoteStream;
-            // Attempt to explicitly start playback
-            liveVideo.play().then(() => {
+        remoteStream.addTrack(event.track);
+        document.getElementById("placeholder").style.display = "none";
+        if (!playInitiated && liveVideo.paused) {
+          liveVideo.play()
+            .then(() => {
               console.log("Remote video playing");
-            }).catch(err => {
+              playInitiated = true;
+            })
+            .catch(err => {
               console.error("Error playing remote video:", err);
             });
-            document.getElementById("placeholder").style.display = "none";
-          } else {
-            console.error("Live video element not found.");
-          }
-        } else {
-          console.error("No stream found in ontrack event.");
         }
       };
-      
+
+      // ICE candidate handling
       pc.onicecandidate = event => {
         if (event.candidate) {
           socket.emit("webrtcCandidate", { roomId, candidate: event.candidate });
         }
       };
-      
+
       try {
         await pc.setRemoteDescription(new RTCSessionDescription(offer));
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
-        socket.emit("webrtcAnswer", { roomId, answer });
+        // <--- Modify the next line to include the targetSocketId.
+        socket.emit("webrtcAnswer", { roomId, answer, targetSocketId: socket.id });
       } catch (error) {
         console.error("Error handling WebRTC offer:", error);
       }
