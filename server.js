@@ -78,7 +78,20 @@ app.post("/api/createStream", (req, res) => {
     API LẤY DANH SÁCH ROOM ĐANG LIVE
 ============================= */
 app.get("/api/rooms", (req, res) => {
-  res.json(liveRooms);
+  const roomsWithOnlineTime = liveRooms.map(room => {
+    const now = new Date();
+    const diffMs = now - new Date(room.createdAt); // hiệu chênh theo milliseconds
+    // Tính thời gian dưới dạng giờ:phút:giây
+    const seconds = Math.floor(diffMs / 1000) % 60;
+    const minutes = Math.floor(diffMs / (1000 * 60)) % 60;
+    const hours = Math.floor(diffMs / (1000 * 60 * 60));
+    const onlineTime = `${hours.toString().padStart(2, '0')}:${minutes
+      .toString()
+      .padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+      
+    return { ...room, onlineTime };
+  });
+  res.json(roomsWithOnlineTime);
 });
 
 /* =============================
