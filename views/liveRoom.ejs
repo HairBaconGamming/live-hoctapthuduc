@@ -121,7 +121,10 @@
 <body>
   <!-- Header cố định -->
   <header style="height: 60px; background: #111; color: #fff; display: flex; align-items: center; padding: 0 20px;">
-    <h1 style="font-size: 1.4em; margin-right: auto;">Live Stream Demo</h1>
+    <h1 class="live-title">
+      <i class="fas fa-video"></i>
+      Live Stream: <span class="stream-title"><%= room.title %></span>
+    </h1>
     <p style="margin-left: auto;">Người xem: <span id="viewerCount">0</span></p>
   </header>
 
