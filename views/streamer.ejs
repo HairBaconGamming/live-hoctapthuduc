@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
   <style>
-    /* Bổ sung style cho bảng điều khiển của chủ phòng */
+    /* Bổ sung style cho bảng điều khiển và live cam */
     .control-panel {
       background: rgba(0,0,0,0.7);
       border-radius: 8px;
@@ -31,6 +31,18 @@
     }
     .control-panel button:hover {
       background: #e06ac7;
+    }
+    /* Live Cam Preview */
+    #liveCamContainer {
+      margin-top: 20px;
+      text-align: center;
+    }
+    #liveCamVideo {
+      width: 100%;
+      max-width: 600px;
+      border: 2px solid #00ffea;
+      border-radius: 8px;
+      box-shadow: 0 0 15px rgba(0,255,234,0.6);
     }
   </style>
 </head>
@@ -61,6 +73,13 @@
       <button id="stopStreamBtn"><i class="fas fa-stop"></i> Dừng phát</button>
       <button id="endStreamBtn"><i class="fas fa-power-off"></i> Kết thúc live</button>
     </div>
+    
+    <!-- Live Cam Preview (tích hợp webcam) -->
+    <div id="liveCamStream" style="margin-top:20px; text-align: center;">
+      <h3>Live Video (Preview)</h3>
+      <video id="streamVideo" autoplay muted playsinline style="width: 100%; max-width: 600px; border: 2px solid #00ffea; border-radius: 8px;"></video>
+    </div>
+    
     <!-- Khung chat trực tiếp -->
     <div id="chatBox">
       <h3>💬 Chat trực tiếp với người xem</h3>
@@ -81,7 +100,7 @@
     const chatMessages = document.getElementById("chatMessages");
     const viewerCount = document.getElementById("viewerCount");
 
-    // Chủ phòng tham gia room
+    // Tham gia phòng với tên chủ phòng
     socket.emit("joinRoom", { roomId, username });
     socket.on("userJoined", msg => {
       const li = document.createElement("li");
@@ -123,6 +142,19 @@
       alert("Live stream đã kết thúc.");
       window.location.href = "https://hoctap-9a3.glitch.me/";
     });
+
+    // --- Live Cam: Khởi tạo webcam stream ---
+    async function startLocalStream() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        const videoElement = document.getElementById("streamVideo");
+        videoElement.srcObject = stream;
+      } catch (err) {
+        console.error("Error accessing media devices:", err);
+        alert("Không thể truy cập webcam, vui lòng kiểm tra quyền truy cập.");
+      }
+    }
+    startLocalStream();
   </script>
 </body>
 </html>
