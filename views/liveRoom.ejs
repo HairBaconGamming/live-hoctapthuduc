@@ -25,8 +25,8 @@
       padding: 20px;
     }
     .video-wrapper {
-      width: 100%;
-      /* Sử dụng aspect-ratio để giữ tỉ lệ 16:9 */
+      width: 90%;
+      max-height: 90%;
       aspect-ratio: 16/9;
       position: relative;
     }
@@ -62,6 +62,7 @@
       background: #2c2c3a;
       display: flex;
       flex-direction: column;
+      transition: width 0.3s;
     }
     .chat-header {
       background: rgba(0,0,0,0.7);
@@ -117,15 +118,17 @@
       cursor: pointer;
       box-shadow: 0 0 10px rgba(255,124,247,0.5);
     }
-    /* ===== Responsive: Khi chat thu gọn, video chiếm full màn hình ===== */
-    .chat-hidden .chat-content {
-      display: none;
+    /* Transition cho nội dung chat */
+    #chatContent {
+      transition: opacity 0.3s, height 0.3s;
     }
-    .chat-hidden .chat-area {
+    /* ===== Chế độ chat thu gọn ===== */
+    .chat-hidden #chatContent {
+      height: 0;
+      opacity: 0;
+    }
+    .chat-hidden {
       width: 50px;
-    }
-    .chat-hidden .video-area {
-      flex: 1 1 100%;
     }
   </style>
 </head>
@@ -140,7 +143,7 @@
   </header>
 
   <div class="main-content">
-    <!-- Video Area (ở bên trái) -->
+    <!-- Video Area -->
     <div class="video-area">
       <div class="video-wrapper">
         <video id="streamVideo" class="video-element" autoplay playsinline controls muted></video>
@@ -149,20 +152,22 @@
         </div>
       </div>
     </div>
-    <!-- Chat Area (ở bên phải) -->
-    <div class="chat-area">
+    <!-- Chat Area -->
+    <div class="chat-area" id="chatArea">
       <div class="chat-header">
         <span>Phòng Chat</span>
+        <!-- Nút toggle luôn hiển thị trong header -->
         <button id="toggleChatBtn"><i class="fas fa-chevron-right"></i></button>
       </div>
-      <ul class="chat-messages" id="chatMessages"></ul>
-      <div class="chat-input">
-        <input type="text" id="messageInput" placeholder="Nhập tin nhắn..." autocomplete="off" />
-        <button id="sendBtn">Gửi</button>
+      <div id="chatContent">
+        <ul class="chat-messages" id="chatMessages"></ul>
+        <div class="chat-input">
+          <input type="text" id="messageInput" placeholder="Nhập tin nhắn..." autocomplete="off" />
+          <button id="sendBtn">Gửi</button>
+        </div>
       </div>
     </div>
   </div>
-
   <script src="/socket.io/socket.io.js"></script>
   <script>
     // Socket.IO cho chat và signaling
@@ -205,16 +210,18 @@
       }
     });
 
-    // Toggle Chat Content: nút toggle luôn nằm trong header của chat
+    // Refactor Toggle Chat: dùng classList.toggle cho sự đơn giản và hiệu quả
     const toggleChatBtn = document.getElementById("toggleChatBtn");
-    const chatContent = document.getElementById("chatContent");
+    const chatArea = document.getElementById("chatArea");
+
     toggleChatBtn.addEventListener("click", () => {
-      if (chatContent.classList.contains("collapsed")) {
-        chatContent.classList.remove("collapsed");
-        toggleChatBtn.innerHTML = '<i class="fas fa-chevron-right"></i>';
-      } else {
-        chatContent.classList.add("collapsed");
+      // Thêm hoặc bớt class "chat-hidden"
+      chatArea.classList.toggle("chat-hidden");
+      // Cập nhật icon: Nếu chat đang ẩn, hiển thị icon mở rộng (chevron-right); nếu chat đang mở, hiển thị icon thu gọn (chevron-left)
+      if (chatArea.classList.contains("chat-hidden")) {
         toggleChatBtn.innerHTML = '<i class="fas fa-chevron-left"></i>';
+      } else {
+        toggleChatBtn.innerHTML = '<i class="fas fa-chevron-right"></i>';
       }
     });
 
