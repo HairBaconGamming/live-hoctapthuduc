@@ -256,14 +256,18 @@
         pc = new RTCPeerConnection({
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
-    // Thêm TURN server với thông tin chính xác từ nhà cung cấp hoặc từ cài đặt coturn của bạn
     {
-      urls: 'turn:relay1.expressturn.com:3478',
+      urls: [
+        'turn:relay1.expressturn.com:3478?transport=udp',
+        'turn:relay1.expressturn.com:3478?transport=tcp'
+      ],
       username: 'efENPNJI04ST2ENN3C',
       credential: 'udPrjk4AqDfSh8SY'
     }
-  ]
+  ],
+  iceTransportPolicy: 'all' // đảm bảo sử dụng tất cả candidate có sẵn
 });
+
         localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
         pc.onicecandidate = event => {
           if (event.candidate) {
