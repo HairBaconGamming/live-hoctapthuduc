@@ -32,17 +32,22 @@
     .control-panel button:hover {
       background: #e06ac7;
     }
-    /* Live Cam Preview */
+    /* Live Cam / Screen Preview */
     #liveCamContainer {
       margin-top: 20px;
       text-align: center;
     }
-    #liveCamVideo {
+    #liveCamVideo, #screenShareVideo {
       width: 100%;
       max-width: 600px;
       border: 2px solid #00ffea;
       border-radius: 8px;
       box-shadow: 0 0 15px rgba(0,255,234,0.6);
+      margin-top: 10px;
+    }
+    #screenShareContainer {
+      margin-top: 20px;
+      text-align: center;
     }
   </style>
 </head>
@@ -61,23 +66,33 @@
       </p>
     </div>
   </div>
+
   <div class="container">
     <!-- Khung video phát trực tiếp của chủ phòng -->
     <div id="videoStream">
       <div class="video-placeholder">[Video Stream của bạn]</div>
       <p>Chủ phòng: <%= room.ownername %></p>
     </div>
+
     <!-- Bảng điều khiển dành cho chủ phòng -->
     <div class="control-panel">
       <button id="startStreamBtn"><i class="fas fa-play"></i> Bắt đầu phát</button>
       <button id="stopStreamBtn"><i class="fas fa-stop"></i> Dừng phát</button>
       <button id="endStreamBtn"><i class="fas fa-power-off"></i> Kết thúc live</button>
+      <!-- Nút chia sẻ màn hình -->
+      <button id="shareScreenBtn"><i class="fas fa-desktop"></i> Chia sẻ màn hình</button>
     </div>
     
-    <!-- Live Cam Preview (tích hợp webcam) -->
-    <div id="liveCamStream" style="margin-top:20px; text-align: center;">
-      <h3>Live Video (Preview)</h3>
-      <video id="streamVideo" autoplay muted playsinline style="width: 100%; max-width: 600px; border: 2px solid #00ffea; border-radius: 8px;"></video>
+    <!-- Live Cam Preview (Webcam) -->
+    <div id="liveCamContainer">
+      <h3>Live Camera Preview</h3>
+      <video id="liveCamVideo" autoplay muted playsinline></video>
+    </div>
+
+    <!-- Screen Share Preview -->
+    <div id="screenShareContainer">
+      <h3>Screen Share Preview</h3>
+      <video id="screenShareVideo" autoplay muted playsinline></video>
     </div>
     
     <!-- Khung chat trực tiếp -->
@@ -102,25 +117,30 @@
 
     // Tham gia phòng với tên chủ phòng
     socket.emit("joinRoom", { roomId, username });
+
     socket.on("userJoined", msg => {
       const li = document.createElement("li");
       li.innerHTML = `<i>${msg}</i>`;
       chatMessages.appendChild(li);
     });
+
     socket.on("newMessage", data => {
       const li = document.createElement("li");
       li.textContent = `${data.username}: ${data.message}`;
       chatMessages.appendChild(li);
     });
+
     socket.on("updateViewers", count => {
       viewerCount.textContent = count;
     });
+
     sendBtn.addEventListener("click", () => {
       const message = messageInput.value.trim();
       if (!message) return;
       socket.emit("chatMessage", { roomId, username, message });
       messageInput.value = "";
     });
+
     messageInput.addEventListener("keypress", function(e) {
       if (e.key === "Enter") {
         e.preventDefault();
@@ -144,17 +164,39 @@
     });
 
     // --- Live Cam: Khởi tạo webcam stream ---
-    async function startLocalStream() {
+    async function startLocalCam() {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-        const videoElement = document.getElementById("streamVideo");
+        const videoElement = document.getElementById("liveCamVideo");
         videoElement.srcObject = stream;
       } catch (err) {
-        console.error("Error accessing media devices:", err);
-        alert("Không thể truy cập webcam, vui lòng kiểm tra quyền truy cập.");
+        console.error("Error accessing webcam:", err);
+        alert("Không thể truy cập webcam, vui lòng kiểm tra quyền truy cập!");
       }
     }
-    startLocalStream();
+    startLocalCam();
+
+    // --- Screen Share: Khởi tạo quay màn hình ---
+    const shareScreenBtn = document.getElementById("shareScreenBtn");
+    shareScreenBtn.addEventListener("click", async () => {
+      try {
+        const screenStream = await navigator.mediaDevices.getDisplayMedia({
+          video: true,
+          audio: true // Cho phép chia sẻ âm thanh hệ thống (nếu trình duyệt hỗ trợ)
+        });
+        const screenVideo = document.getElementById("screenShareVideo");
+        screenVideo.srcObject = screenStream;
+
+        // Khi người dùng dừng chia sẻ màn hình
+        screenStream.getVideoTracks()[0].addEventListener("ended", () => {
+          console.log("Người dùng đã dừng chia sẻ màn hình");
+          screenVideo.srcObject = null;
+        });
+      } catch (err) {
+        console.error("Lỗi khi chia sẻ màn hình:", err);
+        alert("Không thể chia sẻ màn hình, vui lòng kiểm tra quyền truy cập hoặc trình duyệt!");
+      }
+    });
   </script>
 </body>
 </html>
