@@ -57,8 +57,8 @@ app.post("/api/createStream", (req, res) => {
   const liveStreamUrl = `https://live-hoctap-9a3.glitch.me/room/${roomId}`;
   const newRoom = {
     id: roomId,
-    owner: roomOwnerName,         // Lưu tên chủ phòng
-    ownerid: roomOwnerId,          // Lưu id chủ phòng để so sánh
+    owner: roomOwnerName,         // Tên chủ phòng
+    ownerid: roomOwnerId,         // ID chủ phòng
     title: title || "Live Stream không tiêu đề",
     liveStreamUrl,
     viewers: 0,
@@ -81,7 +81,7 @@ app.get("/api/rooms", (req, res) => {
 });
 
 /* =============================
-    API LẤY TOKEN cho live stream (cho mục nội bộ)
+    API LẤY TOKEN cho live stream
 ============================= */
 app.get("/live/getToken", isLoggedIn, (req, res) => {
   const roomId = req.query.roomId;
@@ -102,7 +102,7 @@ app.get("/live/getToken", isLoggedIn, (req, res) => {
 app.get("/room/:id", checkHoctapAuth, (req, res) => {
   const room = liveRooms.find(r => r.id === req.params.id);
   if (!room) return res.status(404).send("Room không tồn tại.");
-  // So sánh id chủ phòng (room.ownerid) với req.user.userId từ token
+  // Phân biệt chủ phòng / khách
   if (room.ownerid.toString() === req.user.userId.toString()) {
     res.render("streamer", { room, user: req.user });
   } else {
@@ -116,6 +116,7 @@ app.get("/room/:id", checkHoctapAuth, (req, res) => {
 io.on("connection", socket => {
   console.log("💡 New client connected");
   
+  // Khi user vào phòng
   socket.on("joinRoom", ({ roomId, username }) => {
     socket.join(roomId);
     io.to(roomId).emit("userJoined", `${username} đã tham gia phòng.`);
@@ -126,15 +127,37 @@ io.on("connection", socket => {
     }
   });
 
+  // Chat message
   socket.on("chatMessage", ({ roomId, username, message }) => {
     io.to(roomId).emit("newMessage", { username, message });
   });
 
+  // Điều khiển stream (start/stop/end)
   socket.on("controlStream", ({ roomId, action }) => {
     io.to(roomId).emit("streamControl", { action });
     console.log(`Control stream action: ${action} in room ${roomId}`);
   });
 
+  // Xử lý signaling WebRTC
+  socket.on("webrtcOffer", ({ roomId, offer }) => {
+    // Forward offer đến tất cả user khác trong room (trừ sender)
+    socket.to(roomId).emit("webrtcOffer", { roomId, offer });
+    console.log("webrtcOffer forwarded to room:", roomId);
+  });
+
+  socket.on("webrtcAnswer", ({ roomId, answer }) => {
+    // Forward answer
+    socket.to(roomId).emit("webrtcAnswer", { roomId, answer });
+    console.log("webrtcAnswer forwarded to room:", roomId);
+  });
+
+  socket.on("webrtcCandidate", ({ roomId, candidate }) => {
+    // Forward ICE candidate
+    socket.to(roomId).emit("webrtcCandidate", { roomId, candidate });
+    console.log("webrtcCandidate forwarded to room:", roomId);
+  });
+
+  // Xử lý user rời phòng
   socket.on("disconnecting", () => {
     const rooms = Array.from(socket.rooms);
     rooms.forEach(roomId => {
