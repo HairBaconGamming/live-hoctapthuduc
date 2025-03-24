@@ -1,3 +1,4 @@
+<!-- app/views/liveRoom.ejs -->
 <!DOCTYPE html>
 <html lang="vi">
 <head>
@@ -8,7 +9,7 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
   <style>
-    /* Global styles, video area, and chat styles go here */
+    /* (CSS như cũ) */
     body {
       font-family: 'Poppins', sans-serif;
       background: linear-gradient(135deg, #1e1e2f, #252536);
@@ -73,9 +74,7 @@
       font-size: 1.2em;
       background: rgba(0,0,0,0.6);
     }
-    
-    
-    /* Chat styles omitted for brevity */
+    /* Chat styles ... */
   </style>
 </head>
 <body>
@@ -118,10 +117,13 @@
     </button>
   </div>
   
+  <!-- socket.io cho chat và các sự kiện khác -->
   <script src="/socket.io/socket.io.js"></script>
-  <script>
-    // Socket.IO & Chat Setup
-    const socket = io();
+  <!-- Import Firebase Signaling Module -->
+  <script type="module">
+    import { sendSignal, onNewSignal } from "/firebase-signaling.js";
+    
+    // Cài đặt Firebase signaling thay cho socket.io signaling cho WebRTC
     const roomId = "<%= room.id %>";
     const username = "<%= user.username %>";
     const viewerCount = document.getElementById("viewerCount");
@@ -129,6 +131,8 @@
     const messageInput = document.getElementById("messageInput");
     const sendBtn = document.getElementById("sendBtn");
 
+    // Socket.IO cho chat
+    const socket = io();
     socket.emit("joinRoom", { roomId, username });
     socket.on("userJoined", msg => {
       const li = document.createElement("li");
@@ -156,121 +160,70 @@
       }
     });
 
-    // WebRTC Setup for Viewer
+    // WebRTC Setup cho Viewer sử dụng Firebase signaling
     let pc;
     let remoteStream = new MediaStream();
     const liveVideo = document.getElementById("liveVideo");
     liveVideo.srcObject = remoteStream;
-    let playInitiated = false;
 
-    socket.on("webrtcOffer", async ({ offer, roomId: offerRoomId, streamerSocketId }) => {
-      if (offerRoomId !== roomId) return;
+    // Tạo RTCPeerConnection với cấu hình ICE (các STUN server)
+    function createPeerConnection() {
       pc = new RTCPeerConnection({
-  iceServers: [
-    { urls: 'stun:stun.l.google.com:19302' },
-    { urls: "stun:stun.l.google.com:19302" },
-    { urls: "stun:stun.l.google.com:5349" },
-    { urls: "stun:stun1.l.google.com:3478" },
-    { urls: "stun:stun1.l.google.com:5349" },
-    { urls: "stun:stun2.l.google.com:19302" },
-    { urls: "stun:stun2.l.google.com:5349" },
-    { urls: "stun:stun3.l.google.com:3478" },
-    { urls: "stun:stun3.l.google.com:5349" },
-    { urls: "stun:stun4.l.google.com:19302" },
-    { urls: "stun:stun4.l.google.com:5349" },
-    {
-      urls: [
-        'turn:relay1.expressturn.com:3478?transport=udp',
-        'turn:relay1.expressturn.com:3478?transport=tcp'
-      ],
-      username: 'efENPNJI04ST2ENN3C',
-      credential: 'udPrjk4AqDfSh8SY'
-    }
-  ],
-  iceTransportPolicy: 'all' // đảm bảo sử dụng tất cả candidate có sẵn
-});
+        iceServers: [
+          { urls: 'stun:stun.l.google.com:19302' },
+          // Các STUN/ TURN server khác nếu cần
+        ],
+        iceTransportPolicy: 'all'
+      });
+      // Khi có track từ remote, cập nhật video
       pc.ontrack = event => {
-        // Nếu event.streams[0] tồn tại, sử dụng nó làm nguồn cho video.
         if (event.streams && event.streams[0]) {
           liveVideo.srcObject = event.streams[0];
         } else {
-          // Ngược lại, thêm track vào remoteStream và gán lại srcObject
           remoteStream.addTrack(event.track);
           liveVideo.srcObject = remoteStream;
         }
         document.getElementById("placeholder").style.display = "none";
         liveVideo.play().catch(err => console.error("Error playing remote video:", err));
       };
+      // Khi có ICE candidate, gửi qua Firebase
       pc.onicecandidate = event => {
         if (event.candidate) {
-          console.log("New ICE candidate: ", event.candidate);
-          socket.emit("webrtcCandidate", { roomId, candidate: event.candidate });
+          sendSignal(roomId, { type: "candidate", candidate: event.candidate });
         }
       };
+      // Xử lý ICE connection state thay đổi (tùy chọn)
       pc.oniceconnectionstatechange = () => {
-  console.log("ICE state:", pc.iceConnectionState);
-  if (pc.iceConnectionState === "disconnected" || pc.iceConnectionState === "failed") {
-    // Ví dụ: thông báo lỗi hoặc thực hiện reconnect
-    console.error("ICE connection failed/disconnected. Thực hiện reconnect...");
-    // Bạn có thể thử tạo RTCPeerConnection mới hoặc gửi thông báo cho người dùng
-  }
-};
+        console.log("ICE state:", pc.iceConnectionState);
+      };
+    }
+    
+    createPeerConnection();
 
-      try {
-        await pc.setRemoteDescription(new RTCSessionDescription(offer));
+    // Lắng nghe tín hiệu mới từ Firebase
+    onNewSignal(roomId, async (signal) => {
+      if (!signal) return;
+      console.log("Firebase signal received:", signal);
+      
+      if (signal.type === "offer") {
+        // Nếu nhận offer từ streamer, set remote description và tạo answer
+        await pc.setRemoteDescription(new RTCSessionDescription({ type: "offer", sdp: signal.sdp }));
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
-        socket.emit("webrtcAnswer", { roomId, answer, targetSocketId: streamerSocketId });
-      } catch (error) {
-        console.error("Error handling WebRTC offer:", error);
+        sendSignal(roomId, { type: "answer", sdp: answer.sdp });
+      } else if (signal.type === "answer") {
+        // Nếu nhận answer (không thường xảy ra ở viewer)
+        await pc.setRemoteDescription(new RTCSessionDescription({ type: "answer", sdp: signal.sdp }));
+      } else if (signal.type === "candidate") {
+        try {
+          await pc.addIceCandidate(signal.candidate);
+        } catch (err) {
+          console.error("Error adding ICE candidate", err);
+        }
       }
     });
-
-    socket.on("webrtcCandidate", async ({ candidate, roomId: candidateRoomId }) => {
-      if (candidateRoomId !== roomId || !pc) return;
-      try {
-        await pc.addIceCandidate(new RTCIceCandidate(candidate));
-      } catch (e) {
-        console.error("Error adding ICE candidate", e);
-      }
-    });
-
-    // Listen for screenShareEnded event to reset the video
-    socket.on("screenShareEnded", () => {
-      console.log("Received screenShareEnded event");
-      // Stop all tracks from the remote stream
-      remoteStream.getTracks().forEach(track => track.stop());
-      // Create a new, empty MediaStream
-      remoteStream = new MediaStream();
-      liveVideo.srcObject = remoteStream;
-      // Display the placeholder
-      document.getElementById("placeholder").style.display = "flex";
-    });
     
-    // Khi phòng live kết thúc
-    socket.on("roomEnded", () => {
-      console.log("Room has ended event received!");
-
-      const overlay = document.getElementById('roomEndedOverlay');
-      const mainContent = document.getElementById('mainContent');
-
-      if (mainContent) mainContent.style.display = 'none';
-
-      // Remove active if somehow already there (safe reset)
-      overlay.classList.remove('active');
-
-      // Force reflow/repaint
-      void overlay.offsetWidth;
-
-      // Now add active -> triggers transition!
-      overlay.classList.add('active');
-
-      // Optional auto redirect after 5 seconds
-      setTimeout(() => {
-        window.location.href = "https://hoctap-9a3.glitch.me/live";
-      }, 15000);
-    });
-    
+    // Nếu cần, bạn có thể gửi keep-alive cho phòng qua socket.io như cũ
     setInterval(() => {
       if (socket && roomId) {
         socket.emit("keepAlive", { roomId });

@@ -56,7 +56,7 @@ app.post("/api/createStream", (req, res) => {
       .json({ error: "Thiếu thông tin chủ phòng (roomOwnerId)." });
   }
 
-  // ✅ Kiểm tra nếu user đã có 1 phòng live chưa
+  // Kiểm tra nếu user đã có 1 phòng live
   const existingRoom = liveRooms.find(room => room.ownerid === roomOwnerId);
   if (existingRoom) {
     return res.status(400).json({
@@ -95,14 +95,12 @@ app.get("/api/rooms", (req, res) => {
   const roomsWithOnlineTime = liveRooms.map(room => {
     const now = new Date();
     const diffMs = now - new Date(room.createdAt); // hiệu chênh theo milliseconds
-    // Tính thời gian dưới dạng giờ:phút:giây
     const seconds = Math.floor(diffMs / 1000) % 60;
     const minutes = Math.floor(diffMs / (1000 * 60)) % 60;
     const hours = Math.floor(diffMs / (1000 * 60 * 60));
     const onlineTime = `${hours.toString().padStart(2, '0')}:${minutes
       .toString()
       .padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-      
     return { ...room, onlineTime };
   });
   res.json(roomsWithOnlineTime);
@@ -119,7 +117,7 @@ app.get("/live/getToken", isLoggedIn, (req, res) => {
   const token = jwt.sign(
     { userId: req.user._id, username: req.user.username },
     SECRET_KEY,
-    { expiresIn: "1h" }
+    { expiresIn: "4h" }
   );
   res.json({ token });
 });
@@ -147,55 +145,45 @@ io.on("connection", socket => {
   socket.on("joinRoom", ({ roomId, username }) => {
     socket.join(roomId);
     socket.username = username;
-
     const room = liveRooms.find(r => r.id === roomId);
     if (room) {
-      // Nếu là chủ phòng, lưu socket id của streamer (chủ phòng)
       if (username === room.owner) {
-        room.hostSocketId = socket.id; // ✅ Lưu hostSocketId ở đây!
+        room.hostSocketId = socket.id;
         console.log(`✅ Chủ phòng ${username} đã vào với socketId: ${socket.id}`);
       } else {
-        // Nếu là khách, tăng viewer count
         room.viewers++;
         io.to(roomId).emit("updateViewers", room.viewers);
         io.to(roomId).emit("userJoined", `${username} đã tham gia phòng.`);
-
-        // Thông báo cho chủ phòng (streamer) có khách mới
+        // Thông báo cho chủ phòng có viewer mới
         if (room.hostSocketId) {
           io.to(room.hostSocketId).emit("newViewer", { viewerSocketId: socket.id });
         }
       }
     }
   });
-  
+
   socket.on("keepAlive", ({ roomId }) => {
     console.log(`Keep-alive received for room ${roomId} from socket ${socket.id}`);
-    // Optionally update a timestamp, reset a timeout, or perform any necessary action
   });
 
-  
   // Chat message
   socket.on("chatMessage", ({ roomId, username, message }) => {
     io.to(roomId).emit("newMessage", { username, message });
   });
 
-  // ✅ Xử lý kết thúc phòng chỉ dành cho chủ phòng
+  // Xử lý kết thúc phòng chỉ dành cho chủ phòng
   socket.on("endRoom", ({ roomId }) => {
     const room = liveRooms.find(r => r.id === roomId);
-
     if (!room) {
       socket.emit("errorMessage", "Phòng không tồn tại.");
       console.log(`❌ Phòng ${roomId} không tồn tại khi socket ${socket.id} cố gắng kết thúc.`);
       return;
     }
-
     if (socket.id !== room.hostSocketId) {
       socket.emit("errorMessage", "Bạn không có quyền kết thúc phòng này.");
       console.log(`❌ Socket ${socket.id} cố gắng kết thúc phòng ${roomId} nhưng không phải chủ phòng (${room.hostSocketId}).`);
       return;
     }
-
-    // Nếu là chủ phòng, tiếp tục xóa phòng và thông báo
     io.to(roomId).emit("roomEnded");
     liveRooms = liveRooms.filter(r => r.id !== roomId);
     console.log(`✅ Phòng ${roomId} đã bị kết thúc bởi chủ phòng (socketId: ${socket.id}).`);
@@ -206,36 +194,13 @@ io.on("connection", socket => {
     console.log(`📺 Screen share ended in room: ${roomId}`);
   });
 
-  // WebRTC signaling: Offer
-  socket.on("webrtcOffer", ({ roomId, offer, targetSocketId }) => {
-    if (targetSocketId) {
-      io.to(targetSocketId).emit("webrtcOffer", { roomId, offer, streamerSocketId: socket.id });
-      console.log("📡 webrtcOffer sent to target:", targetSocketId);
-    } else {
-      socket.to(roomId).emit("webrtcOffer", { roomId, offer });
-      console.log("📡 webrtcOffer forwarded to room:", roomId);
-    }
-  });
+  // Lưu ý: Firebase signaling được xử lý hoàn toàn ở client,
+  // do đó ta không cần các sự kiện webrtcOffer, webrtcAnswer, webrtcCandidate từ socket.io.
+  // Nếu cần dự phòng, bạn có thể giữ lại hoặc comment bỏ.
+  // socket.on("webrtcOffer", ...);
+  // socket.on("webrtcAnswer", ...);
+  // socket.on("webrtcCandidate", ...);
 
-  // WebRTC signaling: Answer  
-  socket.on("webrtcAnswer", ({ roomId, answer, targetSocketId }) => {
-    if (targetSocketId) {
-      const viewerSocketId = socket.id;
-      io.to(targetSocketId).emit("webrtcAnswer", { roomId, answer, targetSocketId: viewerSocketId });
-      console.log("📡 webrtcAnswer sent to target:", targetSocketId, "from viewer", viewerSocketId);
-    } else {
-      socket.to(roomId).emit("webrtcAnswer", { roomId, answer });
-      console.log("📡 webrtcAnswer forwarded to room:", roomId);
-    }
-  });
-
-  // WebRTC signaling: ICE Candidate
-  socket.on("webrtcCandidate", ({ roomId, candidate }) => {
-    socket.to(roomId).emit("webrtcCandidate", { roomId, candidate });
-    console.log("❄️ webrtcCandidate forwarded to room:", roomId);
-  });
-
-  // Khi user rời phòng
   socket.on("disconnecting", () => {
     const rooms = Array.from(socket.rooms);
     rooms.forEach(roomId => {
