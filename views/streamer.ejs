@@ -1,15 +1,13 @@
-<!-- app/views/streamer.ejs -->
 <!DOCTYPE html>
 <html lang="vi">
 <head>
   <meta charset="UTF-8">
   <title>Streamer Room - <%= room.title %></title>
   <link rel="stylesheet" href="/style.css">
-  <link rel="icon" type="image/png" href="https://cdn.glitch.global/71030012-56ea-4d26-a426-e0099201df1c/823029_library_512x512.png?v=1741523759119">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
   <style>
-    /* (CSS như cũ) */
+    /* Control Panel */
     .control-panel {
       position: relative;
       background: rgba(0,0,0,0.7);
@@ -61,6 +59,7 @@
     .control-panel button:hover {
       background: #e06ac7;
     }
+    /* Screen Share Preview */
     #screenShareContainer {
       margin-top: 20px;
       text-align: center;
@@ -93,7 +92,7 @@
   </div>
   <div class="container">
     
-    <!-- Control Panel -->
+    <!-- Control Panel với toggle -->
     <div class="control-panel" id="controlPanel">
       <button id="togglePanelBtn" class="panel-toggle-btn">
         <i class="fas fa-chevron-up"></i>
@@ -108,7 +107,7 @@
       </div>
     </div>
     
-    <!-- Chat Box -->
+    <!-- Khung chat -->
     <div id="chatBox">
       <h3>💬 Chat trực tiếp với người xem</h3>
       <ul id="chatMessages"></ul>
@@ -118,12 +117,8 @@
     </div>
   </div>
 
-  <!-- socket.io cho chat và cập nhật số người xem -->
   <script src="/socket.io/socket.io.js"></script>
-  <!-- Import Firebase Signaling Module -->
   <script type="module">
-    import { sendSignal, onNewSignal } from "/firebase-signaling.js";
-
     const socket = io();
     const roomId = "<%= room.id %>";
     const username = document.getElementById("username").value;
@@ -131,9 +126,8 @@
     const sendBtn = document.getElementById("sendBtn");
     const chatMessages = document.getElementById("chatMessages");
     const viewerCount = document.getElementById("viewerCount");
-    console.log("Setup");
 
-    // Cập nhật thời gian mở phòng
+    // Cập nhật thời gian mở phòng (dựa trên createdAt từ server)
     const roomCreatedAt = new Date("<%= room.createdAt %>");
     function updateOpenTime() {
       const now = new Date();
@@ -147,7 +141,7 @@
     setInterval(updateOpenTime, 1000);
     updateOpenTime();
 
-    // Tham gia phòng qua socket.io cho chat và cập nhật số người xem
+    // Tham gia phòng
     socket.emit("joinRoom", { roomId, username });
     socket.on("userJoined", msg => {
       const li = document.createElement("li");
@@ -180,18 +174,25 @@
     const controlPanel = document.getElementById('controlPanel');
     togglePanelBtn.addEventListener('click', () => {
       controlPanel.classList.toggle('collapsed');
-      togglePanelBtn.innerHTML = controlPanel.classList.contains('collapsed') 
-        ? '<i class="fas fa-chevron-down"></i>' 
-        : '<i class="fas fa-chevron-up"></i>';
+      if (controlPanel.classList.contains('collapsed')) {
+        togglePanelBtn.innerHTML = '<i class="fas fa-chevron-down"></i>';
+      } else {
+        togglePanelBtn.innerHTML = '<i class="fas fa-chevron-up"></i>';
+      }
     });
 
-    // WebRTC Signaling sử dụng Firebase cho Screen Share
-    let localStream = null;
-    let pc; // RTCPeerConnection chính của streamer
-    const pcs = {}; // Đối với mỗi viewer, lưu RTCPeerConnection riêng
-    const pendingViewers = []; // Viewer đang chờ tín hiệu
+    document.getElementById("endStreamBtn").addEventListener("click", () => {
+      socket.emit("endRoom", { roomId });
+      alert("Live stream đã kết thúc.");
+      window.location.href = "https://hoctap-9a3.glitch.me/";
+    });
 
-    // Khi có sự kiện "newViewer" qua socket.io, nếu localStream chưa sẵn, lưu lại viewer đó
+    // Realtime Screen Share: Sử dụng WebRTC signaling qua Socket.IO
+    let localStream = null;
+    let pc; // RTCPeerConnection for screen share
+    // Mảng lưu các viewer chưa được xử lý
+    const pendingViewers = [];
+
     socket.on("newViewer", async ({ viewerSocketId }) => {
       if (!localStream) {
         console.warn("Local stream chưa sẵn sàng, lưu viewer:", viewerSocketId);
@@ -201,111 +202,144 @@
       createAndSendOffer(viewerSocketId);
     });
 
-    // Hàm tạo và gửi offer cho viewer qua Firebase signaling
+    // Hàm tạo và gửi offer cho viewer
     async function createAndSendOffer(viewerSocketId) {
       const pcForViewer = new RTCPeerConnection({
         iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
       });
       pcs[viewerSocketId] = pcForViewer;
-      // Thêm các track từ localStream
+
+      // Nếu localStream có giá trị, thêm các track vào kết nối
       localStream.getTracks().forEach(track => pcForViewer.addTrack(track, localStream));
+
       pcForViewer.onicecandidate = event => {
         if (event.candidate) {
-          sendSignal(roomId, { type: "candidate", candidate: event.candidate, target: viewerSocketId });
+          socket.emit("webrtcCandidate", {
+            roomId,
+            candidate: event.candidate,
+            targetSocketId: viewerSocketId
+          });
         }
       };
-      // Tạo offer và gửi qua Firebase
+
+      // Tạo offer cho viewer
       const offer = await pcForViewer.createOffer();
       await pcForViewer.setLocalDescription(offer);
-      sendSignal(roomId, { type: "offer", sdp: offer.sdp, target: viewerSocketId });
+
+      socket.emit("webrtcOffer", {
+        roomId,
+        offer,
+        targetSocketId: viewerSocketId
+      });
     }
 
-    // Khi người dùng bấm "Chia sẻ màn hình"
+    // Khi streamer bắt đầu chia sẻ màn hình và localStream được gán
     document.getElementById("shareScreenBtn").addEventListener("click", async () => {
       try {
         localStream = await navigator.mediaDevices.getDisplayMedia({
           video: true,
           audio: true
         });
+
         const screenVideo = document.getElementById("screenShareVideo");
         screenVideo.srcObject = localStream;
-        // Khi người dùng dừng chia sẻ
+
+        // Xử lý khi người dùng dừng chia sẻ màn hình
         localStream.getVideoTracks()[0].addEventListener("ended", () => {
           console.log("User stopped screen sharing");
           screenVideo.srcObject = null;
           localStream = null;
           socket.emit("screenShareEnded", { roomId });
         });
-        // Khởi tạo RTCPeerConnection chính (cho streamer)
+
+        // Tạo RTCPeerConnection chính (nếu cần thiết cho streamer)
         pc = new RTCPeerConnection({
-          iceServers: [
-          {
-            urls: ['stun:stun1.l.google.com:19302', 'stun:stun2.l.google.com:19302'],
-          },
-          ],
-        });
+  iceServers: [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: "stun:stun.l.google.com:19302" },
+    { urls: "stun:stun.l.google.com:5349" },
+    { urls: "stun:stun1.l.google.com:3478" },
+    { urls: "stun:stun1.l.google.com:5349" },
+    { urls: "stun:stun2.l.google.com:19302" },
+    { urls: "stun:stun2.l.google.com:5349" },
+    { urls: "stun:stun3.l.google.com:3478" },
+    { urls: "stun:stun3.l.google.com:5349" },
+    { urls: "stun:stun4.l.google.com:19302" },
+    { urls: "stun:stun4.l.google.com:5349" },
+    {
+      urls: [
+        'turn:relay1.expressturn.com:3478?transport=udp',
+        'turn:relay1.expressturn.com:3478?transport=tcp'
+      ],
+      username: 'efENPNJI04ST2ENN3C',
+      credential: 'udPrjk4AqDfSh8SY'
+    }
+  ],
+  iceTransportPolicy: 'all' // đảm bảo sử dụng tất cả candidate có sẵn
+});
+
         localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
         pc.onicecandidate = event => {
           if (event.candidate) {
-            sendSignal(roomId, { type: "candidate", candidate: event.candidate });
+            console.log("New ICE candidate: ", event.candidate);
+            socket.emit("webrtcCandidate", { roomId, candidate: event.candidate });
           }
         };
-        // Gửi offer cho các viewer đang chờ
+
+        // Tạo offer cho các viewer đang chờ
         while (pendingViewers.length) {
           const viewerSocketId = pendingViewers.shift();
           await createAndSendOffer(viewerSocketId);
         }
+
+        // (Tùy chọn) Gửi offer cho các viewer đã kết nối sau này trong sự kiện "newViewer"
       } catch (err) {
         console.error("Error during screen sharing:", err);
-        alert("Không thể chia sẻ màn hình. Vui lòng kiểm tra quyền hoặc thử trình duyệt khác.");
+        alert("Cannot share screen. Please ensure you have the proper permissions or try a different browser.");
       }
     });
+    
+    // On the streamer side
+    const pcs = {};
 
-    // Lắng nghe tín hiệu mới từ Firebase cho signaling (cho cả streamer)
-    onNewSignal(roomId, async (signal) => {
-      // Nếu có target xác định, kiểm tra xem tín hiệu có dành cho mình không (streamer có thể kiểm soát qua target nếu cần)
-      if (signal.target && signal.target !== username) {
-        return;
-      }
-      console.log("Firebase signal received (streamer):", signal);
-      if (signal.type === "answer" && signal.target) {
-        // Khi nhận answer từ viewer
-        let pcForViewer = pcs[signal.target];
-        if (pcForViewer) {
-          await pcForViewer.setRemoteDescription(new RTCSessionDescription({ type: "answer", sdp: signal.sdp }));
-        }
-      } else if (signal.type === "candidate") {
-        // Nếu có target, áp dụng cho peer connection của viewer đó; nếu không, áp dụng cho RTCPeerConnection chính
-        if (signal.target) {
-          const pcForViewer = pcs[signal.target];
-          if (pcForViewer) {
-            try {
-              await pcForViewer.addIceCandidate(signal.candidate);
-            } catch (err) {
-              console.error("Error adding ICE candidate for viewer", err);
-            }
+    // Khi streamer nhận được answer từ viewer
+    socket.on("webrtcAnswer", async ({ answer, targetSocketId }) => {
+      let pcForViewer = pcs[targetSocketId];
+      if (!pcForViewer) {
+        console.warn("Không tìm thấy peer connection cho viewer: " + targetSocketId + ". Thiết lập lại kết nối...");
+        // Tạo mới một RTCPeerConnection cho viewer đó
+        pcForViewer = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
+        pcs[targetSocketId] = pcForViewer;
+
+        // Thêm các track từ localStream vào pc mới
+        localStream.getTracks().forEach(track => pcForViewer.addTrack(track, localStream));
+
+        // Thiết lập xử lý ICE candidate cho pc mới
+        pcForViewer.onicecandidate = event => {
+          if (event.candidate) {
+            socket.emit("webrtcCandidate", {
+              roomId,
+              candidate: event.candidate,
+              targetSocketId
+            });
           }
-        } else {
-          try {
-            await pc.addIceCandidate(signal.candidate);
-          } catch (err) {
-            console.error("Error adding ICE candidate", err);
-          }
-        }
-      } else if (signal.type === "offer" && signal.target === username) {
-        // Nếu streamer nhận được offer dành cho mình (thường không xảy ra)
-        await pc.setRemoteDescription(new RTCSessionDescription({ type: "offer", sdp: signal.sdp }));
-        const answer = await pc.createAnswer();
-        await pc.setLocalDescription(answer);
-        sendSignal(roomId, { type: "answer", sdp: answer.sdp, target: signal.source });
+        };
+
+        // Tạo offer mới cho viewer
+        const offer = await pcForViewer.createOffer();
+        await pcForViewer.setLocalDescription(offer);
+        socket.emit("webrtcOffer", { roomId, offer, targetSocketId });
       }
+
+      // Sau khi đảm bảo pcForViewer đã tồn tại, tiến hành set remote description
+      await pcForViewer.setRemoteDescription(new RTCSessionDescription(answer));
     });
 
-    // Khi bấm "Kết thúc live"
-    document.getElementById("endStreamBtn").addEventListener("click", () => {
-      socket.emit("endRoom", { roomId });
-      alert("Live stream đã kết thúc.");
-      window.location.href = "https://hoctap-9a3.glitch.me/";
+    // Xử lý ICE candidates từ viewer
+    socket.on("webrtcCandidate", async ({ candidate, targetSocketId }) => {
+      const pcForViewer = pcs[targetSocketId];
+      if (!pcForViewer) return;
+      await pcForViewer.addIceCandidate(new RTCIceCandidate(candidate));
     });
   </script>
 </body>
