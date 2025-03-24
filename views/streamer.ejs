@@ -131,6 +131,7 @@
     const sendBtn = document.getElementById("sendBtn");
     const chatMessages = document.getElementById("chatMessages");
     const viewerCount = document.getElementById("viewerCount");
+    console.log("Setup");
 
     // Cập nhật thời gian mở phòng
     const roomCreatedAt = new Date("<%= room.createdAt %>");
@@ -238,9 +239,10 @@
         // Khởi tạo RTCPeerConnection chính (cho streamer)
         pc = new RTCPeerConnection({
           iceServers: [
-            { urls: 'stun:stun.l.google.com:19302' }
+          {
+            urls: ['stun:stun1.l.google.com:19302', 'stun:stun2.l.google.com:19302'],
+          },
           ],
-          iceTransportPolicy: 'all'
         });
         localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
         pc.onicecandidate = event => {

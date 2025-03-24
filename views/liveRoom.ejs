@@ -170,10 +170,10 @@
     function createPeerConnection() {
       pc = new RTCPeerConnection({
         iceServers: [
-          { urls: 'stun:stun.l.google.com:19302' },
-          // Các STUN/ TURN server khác nếu cần
+          {
+            urls: ['stun:stun1.l.google.com:19302', 'stun:stun2.l.google.com:19302'],
+          },
         ],
-        iceTransportPolicy: 'all'
       });
       // Khi có track từ remote, cập nhật video
       pc.ontrack = event => {
