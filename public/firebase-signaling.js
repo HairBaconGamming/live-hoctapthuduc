@@ -1,41 +1,75 @@
 // public/firebase-signaling.js
-import { initializeApp } from "https://www.gstatic.com/firebasejs/11.5.0/firebase-app.js";
-import { getDatabase, ref, push, onChildAdded } from "https://www.gstatic.com/firebasejs/11.5.0/firebase-database.js";
-
-// Cấu hình Firebase của bạn
-const firebaseConfig = {
-  apiKey: "AIzaSyADpJJiUYPpVja8IymC6OTtIDT0N-B3NoE",
-  authDomain: "live-hoctap-9a3.firebaseapp.com",
-  projectId: "live-hoctap-9a3",
-  storageBucket: "live-hoctap-9a3.firebasestorage.app",
-  messagingSenderId: "243471149211",
-  appId: "1:243471149211:web:499a4585954ff09462fe3e",
-  measurementId: "G-3D6H3FCF9W"
-};
-
-// Khởi tạo Firebase App và Realtime Database
-const app = initializeApp(firebaseConfig);
-const database = getDatabase(app);
+import { firestore } from "../firebaseConfig.js";
 
 /**
- * Gửi tín hiệu signaling (offer, answer, ICE candidate)
- * @param {string} roomId - Mã phòng (có thể sử dụng room.id)
- * @param {Object} signalData - Dữ liệu tín hiệu (type, sdp, candidate,...)
+ * Tạo room (cho streamer) với offer ban đầu.
+ * @param {string} roomId 
+ * @param {Object} offer 
  */
-export function sendSignal(roomId, signalData) {
-  const signalsRef = ref(database, `rooms/${roomId}/signals`);
-  push(signalsRef, signalData);
+export async function createRoom(roomId, offer) {
+  const roomRef = firestore.collection('rooms').doc(roomId);
+  await roomRef.set({ offer });
+  console.log(`Room ${roomId} created with offer`);
 }
 
 /**
- * Lắng nghe tín hiệu mới từ Firebase
- * @param {string} roomId - Mã phòng
- * @param {function} callback - Hàm callback nhận tín hiệu mới
+ * Viewer gửi answer khi đã tạo.
+ * @param {string} roomId 
+ * @param {Object} answer 
  */
-export function onNewSignal(roomId, callback) {
-  const signalsRef = ref(database, `rooms/${roomId}/signals`);
-  onChildAdded(signalsRef, (data) => {
-    const signal = data.val();
-    callback(signal);
+export async function joinRoom(roomId, answer) {
+  const roomRef = firestore.collection('rooms').doc(roomId);
+  await roomRef.update({ answer });
+  console.log(`Joined room ${roomId} with answer`);
+}
+
+/**
+ * Streamer lắng nghe answer từ viewer.
+ * @param {string} roomId 
+ * @param {function} callback 
+ * @returns {function} unsubscribe
+ */
+export function listenForAnswer(roomId, callback) {
+  const roomRef = firestore.collection('rooms').doc(roomId);
+  return roomRef.onSnapshot((snapshot) => {
+    const data = snapshot.data();
+    if (data?.answer) {
+      callback(data.answer);
+    }
+  });
+}
+
+/**
+ * Lưu ICE candidate vào subcollection.
+ * @param {string} roomId 
+ * @param {Object} candidate 
+ * @param {boolean} isCaller  true nếu caller (streamer)
+ */
+export async function addIceCandidate(roomId, candidate, isCaller) {
+  const candidatesCollection = firestore
+    .collection('rooms')
+    .doc(roomId)
+    .collection(isCaller ? 'callerCandidates' : 'calleeCandidates');
+  await candidatesCollection.add(candidate);
+}
+
+/**
+ * Lắng nghe ICE candidate từ bên kia.
+ * @param {string} roomId 
+ * @param {boolean} isCaller  true nếu caller (streamer) muốn nhận candidate của viewer
+ * @param {function} callback 
+ * @returns {function} unsubscribe
+ */
+export function listenForIceCandidates(roomId, isCaller, callback) {
+  const candidatesCollection = firestore
+    .collection('rooms')
+    .doc(roomId)
+    .collection(isCaller ? 'calleeCandidates' : 'callerCandidates');
+  return candidatesCollection.onSnapshot(snapshot => {
+    snapshot.docChanges().forEach(change => {
+      if (change.type === 'added') {
+        callback(change.doc.data());
+      }
+    });
   });
 }
