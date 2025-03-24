@@ -6,7 +6,6 @@
   "scripts": {
     "start": "node server.js"
   },
-  "type": "module",
   "dependencies": {
     "socket.io": "^4.8.1",
     "express": "^4.21.2",
