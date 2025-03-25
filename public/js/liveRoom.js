@@ -53,7 +53,11 @@ messageInput.addEventListener("keypress", function(e) {
 
 // Đối với liveRoom, người xem sử dụng PeerJS client để nhận stream từ streamer
 // Sử dụng new Peer() để tạo ID ngẫu nhiên cho viewer
-const viewerPeer = new Peer();
+const viewerPeer = new Peer(undefined, {
+  host: 'live-hoctap-9a3.glitch.me',      // Thay đổi host/port/path tùy theo cấu hình PeerJS server của bạn
+  port: 443,     // Ví dụ: cổng của PeerJS serverp
+  path: '/peerjs/myapp'
+});
 
 viewerPeer.on('open', id => {
   console.log('Viewer PeerJS open with ID:', id);
@@ -62,9 +66,7 @@ viewerPeer.on('open', id => {
 });
 
 viewerPeer.on('call', call => {
-  console.log("meet call");
   call.answer(); // Viewer chỉ nhận stream
-  console.log("ready call");
   call.on('stream', stream => {
     const liveVideo = document.getElementById("liveVideo");
     liveVideo.srcObject = stream;

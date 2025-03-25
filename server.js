@@ -6,10 +6,17 @@ const cors = require("cors");
 const bodyParser = require("body-parser");
 const socketIO = require("socket.io");
 const jwt = require("jsonwebtoken");
+const { ExpressPeerServer } = require("peer"); // Import ExpressPeerServer
 
 const app = express();
 const server = http.createServer(app);
 const io = socketIO(server);
+
+// Khởi tạo PeerJS server, ví dụ chạy dưới path "/peerjs"
+const peerServer = ExpressPeerServer(server, {
+  debug: true,
+  path: '/myapp' // bạn có thể đặt tên path tùy ý, sau này client sẽ gọi vào: '/peerjs/myapp'
+});
 
 const PORT = process.env.PORT || 3001;
 const SECRET_KEY = process.env.JWT_SECRET || "your_secret_key";
@@ -36,6 +43,7 @@ function checkHoctapAuth(req, res, next) {
 }
 
 // Cấu hình middleware
+app.use("/peerjs", peerServer);
 app.use(cors());
 app.use(bodyParser.json());
 app.use(express.static("public"));

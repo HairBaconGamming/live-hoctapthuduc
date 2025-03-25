@@ -51,9 +51,10 @@ document.getElementById("endStreamBtn").addEventListener("click", () => {
 
 // --- Phần tích hợp PeerJS cho Streamer ---
 // Tạo PeerJS client cho streamer sử dụng roomId làm ID
-const peer = new Peer(undefined, {
-  host: '/',      // Thay đổi host/port/path tùy theo cấu hình PeerJS server của bạn
-  port: '3001',     // Ví dụ: cổng của PeerJS serverp
+const peer = new Peer(roomId, {
+  host: 'live-hoctap-9a3.glitch.me',      // Thay đổi host/port/path tùy theo cấu hình PeerJS server của bạn
+  port: 443,     // Ví dụ: cổng của PeerJS serverp
+  path: '/peerjs/myapp'
 });
 
 let localStream = null;
