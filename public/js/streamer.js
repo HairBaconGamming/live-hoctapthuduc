@@ -54,7 +54,19 @@ document.getElementById("endStreamBtn").addEventListener("click", () => {
 const peer = new Peer(roomId, {
   host: 'live-hoctap-9a3.glitch.me',      // Thay đổi host/port/path tùy theo cấu hình PeerJS server của bạn
   port: 443,     // Ví dụ: cổng của PeerJS serverp
-  path: '/peerjs/myapp'
+  path: '/peerjs/myapp',
+  secure: true, // đảm bảo sử dụng kết nối an toàn nếu HTTPS đang được sử dụng
+  config: {
+    iceServers: [
+      { urls: 'stun:stun.l.google.com:19302' },
+      // Thêm TURN server nếu có
+      {
+        urls: 'turn:relay1.expressturn.com:3478',
+        username: 'efENPNJI04ST2ENN3C',
+        credential: 'udPrjk4AqDfSh8SY'
+      }
+    ]
+  }
 });
 
 let localStream = null;
@@ -81,6 +93,7 @@ socket.on("newViewer", ({ viewerId }) => {
     console.warn("Local stream chưa sẵn sàng, lưu viewer:", viewerId);
     pendingViewers.push(viewerId);
   } else {
+    console.log("đã gọi đến "+viewerId);
     const call = peer.call(viewerId, localStream);
     call.on('error', err => console.error('Call error:', err));
   }

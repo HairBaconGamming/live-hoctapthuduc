@@ -53,7 +53,19 @@ messageInput.addEventListener("keypress", function(e) {
 const viewerPeer = new Peer(undefined, {
   host: 'live-hoctap-9a3.glitch.me',      // Thay đổi host/port/path tùy theo cấu hình PeerJS server của bạn
   port: 443,     // Ví dụ: cổng của PeerJS serverp
-  path: '/peerjs/myapp'
+  path: '/peerjs/myapp',
+  secure: true, // đảm bảo sử dụng kết nối an toàn nếu HTTPS đang được sử dụng
+  config: {
+    iceServers: [
+      { urls: 'stun:stun.l.google.com:19302' },
+      // Thêm TURN server nếu có
+      {
+        urls: 'turn:relay1.expressturn.com:3478',
+        username: 'efENPNJI04ST2ENN3C',
+        credential: 'udPrjk4AqDfSh8SY'
+      }
+    ]
+  }
 });
 
 viewerPeer.on('open', id => {
@@ -63,8 +75,11 @@ viewerPeer.on('open', id => {
 });
 
 viewerPeer.on('call', call => {
+  console.log("nhận đc cuộc gọi");
   call.answer(); // Viewer chỉ nhận stream
+  console.log("nhận được stream");
   call.on('stream', stream => {
+    console.log("bắt đầu");
     const liveVideo = document.getElementById("liveVideo");
     liveVideo.srcObject = stream;
     document.getElementById("placeholder").style.display = "none";
