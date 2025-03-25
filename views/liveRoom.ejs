@@ -60,6 +60,10 @@
   <script>
     const roomId = "<%= room.id %>";
     const username = "<%= user.username %>";
+    const user = {
+      username: "<%= user.username %>",
+      isPro: <%= user.isPro ? "true" : "false" %>
+    };
   </script>
   <script src="/js/liveRoom.js"></script>
 </body>

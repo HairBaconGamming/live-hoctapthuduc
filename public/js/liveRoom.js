@@ -28,17 +28,65 @@ socket.on("newMessage", data => {
 socket.on("updateViewers", count => {
   viewerCount.textContent = count;
 });
-sendBtn.addEventListener("click", () => {
-  const msg = messageInput.value.trim();
-  if (!msg) return;
-  socket.emit("chatMessage", { roomId, username, message: msg });
-  messageInput.value = "";
+// Nếu vẫn sử dụng input cũ (nếu có)
+if(sendBtn && messageInput){
+  sendBtn.addEventListener("click", () => {
+    const message = messageInput.value.trim();
+    if (!message) return;
+    socket.emit("chatMessage", { roomId, username, message: message });
+    messageInput.value = "";
+  });
+  messageInput.addEventListener("keypress", function(e) {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      sendBtn.click();
+    }
+  });
+}
+// --- Enhanced Chat Input for Streamer ---
+const chatInputArea = document.getElementById("chatInputArea");
+const sendChatBtn = document.getElementById("sendChatBtn");
+const chatPreview = document.getElementById("chatPreview");
+
+// Cập nhật preview khi người dùng nhập nội dung
+chatInputArea.addEventListener("input", () => {
+  const rawText = chatInputArea.value || "";
+  let html = marked.parse(rawText);
+  // Render KaTeX cho công thức được bao quanh bởi $$ ... $$
+  html = html.replace(/\$\$(.+?)\$\$/g, (match, formula) => {
+    try {
+      return katex.renderToString(formula, { throwOnError: false });
+    } catch (e) {
+      return `<span class="katex-error">${formula}</span>`;
+    }
+  });
+  chatPreview.innerHTML = html;
 });
-messageInput.addEventListener("keypress", function(e) {
-  if (e.key === "Enter") {
-    e.preventDefault();
-    sendBtn.click();
+
+// Khi nhấn nút gửi từ chat input nâng cao
+sendChatBtn.addEventListener("click", () => {
+  const messageContent = chatInputArea.value.trim();
+  if (!messageContent) return;
+
+  // Xác định loại message: nếu streamer thì loại là "host"
+  let messageType = "host";
+  if (user.isPro && username !== roomOwner) {
+    messageType = "pro";
   }
+  // Tạo đối tượng message
+  const messageObj = {
+    username: username,
+    content: messageContent,
+    messageType: messageType,
+    timestamp: new Date().toISOString()
+  };
+
+  // Gửi message qua Socket.IO
+  socket.emit("chatMessage", { roomId, message: messageObj });
+
+  // Reset input và preview
+  chatInputArea.value = "";
+  chatPreview.innerHTML = "";
 });
 
 // Hiển thị overlay khi phòng kết thúc
