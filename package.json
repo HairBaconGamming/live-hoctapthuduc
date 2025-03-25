@@ -7,18 +7,18 @@
     "start": "node server.js"
   },
   "dependencies": {
-    "socket.io": "^4.8.1",
-    "express": "^4.21.2",
-    "uuid": "8.x",
     "axios": "^1.8.3",
     "body-parser": "^2.1.0",
-    "ejs": "^3.1.10",
     "cors": "^2.8.5",
-    "jsonwebtoken": "^9.0.2",
+    "ejs": "^3.1.10",
+    "express": "^4.21.2",
     "firebase": "^11.4.0",
-    "peerjs": "^1.5.3",
+    "jsonwebtoken": "^9.0.2",
     "peer": "^1.0.2",
-    "peer-server": "^1.1.2"
+    "peer-server": "^1.1.2",
+    "peerjs": "^1.5.3",
+    "socket.io": "^4.8.1",
+    "uuid": "8.x"
   },
   "engines": {
     "node": "14.x"

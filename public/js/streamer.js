@@ -51,9 +51,9 @@ document.getElementById("endStreamBtn").addEventListener("click", () => {
 
 // --- Phần tích hợp PeerJS cho Streamer ---
 // Tạo PeerJS client cho streamer sử dụng roomId làm ID
-const peer = new Peer(roomId, {
+const peer = new Peer(undefined, {
   host: '/',      // Thay đổi host/port/path tùy theo cấu hình PeerJS server của bạn
-  port: 3001,     // Ví dụ: cổng của PeerJS serverp
+  port: '3001',     // Ví dụ: cổng của PeerJS serverp
 });
 
 let localStream = null;
@@ -75,6 +75,7 @@ peer.on('call', call => {
 
 // Nhận thông báo viewer mới từ Socket.IO (chứa viewerId)
 socket.on("newViewer", ({ viewerId }) => {
+  console.log("khach moi voi id "+viewerId);
   if (!localStream) {
     console.warn("Local stream chưa sẵn sàng, lưu viewer:", viewerId);
     pendingViewers.push(viewerId);
