@@ -1,4 +1,4 @@
-// public/js/streamer.js
+// /public/js/streamer.js
 const socket = io();
 const messageInput = document.getElementById("message");
 const sendBtn = document.getElementById("sendBtn");
@@ -37,58 +37,55 @@ const togglePanelBtn = document.getElementById("togglePanelBtn");
 const controlPanel = document.getElementById("controlPanel");
 togglePanelBtn.addEventListener("click", () => {
   controlPanel.classList.toggle("collapsed");
-  if (controlPanel.classList.contains("collapsed")) {
-    togglePanelBtn.innerHTML = '<i class="fas fa-chevron-down"></i>';
-  } else {
-    togglePanelBtn.innerHTML = '<i class="fas fa-chevron-up"></i>';
-  }
+  togglePanelBtn.innerHTML = controlPanel.classList.contains("collapsed")
+    ? '<i class="fas fa-chevron-down"></i>'
+    : '<i class="fas fa-chevron-up"></i>';
 });
 
+// Xử lý kết thúc live stream
 document.getElementById("endStreamBtn").addEventListener("click", () => {
   socket.emit("endRoom", { roomId });
   alert("Live stream đã kết thúc.");
-  window.location.href = "https://hoctap-9a3.glitch.me/";
+  window.location.href = "https://your-app-domain/";
 });
 
-// Realtime Screen Share: Sử dụng WebRTC signaling qua Socket.IO
+// --- Phần tích hợp PeerJS cho Streamer ---
+// Tạo PeerJS client cho streamer sử dụng roomId làm ID
+const peer = new Peer(roomId, {
+  host: '/',      // Thay đổi host/port/path tùy theo cấu hình PeerJS server của bạn
+  port: 9000,     // Ví dụ: cổng của PeerJS server
+  path: '/myapp'
+});
+
 let localStream = null;
-let pc;
 const pendingViewers = [];
-const pcs = {};
 
-socket.on("newViewer", async ({ viewerSocketId }) => {
-  if (!localStream) {
-    console.warn("Local stream chưa sẵn sàng, lưu viewer:", viewerSocketId);
-    pendingViewers.push(viewerSocketId);
-    return;
-  }
-  createAndSendOffer(viewerSocketId);
+// Khi kết nối PeerJS mở thành công
+peer.on('open', id => {
+  console.log('PeerJS streamer open with ID:', id);
 });
 
-async function createAndSendOffer(viewerSocketId) {
-  const pcForViewer = new RTCPeerConnection({
-    iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
-  });
-  pcs[viewerSocketId] = pcForViewer;
-  localStream.getTracks().forEach(track => pcForViewer.addTrack(track, localStream));
-  pcForViewer.onicecandidate = event => {
-    if (event.candidate) {
-      socket.emit("webrtcCandidate", {
-        roomId,
-        candidate: event.candidate,
-        targetSocketId: viewerSocketId
-      });
-    }
-  };
-  const offer = await pcForViewer.createOffer();
-  await pcForViewer.setLocalDescription(offer);
-  socket.emit("webrtcOffer", {
-    roomId,
-    offer,
-    targetSocketId: viewerSocketId
-  });
-}
+// Lắng nghe cuộc gọi đến từ viewer (nếu viewer gọi trực tiếp)
+peer.on('call', call => {
+  if (localStream) {
+    call.answer(localStream);
+  } else {
+    console.error('Local stream chưa sẵn sàng để trả lời cuộc gọi.');
+  }
+});
 
+// Nhận thông báo viewer mới từ Socket.IO (chứa viewerId)
+socket.on("newViewer", ({ viewerId }) => {
+  if (!localStream) {
+    console.warn("Local stream chưa sẵn sàng, lưu viewer:", viewerId);
+    pendingViewers.push(viewerId);
+  } else {
+    const call = peer.call(viewerId, localStream);
+    call.on('error', err => console.error('Call error:', err));
+  }
+});
+
+// Bắt đầu chia sẻ màn hình qua PeerJS
 document.getElementById("shareScreenBtn").addEventListener("click", async () => {
   try {
     localStream = await navigator.mediaDevices.getDisplayMedia({
@@ -97,58 +94,21 @@ document.getElementById("shareScreenBtn").addEventListener("click", async () => 
     });
     const screenVideo = document.getElementById("screenShareVideo");
     screenVideo.srcObject = localStream;
+    // Khi người dùng dừng chia sẻ màn hình
     localStream.getVideoTracks()[0].addEventListener("ended", () => {
       console.log("User stopped screen sharing");
       screenVideo.srcObject = null;
       localStream = null;
       socket.emit("screenShareEnded", { roomId });
     });
-    pc = new RTCPeerConnection({
-      iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
-      iceTransportPolicy: "all"
-    });
-    localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
-    pc.onicecandidate = event => {
-      if (event.candidate) {
-        console.log("New ICE candidate: ", event.candidate);
-        socket.emit("webrtcCandidate", { roomId, candidate: event.candidate });
-      }
-    };
+    // Gọi đến các viewer đang chờ
     while (pendingViewers.length) {
-      const viewerSocketId = pendingViewers.shift();
-      await createAndSendOffer(viewerSocketId);
+      const viewerId = pendingViewers.shift();
+      const call = peer.call(viewerId, localStream);
+      call.on('error', err => console.error('Call error:', err));
     }
   } catch (err) {
     console.error("Error during screen sharing:", err);
-    alert("Cannot share screen. Please ensure you have the proper permissions or try a different browser.");
+    alert("Không thể chia sẻ màn hình. Vui lòng kiểm tra quyền hoặc thử trình duyệt khác.");
   }
-});
-
-socket.on("webrtcAnswer", async ({ answer, targetSocketId }) => {
-  let pcForViewer = pcs[targetSocketId];
-  if (!pcForViewer) {
-    console.warn("Không tìm thấy peer connection cho viewer: " + targetSocketId + ". Thiết lập lại kết nối...");
-    pcForViewer = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
-    pcs[targetSocketId] = pcForViewer;
-    localStream.getTracks().forEach(track => pcForViewer.addTrack(track, localStream));
-    pcForViewer.onicecandidate = event => {
-      if (event.candidate) {
-        socket.emit("webrtcCandidate", {
-          roomId,
-          candidate: event.candidate,
-          targetSocketId
-        });
-      }
-    };
-    const offer = await pcForViewer.createOffer();
-    await pcForViewer.setLocalDescription(offer);
-    socket.emit("webrtcOffer", { roomId, offer, targetSocketId });
-  }
-  await pcForViewer.setRemoteDescription(new RTCSessionDescription(answer));
-});
-
-socket.on("webrtcCandidate", async ({ candidate, targetSocketId }) => {
-  const pcForViewer = pcs[targetSocketId];
-  if (!pcForViewer) return;
-  await pcForViewer.addIceCandidate(new RTCIceCandidate(candidate));
 });

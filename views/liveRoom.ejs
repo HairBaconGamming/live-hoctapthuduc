@@ -5,7 +5,7 @@
   <meta charset="UTF-8">
   <title><%= room.title %> - Live Room</title>
   <link rel="stylesheet" href="/css/liveRoom.css">
-  <link rel="icon" type="image/png" href="https://cdn.glitch.global/71030012-56ea-4d26-a426-e0099201df1c/823029_library_512x512.png?v=1741523759119">
+  <link rel="icon" type="image/png" href="https://cdn.glitch.global/your-favicon.png">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
@@ -43,12 +43,12 @@
   </div>
   <div id="roomEndedOverlay">
     <h2>🔴 Buổi phát trực tiếp đã kết thúc</h2>
-    <button onclick="window.location.href='https://hoctap-9a3.glitch.me/live'">
+    <button onclick="window.location.href='https://your-app-domain/live'">
       Quay lại danh sách Live
     </button>
   </div>
   <script src="/socket.io/socket.io.js"></script>
-  <!-- Khởi tạo các biến cần dùng từ dữ liệu EJS -->
+  <!-- Các biến từ EJS -->
   <script>
     const roomId = "<%= room.id %>";
     const username = "<%= user.username %>";

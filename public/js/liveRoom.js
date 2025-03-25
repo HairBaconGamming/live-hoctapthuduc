@@ -1,4 +1,4 @@
-// public/js/liveRoom.js
+// /public/js/liveRoom.js
 const socket = io();
 const viewerCount = document.getElementById("viewerCount");
 const chatMessages = document.getElementById("chatMessages");
@@ -33,70 +33,19 @@ messageInput.addEventListener("keypress", function(e) {
   }
 });
 
-// WebRTC Setup for Viewer
-let pc;
-let remoteStream = new MediaStream();
-const liveVideo = document.getElementById("liveVideo");
-liveVideo.srcObject = remoteStream;
-
-socket.on("webrtcOffer", async ({ offer, roomId: offerRoomId, streamerSocketId }) => {
-  if (offerRoomId !== roomId) return;
-  pc = new RTCPeerConnection({
-    iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
-    iceTransportPolicy: 'all'
-  });
-  pc.ontrack = event => {
-    if (event.streams && event.streams[0]) {
-      liveVideo.srcObject = event.streams[0];
-    } else {
-      remoteStream.addTrack(event.track);
-      liveVideo.srcObject = remoteStream;
-    }
+// Đối với liveRoom, người xem sử dụng PeerJS client để nhận stream từ streamer
+const viewerPeer = new Peer(); // ID tự động cấp
+viewerPeer.on('open', id => {
+  console.log('Viewer PeerJS open with ID:', id);
+  // Thông báo cho server (và từ đó cho streamer) rằng viewer này có ID là id
+  socket.emit("newViewer", { viewerId: id, roomId });
+});
+viewerPeer.on('call', call => {
+  call.answer(); // Viewer chỉ nhận stream
+  call.on('stream', stream => {
+    const liveVideo = document.getElementById("liveVideo");
+    liveVideo.srcObject = stream;
     document.getElementById("placeholder").style.display = "none";
     liveVideo.play().catch(err => console.error("Error playing remote video:", err));
-  };
-  pc.onicecandidate = event => {
-    if (event.candidate) {
-      socket.emit("webrtcCandidate", { roomId, candidate: event.candidate });
-    }
-  };
-  try {
-    await pc.setRemoteDescription(new RTCSessionDescription(offer));
-    const answer = await pc.createAnswer();
-    await pc.setLocalDescription(answer);
-    socket.emit("webrtcAnswer", { roomId, answer, targetSocketId: streamerSocketId });
-  } catch (error) {
-    console.error("Error handling WebRTC offer:", error);
-  }
+  });
 });
-socket.on("webrtcCandidate", async ({ candidate, roomId: candidateRoomId }) => {
-  if (candidateRoomId !== roomId || !pc) return;
-  try {
-    await pc.addIceCandidate(new RTCIceCandidate(candidate));
-  } catch (e) {
-    console.error("Error adding ICE candidate", e);
-  }
-});
-socket.on("screenShareEnded", () => {
-  remoteStream.getTracks().forEach(track => track.stop());
-  remoteStream = new MediaStream();
-  liveVideo.srcObject = remoteStream;
-  document.getElementById("placeholder").style.display = "flex";
-});
-socket.on("roomEnded", () => {
-  const overlay = document.getElementById('roomEndedOverlay');
-  const mainContent = document.getElementById('mainContent');
-  if (mainContent) mainContent.style.display = 'none';
-  overlay.classList.remove('active');
-  void overlay.offsetWidth;
-  overlay.classList.add('active');
-  setTimeout(() => {
-    window.location.href = "https://hoctap-9a3.glitch.me/live";
-  }, 15000);
-});
-setInterval(() => {
-  if (socket && roomId) {
-    socket.emit("keepAlive", { roomId });
-    console.log("Keep-alive sent for room:", roomId);
-  }
-}, 15000);

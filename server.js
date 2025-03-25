@@ -20,7 +20,7 @@ function isLoggedIn(req, res, next) {
   return res.status(401).send("Unauthorized: Please log in.");
 }
 
-// Middleware: kiểm tra token từ live-hoctap-9a3 (dùng JWT)
+// Middleware: kiểm tra token (dùng JWT)
 function checkHoctapAuth(req, res, next) {
   const token = req.query.token || req.headers["x-hoctap-token"];
   if (!token) {
@@ -28,7 +28,7 @@ function checkHoctapAuth(req, res, next) {
   }
   try {
     const payload = jwt.verify(token, SECRET_KEY);
-    req.user = payload; // payload: { userId, username, ... }
+    req.user = payload;
     next();
   } catch (err) {
     return res.status(401).send("Unauthorized: invalid token");
@@ -42,7 +42,7 @@ app.use(express.static("public"));
 app.set("view engine", "ejs");
 app.set("views", __dirname + "/views");
 
-// Tạm lưu các room (trong sản xuất nên dùng database)
+// Tạm lưu các room (trong production nên dùng database)
 let liveRooms = [];
 
 /* =============================
@@ -50,14 +50,10 @@ let liveRooms = [];
 ============================= */
 app.post("/api/createStream", (req, res) => {
   const { roomOwnerId, roomOwnerName, title } = req.body;
-
   if (!roomOwnerId) {
-    return res
-      .status(400)
-      .json({ error: "Thiếu thông tin chủ phòng (roomOwnerId)." });
+    return res.status(400).json({ error: "Thiếu thông tin chủ phòng (roomOwnerId)." });
   }
-
-  // Kiểm tra nếu user đã có 1 phòng live chưa
+  // Kiểm tra xem user đã có phòng live chưa
   const existingRoom = liveRooms.find(room => room.ownerid === roomOwnerId);
   if (existingRoom) {
     return res.status(400).json({
@@ -66,7 +62,6 @@ app.post("/api/createStream", (req, res) => {
       roomId: existingRoom.id
     });
   }
-
   const roomId = uuidv4();
   const liveStreamUrl = `https://live-hoctap-9a3.glitch.me/room/${roomId}`;
   const newRoom = {
@@ -78,15 +73,9 @@ app.post("/api/createStream", (req, res) => {
     viewers: 0,
     createdAt: new Date(),
   };
-
   liveRooms.push(newRoom);
   console.log("✅ Room created:", newRoom);
-
-  return res.json({
-    success: true,
-    liveStreamUrl,
-    roomId
-  });
+  return res.json({ success: true, liveStreamUrl, roomId });
 });
 
 /* =============================
@@ -99,16 +88,14 @@ app.get("/api/rooms", (req, res) => {
     const seconds = Math.floor(diffMs / 1000) % 60;
     const minutes = Math.floor(diffMs / (1000 * 60)) % 60;
     const hours = Math.floor(diffMs / (1000 * 60 * 60));
-    const onlineTime = `${hours.toString().padStart(2, '0')}:${minutes
-      .toString()
-      .padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+    const onlineTime = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
     return { ...room, onlineTime };
   });
   res.json(roomsWithOnlineTime);
 });
 
 /* =============================
-    API LẤY TOKEN cho live stream
+    API LẤY TOKEN cho live stream (nếu cần)
 ============================= */
 app.get("/live/getToken", isLoggedIn, (req, res) => {
   const roomId = req.query.roomId;
@@ -145,7 +132,6 @@ io.on("connection", socket => {
   socket.on("joinRoom", ({ roomId, username }) => {
     socket.join(roomId);
     socket.username = username;
-
     const room = liveRooms.find(r => r.id === roomId);
     if (room) {
       if (username === room.owner) {
@@ -155,15 +141,17 @@ io.on("connection", socket => {
         room.viewers++;
         io.to(roomId).emit("updateViewers", room.viewers);
         io.to(roomId).emit("userJoined", `${username} đã tham gia phòng.`);
-        if (room.hostSocketId) {
-          io.to(room.hostSocketId).emit("newViewer", { viewerSocketId: socket.id });
-        }
       }
     }
   });
-  
-  socket.on("keepAlive", ({ roomId }) => {
-    console.log(`Keep-alive received for room ${roomId} from socket ${socket.id}`);
+
+  // Khi viewer gửi thông tin PeerJS ID cho streamer
+  socket.on("newViewer", ({ viewerId, roomId }) => {
+    const room = liveRooms.find(r => r.id === roomId);
+    if (room && room.hostSocketId) {
+      // Thông báo cho streamer (với socket của chủ phòng) ID của viewer mới
+      io.to(room.hostSocketId).emit("newViewer", { viewerId });
+    }
   });
 
   socket.on("chatMessage", ({ roomId, username, message }) => {
@@ -179,43 +167,17 @@ io.on("connection", socket => {
     }
     if (socket.id !== room.hostSocketId) {
       socket.emit("errorMessage", "Bạn không có quyền kết thúc phòng này.");
-      console.log(`❌ Socket ${socket.id} cố gắng kết thúc phòng ${roomId} nhưng không phải chủ phòng (${room.hostSocketId}).`);
+      console.log(`❌ Socket ${socket.id} cố gắng kết thúc phòng ${roomId} nhưng không phải chủ phòng.`);
       return;
     }
     io.to(roomId).emit("roomEnded");
     liveRooms = liveRooms.filter(r => r.id !== roomId);
-    console.log(`✅ Phòng ${roomId} đã bị kết thúc bởi chủ phòng (socketId: ${socket.id}).`);
+    console.log(`✅ Phòng ${roomId} đã bị kết thúc bởi chủ phòng.`);
   });
 
   socket.on("screenShareEnded", ({ roomId }) => {
     io.to(roomId).emit("screenShareEnded");
     console.log(`📺 Screen share ended in room: ${roomId}`);
-  });
-
-  socket.on("webrtcOffer", ({ roomId, offer, targetSocketId }) => {
-    if (targetSocketId) {
-      io.to(targetSocketId).emit("webrtcOffer", { roomId, offer, streamerSocketId: socket.id });
-      console.log("📡 webrtcOffer sent to target:", targetSocketId);
-    } else {
-      socket.to(roomId).emit("webrtcOffer", { roomId, offer });
-      console.log("📡 webrtcOffer forwarded to room:", roomId);
-    }
-  });
-
-  socket.on("webrtcAnswer", ({ roomId, answer, targetSocketId }) => {
-    if (targetSocketId) {
-      const viewerSocketId = socket.id;
-      io.to(targetSocketId).emit("webrtcAnswer", { roomId, answer, targetSocketId: viewerSocketId });
-      console.log("📡 webrtcAnswer sent to target:", targetSocketId, "from viewer", viewerSocketId);
-    } else {
-      socket.to(roomId).emit("webrtcAnswer", { roomId, answer });
-      console.log("📡 webrtcAnswer forwarded to room:", roomId);
-    }
-  });
-
-  socket.on("webrtcCandidate", ({ roomId, candidate }) => {
-    socket.to(roomId).emit("webrtcCandidate", { roomId, candidate });
-    console.log("❄️ webrtcCandidate forwarded to room:", roomId);
   });
 
   socket.on("disconnecting", () => {
@@ -238,7 +200,7 @@ io.on("connection", socket => {
     Redirect root
 ============================= */
 app.get("/", (req, res) => {
-  res.redirect("https://hoctap-9a3.glitch.me/");
+  res.redirect("https://your-app-domain/");
 });
 
 /* =============================
