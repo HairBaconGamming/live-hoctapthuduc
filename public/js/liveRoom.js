@@ -34,7 +34,7 @@ messageInput.addEventListener("keypress", function(e) {
 });
 
 // Đối với liveRoom, người xem sử dụng PeerJS client để nhận stream từ streamer
-const viewerPeer = new Peer(); // ID tự động cấp
+const viewerPeer = new Peer(roomId); // ID tự động cấp
 viewerPeer.on('open', id => {
   console.log('Viewer PeerJS open with ID:', id);
   // Thông báo cho server (và từ đó cho streamer) rằng viewer này có ID là id

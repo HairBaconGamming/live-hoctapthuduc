@@ -53,8 +53,7 @@ document.getElementById("endStreamBtn").addEventListener("click", () => {
 // Tạo PeerJS client cho streamer sử dụng roomId làm ID
 const peer = new Peer(roomId, {
   host: '/',      // Thay đổi host/port/path tùy theo cấu hình PeerJS server của bạn
-  port: 9000,     // Ví dụ: cổng của PeerJS server
-  path: '/myapp'
+  port: 3001,     // Ví dụ: cổng của PeerJS serverp
 });
 
 let localStream = null;
