@@ -46,7 +46,7 @@ togglePanelBtn.addEventListener("click", () => {
 document.getElementById("endStreamBtn").addEventListener("click", () => {
   socket.emit("endRoom", { roomId });
   alert("Live stream đã kết thúc.");
-  window.location.href = "https://your-app-domain/";
+  window.location.href = "https://hoctap-9a3.glitch.me/live";
 });
 
 // --- Phần tích hợp PeerJS cho Streamer ---
