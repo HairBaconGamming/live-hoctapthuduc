@@ -1,12 +1,15 @@
 // /public/js/liveRoom.js
+
 const socket = io();
 const viewerCount = document.getElementById("viewerCount");
 const chatMessages = document.getElementById("chatMessages");
 const messageInput = document.getElementById("messageInput");
 const sendBtn = document.getElementById("sendBtn");
 
+// Gửi thông tin tham gia phòng
 socket.emit("joinRoom", { roomId, username });
 
+// Các sự kiện chat
 socket.on("userJoined", msg => {
   const li = document.createElement("li");
   li.innerHTML = `<i>${msg}</i>`;
@@ -19,21 +22,6 @@ socket.on("newMessage", data => {
 });
 socket.on("updateViewers", count => {
   viewerCount.textContent = count;
-});
-socket.on("roomEnded", () => {
-  console.log("Room has ended.");
-  // Hiển thị overlay thông báo phòng đã kết thúc
-  const overlay = document.getElementById("roomEndedOverlay");
-  if (overlay) {
-    overlay.classList.remove("active");
-    // Force reflow để kích hoạt transition nếu có CSS animation
-    void overlay.offsetWidth;
-    overlay.classList.add("active");
-  }
-  // Tùy chọn: chuyển hướng về trang danh sách phòng sau vài giây
-  setTimeout(() => {
-    window.location.href = "https://hoctap-9a3.glitch.me/live";
-  }, 60000);
 });
 sendBtn.addEventListener("click", () => {
   const msg = messageInput.value.trim();
@@ -48,17 +36,43 @@ messageInput.addEventListener("keypress", function(e) {
   }
 });
 
-// Đối với liveRoom, người xem sử dụng PeerJS client để nhận stream từ streamer
-// Sử dụng new Peer() để tạo ID ngẫu nhiên cho viewer
+// Hiển thị overlay khi phòng kết thúc
+socket.on("roomEnded", () => {
+  console.log("Room has ended.");
+  const overlay = document.getElementById("roomEndedOverlay");
+  if (overlay) {
+    overlay.classList.remove("active");
+    // Force reflow để kích hoạt transition nếu có CSS animation
+    void overlay.offsetWidth;
+    overlay.classList.add("active");
+  }
+  // Tùy chọn: chuyển hướng sau 60 giây
+  setTimeout(() => {
+    window.location.href = "https://hoctap-9a3.glitch.me/live";
+  }, 60000);
+});
+
+// Khi nhận tín hiệu tắt chia sẻ từ streamer, reset video
+socket.on("screenShareEnded", () => {
+  console.log("Screen share ended signal received.");
+  const liveVideo = document.getElementById("liveVideo");
+  if (liveVideo.srcObject) {
+    liveVideo.srcObject.getTracks().forEach(track => track.stop());
+  }
+  liveVideo.srcObject = null;
+  document.getElementById("placeholder").style.display = "flex";
+});
+
+// --- Phần PeerJS cho Viewer ---
+// Tạo PeerJS client với ID tự động
 const viewerPeer = new Peer(undefined, {
-  host: 'live-hoctap-9a3.glitch.me',      // Thay đổi host/port/path tùy theo cấu hình PeerJS server của bạn
-  port: 443,     // Ví dụ: cổng của PeerJS serverp
+  host: 'live-hoctap-9a3.glitch.me',
+  port: 443,
   path: '/peerjs/myapp',
-  secure: true, // đảm bảo sử dụng kết nối an toàn nếu HTTPS đang được sử dụng
+  secure: true,
   config: {
     iceServers: [
       { urls: 'stun:stun.l.google.com:19302' },
-      // Thêm TURN server nếu có
       {
         urls: 'turn:relay1.expressturn.com:3478',
         username: 'efENPNJI04ST2ENN3C',
@@ -70,19 +84,28 @@ const viewerPeer = new Peer(undefined, {
 
 viewerPeer.on('open', id => {
   console.log('Viewer PeerJS open with ID:', id);
-  // Thông báo cho server (và từ đó cho streamer) rằng viewer này có ID là id
+  // Gửi ID viewer cho server để streamer gọi đến
   socket.emit("newViewer", { viewerId: id, roomId });
 });
 
 viewerPeer.on('call', call => {
-  console.log("nhận đc cuộc gọi");
-  call.answer(); // Viewer chỉ nhận stream
-  console.log("nhận được stream");
+  console.log("Viewer received call");
+  // Viewer trả lời call (không cần gửi stream)
+  call.answer();
   call.on('stream', stream => {
-    console.log("bắt đầu");
+    console.log("Viewer received stream");
     const liveVideo = document.getElementById("liveVideo");
     liveVideo.srcObject = stream;
     document.getElementById("placeholder").style.display = "none";
     liveVideo.play().catch(err => console.error("Error playing remote video:", err));
+  });
+  call.on('close', () => {
+    console.log("Call closed on viewer side");
+    const liveVideo = document.getElementById("liveVideo");
+    if (liveVideo.srcObject) {
+      liveVideo.srcObject.getTracks().forEach(track => track.stop());
+    }
+    liveVideo.srcObject = null;
+    document.getElementById("placeholder").style.display = "flex";
   });
 });

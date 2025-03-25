@@ -1,11 +1,15 @@
 // /public/js/streamer.js
+
 const socket = io();
 const messageInput = document.getElementById("message");
 const sendBtn = document.getElementById("sendBtn");
 const chatMessages = document.getElementById("chatMessages");
 const viewerCount = document.getElementById("viewerCount");
 
+// Gửi thông tin tham gia phòng
 socket.emit("joinRoom", { roomId, username });
+
+// Các sự kiện chat
 socket.on("userJoined", msg => {
   const li = document.createElement("li");
   li.innerHTML = `<i>${msg}</i>`;
@@ -49,17 +53,16 @@ document.getElementById("endStreamBtn").addEventListener("click", () => {
   window.location.href = "https://hoctap-9a3.glitch.me/live";
 });
 
-// --- Phần tích hợp PeerJS cho Streamer ---
-// Tạo PeerJS client cho streamer sử dụng roomId làm ID
+// --- Phần PeerJS cho Streamer ---
+// Sử dụng roomId làm Peer ID cho streamer
 const peer = new Peer(roomId, {
-  host: 'live-hoctap-9a3.glitch.me',      // Thay đổi host/port/path tùy theo cấu hình PeerJS server của bạn
-  port: 443,     // Ví dụ: cổng của PeerJS serverp
+  host: 'live-hoctap-9a3.glitch.me',
+  port: 443,
   path: '/peerjs/myapp',
-  secure: true, // đảm bảo sử dụng kết nối an toàn nếu HTTPS đang được sử dụng
+  secure: true,
   config: {
     iceServers: [
       { urls: 'stun:stun.l.google.com:19302' },
-      // Thêm TURN server nếu có
       {
         urls: 'turn:relay1.expressturn.com:3478',
         username: 'efENPNJI04ST2ENN3C',
@@ -70,14 +73,14 @@ const peer = new Peer(roomId, {
 });
 
 let localStream = null;
+let currentCall = {}; // Lưu các call đang hoạt động theo viewerId
 const pendingViewers = [];
 
-// Khi kết nối PeerJS mở thành công
 peer.on('open', id => {
   console.log('PeerJS streamer open with ID:', id);
 });
 
-// Lắng nghe cuộc gọi đến từ viewer (nếu viewer gọi trực tiếp)
+// Lắng nghe cuộc gọi đến (nếu viewer gọi trực tiếp)
 peer.on('call', call => {
   if (localStream) {
     call.answer(localStream);
@@ -86,20 +89,34 @@ peer.on('call', call => {
   }
 });
 
-// Nhận thông báo viewer mới từ Socket.IO (chứa viewerId)
+// Khi có viewer mới từ Socket.IO
 socket.on("newViewer", ({ viewerId }) => {
-  console.log("khach moi voi id "+viewerId);
+  console.log("New viewer with ID: " + viewerId);
   if (!localStream) {
-    console.warn("Local stream chưa sẵn sàng, lưu viewer:", viewerId);
+    console.warn("Local stream chưa sẵn sàng, thêm viewer vào pending.");
     pendingViewers.push(viewerId);
   } else {
-    console.log("đã gọi đến "+viewerId);
-    const call = peer.call(viewerId, localStream);
-    call.on('error', err => console.error('Call error:', err));
+    callViewer(viewerId);
   }
 });
 
-// Bắt đầu chia sẻ màn hình qua PeerJS
+// Hàm gọi đến viewer (đóng call cũ nếu cần)
+function callViewer(viewerId) {
+  // Nếu đã có call cũ, đóng nó đi
+  if (currentCall[viewerId]) {
+    currentCall[viewerId].close();
+  }
+  console.log("Gọi đến viewer: " + viewerId);
+  const call = peer.call(viewerId, localStream);
+  currentCall[viewerId] = call;
+  call.on('error', err => console.error('Call error:', err));
+  call.on('close', () => {
+    console.log("Call đóng với viewer: " + viewerId);
+    delete currentCall[viewerId];
+  });
+}
+
+// Bắt đầu chia sẻ màn hình
 document.getElementById("shareScreenBtn").addEventListener("click", async () => {
   try {
     localStream = await navigator.mediaDevices.getDisplayMedia({
@@ -108,18 +125,23 @@ document.getElementById("shareScreenBtn").addEventListener("click", async () => 
     });
     const screenVideo = document.getElementById("screenShareVideo");
     screenVideo.srcObject = localStream;
+
     // Khi người dùng dừng chia sẻ màn hình
     localStream.getVideoTracks()[0].addEventListener("ended", () => {
       console.log("User stopped screen sharing");
       screenVideo.srcObject = null;
       localStream = null;
       socket.emit("screenShareEnded", { roomId });
+      // Đóng tất cả các call đang hoạt động
+      for (const viewerId in currentCall) {
+        currentCall[viewerId].close();
+      }
     });
-    // Gọi đến các viewer đang chờ
+
+    // Nếu có viewer pending, gọi chúng ngay
     while (pendingViewers.length) {
       const viewerId = pendingViewers.shift();
-      const call = peer.call(viewerId, localStream);
-      call.on('error', err => console.error('Call error:', err));
+      callViewer(viewerId);
     }
   } catch (err) {
     console.error("Error during screen sharing:", err);
