@@ -15,3 +15,73 @@ header {
 body {
   position: relative; /* để làm reference cho overlay nếu dùng absolute */
 }
+
+/* Custom Confirm Modal */
+#customConfirmModal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+.confirm-overlay {
+  background: rgba(0, 0, 0, 0.7);
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.confirm-box {
+  background: #fff;
+  border-radius: 10px;
+  padding: 30px;
+  max-width: 400px;
+  width: 90%;
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.2);
+  text-align: center;
+}
+
+.confirm-message {
+  font-size: 1.2em;
+  margin-bottom: 20px;
+  color: #333;
+}
+
+.confirm-buttons {
+  display: flex;
+  justify-content: space-around;
+}
+
+.confirm-btn {
+  padding: 10px 20px;
+  font-size: 1em;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background 0.3s;
+}
+
+.confirm-btn.yes {
+  background: #00ffea;
+  color: #000;
+}
+
+.confirm-btn.yes:hover {
+  background: #00d4c4;
+}
+
+.confirm-btn.no {
+  background: #ff4d4d;
+  color: #fff;
+}
+
+.confirm-btn.no:hover {
+  background: #ff1a1a;
+}

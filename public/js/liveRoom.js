@@ -20,6 +20,7 @@ socket.on("newMessage", data => {
   // data.message được giả sử là object chứa: username, content, messageType
   li.innerHTML = `<strong>${data.message.username}:</strong> ${marked.parse(data.message.content)}`;
   // Gán class cho message theo messageType
+  console.log(data.message.messageType);
   if (data.message.messageType) {
     li.classList.add(`message-${data.message.messageType}`);
   }
@@ -69,7 +70,7 @@ sendChatBtn.addEventListener("click", () => {
   if (!messageContent) return;
 
   // Xác định loại message: nếu streamer thì loại là "host"
-  let messageType = "host";
+  let messageType = "guest";
   if (user.isPro && username !== roomOwner) {
     messageType = "pro";
   }

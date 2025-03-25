@@ -109,10 +109,60 @@ togglePanelBtn.addEventListener("click", () => {
     : '<i class="fas fa-chevron-up"></i>';
 });
 
+// Hàm tạo và hiển thị modal confirm
+function showCustomConfirm(message, onConfirm, onCancel) {
+  let confirmModal = document.getElementById("customConfirmModal");
+  if (!confirmModal) {
+    // Nếu modal chưa có, tạo mới
+    confirmModal = document.createElement("div");
+    confirmModal.id = "customConfirmModal";
+    confirmModal.className = "custom-confirm-modal";
+    confirmModal.innerHTML = `
+      <div class="confirm-overlay">
+        <div class="confirm-box">
+          <p class="confirm-message">${message}</p>
+          <div class="confirm-buttons">
+            <button class="confirm-btn btn-yes">Có</button>
+            <button class="confirm-btn btn-no">Không</button>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(confirmModal);
+    
+    // Gán sự kiện cho nút "Có"
+    confirmModal.querySelector(".btn-yes").addEventListener("click", () => {
+      if (onConfirm) onConfirm();
+      closeCustomConfirm();
+    });
+    // Gán sự kiện cho nút "Không"
+    confirmModal.querySelector(".btn-no").addEventListener("click", () => {
+      if (onCancel) onCancel();
+      closeCustomConfirm();
+    });
+  }
+  // Cập nhật message nếu cần
+  confirmModal.querySelector(".confirm-message").textContent = message;
+  confirmModal.classList.add("active");
+}
+
+function closeCustomConfirm() {
+  const confirmModal = document.getElementById("customConfirmModal");
+  if (confirmModal) {
+    confirmModal.classList.remove("active");
+  }
+}
+
+// Xử lý nút "Kết thúc live"
 document.getElementById("endStreamBtn").addEventListener("click", () => {
-  socket.emit("endRoom", { roomId });
-  alert("Live stream đã kết thúc.");
-  window.location.href = "https://hoctap-9a3.glitch.me/live";
+  showCustomConfirm("Bạn có chắc muốn kết thúc live stream không?", () => {
+    // Khi người dùng xác nhận: gửi tín hiệu kết thúc và chuyển hướng
+    socket.emit("endRoom", { roomId });
+    window.location.href = "https://hoctap-9a3.glitch.me/live";
+  }, () => {
+    // Khi người dùng hủy
+    console.log("Kết thúc live stream đã bị hủy");
+  });
 });
 
 // --- Phần PeerJS cho Streamer ---
