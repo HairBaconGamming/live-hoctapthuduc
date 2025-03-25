@@ -1,10 +1,17 @@
+/* Đảm bảo html và body chiếm toàn bộ chiều cao viewport */
 html, body {
   margin: 0;
   padding: 0;
-  width: 100%;
-  height: 100%;
+  height: 100%; /* hoặc dùng 100vh */
 }
+
+/* Nếu header có chiều cao 60px, giữ nguyên */
+header {
+  height: 60px;
+  /* Các style khác của header */
+}
+
+/* Nếu body chứa header và main-content, body nên có height: 100% */
 body {
-  position: relative;
-  min-height: 100%; /* đảm bảo body luôn đủ cao */
+  position: relative; /* để làm reference cho overlay nếu dùng absolute */
 }

@@ -22,9 +22,6 @@ socket.on("updateViewers", count => {
 });
 socket.on("roomEnded", () => {
   console.log("Room has ended.");
-  // Ẩn phần nội dung chính
-  const mainContent = document.getElementById("mainContent");
-  if (mainContent) mainContent.style.display = "none";
   // Hiển thị overlay thông báo phòng đã kết thúc
   const overlay = document.getElementById("roomEndedOverlay");
   if (overlay) {
