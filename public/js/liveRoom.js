@@ -36,7 +36,7 @@ socket.on("roomEnded", () => {
   // Tùy chọn: chuyển hướng về trang danh sách phòng sau vài giây
   setTimeout(() => {
     window.location.href = "https://hoctap-9a3.glitch.me/live";
-  }, 15000);
+  }, 60000);
 });
 sendBtn.addEventListener("click", () => {
   const msg = messageInput.value.trim();

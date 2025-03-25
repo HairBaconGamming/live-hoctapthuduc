@@ -247,7 +247,7 @@ header p {
 
 /* Overlay khi room ended với hiệu ứng zoom out */
 #roomEndedOverlay {
-  position: fixed;
+  position: absolute;
   top: 0;
   left: 0;
   width: 100%;
