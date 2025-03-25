@@ -15,7 +15,8 @@
     "ejs": "^3.1.10",
     "cors": "^2.8.5",
     "jsonwebtoken": "^9.0.2",
-    "firebase": "^11.4.0"
+    "firebase": "^11.4.0",
+    "peerjs": "^1.5.3"
   },
   "engines": {
     "node": "14.x"
