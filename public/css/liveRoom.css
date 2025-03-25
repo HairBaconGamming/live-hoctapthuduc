@@ -1,32 +1,65 @@
-/* Global styles, video area, and chat styles */
-body {
-  font-family: 'Poppins', sans-serif;
-  background: linear-gradient(135deg, #1e1e2f, #252536);
-  color: #f1f1f1;
+/* Live Room Styles with Complex Animations */
+
+* {
+  box-sizing: border-box;
   margin: 0;
   padding: 0;
-  overflow: hidden;
 }
+
+body {
+  font-family: 'Poppins', sans-serif;
+  background: linear-gradient(135deg, #141e30, #243b55);
+  color: #f1f1f1;
+  overflow: hidden;
+  animation: bgPulse 15s ease-in-out infinite alternate;
+}
+
+@keyframes bgPulse {
+  0% { filter: brightness(0.9); }
+  50% { filter: brightness(1.1); }
+  100% { filter: brightness(0.9); }
+}
+
+/* Header với hiệu ứng flip & fade */
 header {
   height: 60px;
-  background: #111;
-  color: #fff;
+  background: rgba(0, 0, 0, 0.85);
+  border-bottom: 2px solid #00ffea;
   display: flex;
   align-items: center;
+  justify-content: space-between;
   padding: 0 20px;
+  transform: perspective(600px) rotateX(-90deg);
+  animation: flipDown 1s forwards;
 }
+
+@keyframes flipDown {
+  0% {
+    transform: perspective(600px) rotateX(-90deg);
+    opacity: 0;
+  }
+  100% {
+    transform: perspective(600px) rotateX(0deg);
+    opacity: 1;
+  }
+}
+
 header h1 {
-  font-size: 1.4em;
-  margin-right: auto;
+  font-size: 1.6em;
+  font-weight: 600;
 }
+
 header p {
-  margin-left: auto;
+  font-size: 1em;
 }
+
+/* Layout chính */
 .main-content {
   display: flex;
-  width: 100%;
   height: calc(100vh - 60px);
 }
+
+/* Video Area với hiệu ứng zoom & rotate nhẹ */
 .video-area {
   flex: 1;
   background: #000;
@@ -35,32 +68,232 @@ header p {
   justify-content: center;
   padding: 20px;
   position: relative;
+  animation: slideInLeft 1s ease-out;
 }
+
+@keyframes slideInLeft {
+  from { transform: translateX(-100px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
 .video-wrapper {
   width: 100%;
+  max-width: 1200px;
   position: relative;
   aspect-ratio: 16 / 9;
+  border: 4px solid #00ffea;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #222;
+  animation: zoomRotate 1.5s ease-out;
 }
+
+@keyframes zoomRotate {
+  0% {
+    transform: scale(0.9) rotate(3deg);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1) rotate(0deg);
+    opacity: 1;
+  }
+}
+
 .video-element {
   width: 100%;
   height: 100%;
-  background: #333;
-  border: 2px solid #00ffea;
-  border-radius: 8px;
-  box-shadow: 0 0 15px rgba(0,255,234,0.6);
   object-fit: cover;
 }
+
+/* Hiệu ứng pulse phức tạp cho video-placeholder */
 .video-placeholder {
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
+  background: rgba(0,0,0,0.7);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #aaa;
   font-size: 1.2em;
-  background: rgba(0, 0, 0, 0.6);
+  color: #aaa;
+  text-align: center;
+  padding: 10px;
+  animation: complexPulse 2.5s infinite;
 }
-/* Các style cho chat (có thể điều chỉnh theo nhu cầu) */
+
+@keyframes complexPulse {
+  0% {
+    transform: scale(0.95) translateY(0);
+    box-shadow: 0 0 5px 2px rgba(0, 255, 234, 0.5);
+    opacity: 0.8;
+  }
+  50% {
+    transform: scale(1.05) translateY(-5px);
+    box-shadow: 0 0 20px 4px rgba(0, 255, 234, 0.8);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(0.95) translateY(0);
+    box-shadow: 0 0 5px 2px rgba(0, 255, 234, 0.5);
+    opacity: 0.8;
+  }
+}
+
+/* Chat Area với hiệu ứng slide & bounce */
+.chat-area {
+  width: 300px;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  flex-direction: column;
+  border-left: 2px solid #00ffea;
+  animation: bounceInRight 1s ease-out;
+}
+
+@keyframes bounceInRight {
+  0% {
+    opacity: 0;
+    transform: translateX(200px);
+  }
+  60% {
+    opacity: 1;
+    transform: translateX(-20px);
+  }
+  80% {
+    transform: translateX(10px);
+  }
+  100% {
+    transform: translateX(0);
+  }
+}
+
+.chat-header {
+  background: #000;
+  padding: 15px;
+  font-size: 1.2em;
+  font-weight: 600;
+  text-align: center;
+  border-bottom: 1px solid #00ffea;
+  animation: fadeInDown 0.8s ease-out;
+}
+
+@keyframes fadeInDown {
+  from { opacity: 0; transform: translateY(-20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+#chatContent {
+  flex: 1;
+  padding: 15px;
+  overflow-y: auto;
+}
+
+.chat-messages {
+  list-style: none;
+}
+
+.chat-messages li {
+  margin-bottom: 10px;
+  line-height: 1.4;
+  animation: messageSlideIn 0.5s forwards;
+}
+
+@keyframes messageSlideIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.chat-messages li i {
+  color: #00ffea;
+}
+
+.chat-input {
+  display: flex;
+  padding: 15px;
+  background: #000;
+  border-top: 1px solid #00ffea;
+  animation: fadeInUp 0.8s ease-out;
+}
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.chat-input input {
+  flex: 1;
+  padding: 10px;
+  border: none;
+  border-radius: 4px;
+  margin-right: 10px;
+  font-size: 1em;
+}
+
+.chat-input button {
+  padding: 10px 15px;
+  background: #00ffea;
+  border: none;
+  border-radius: 4px;
+  color: #000;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.3s;
+}
+
+.chat-input button:hover {
+  background: #00d4c4;
+}
+
+/* Overlay khi room ended với hiệu ứng zoom out */
+#roomEndedOverlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.9);
+  color: #fff;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  z-index: 1000;
+  animation: overlayZoomIn 0.8s ease-out;
+}
+
+@keyframes overlayZoomIn {
+  from { transform: scale(0.8); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+#roomEndedOverlay.active {
+  display: flex;
+}
+
+#roomEndedOverlay h2 {
+  font-size: 2em;
+  margin-bottom: 20px;
+  animation: glow 1.5s infinite alternate;
+}
+
+@keyframes glow {
+  from { text-shadow: 0 0 10px #00ffea, 0 0 20px #00ffea; }
+  to { text-shadow: 0 0 20px #00d4c4, 0 0 30px #00d4c4; }
+}
+
+#roomEndedOverlay button {
+  padding: 10px 20px;
+  background: #00ffea;
+  border: none;
+  border-radius: 4px;
+  font-size: 1em;
+  font-weight: 600;
+  color: #000;
+  cursor: pointer;
+  transition: background 0.3s;
+}
+
+#roomEndedOverlay button:hover {
+  background: #00d4c4;
+}
