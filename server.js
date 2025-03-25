@@ -113,7 +113,7 @@ app.get("/live/getToken", isLoggedIn, (req, res) => {
   const token = jwt.sign(
     { userId: req.user._id, username: req.user.username },
     SECRET_KEY,
-    { expiresIn: "1h" }
+    { expiresIn: "5h" }
   );
   res.json({ token });
 });
