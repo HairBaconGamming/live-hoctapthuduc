@@ -8,6 +8,9 @@
   <link rel="icon" type="image/png" href="https://cdn.glitch.global/your-favicon.png">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.15.3/dist/katex.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.15.3/dist/katex.min.js"></script>
 </head>
 <body>
   <header>
@@ -32,11 +35,20 @@
       <div class="chat-header">
         <span>Phòng Chat</span>
       </div>
-      <div id="chatContent">
-        <ul class="chat-messages" id="chatMessages"></ul>
-        <div class="chat-input">
-          <input type="text" id="messageInput" placeholder="Nhập tin nhắn..." autocomplete="off" />
-          <button id="sendBtn">Gửi</button>
+      <!-- Phần Chat Area -->
+      <div class="chat-area" id="chatArea">
+        <div class="chat-header">
+          <span>Phòng Chat</span>
+        </div>
+        <div id="chatContent">
+          <ul class="chat-messages" id="chatMessages"></ul>
+          <!-- Enhanced Chat Input -->
+          <div class="chat-input-container">
+            <textarea id="chatInputArea" placeholder="Nhập tin nhắn... (Hỗ trợ Markdown và KaTeX)"></textarea>
+            <button id="sendChatBtn">Gửi</button>
+          </div>
+          <!-- Vùng preview hiển thị nội dung Markdown/KaTeX -->
+          <div id="chatPreview" class="chat-preview"></div>
         </div>
       </div>
     </div>

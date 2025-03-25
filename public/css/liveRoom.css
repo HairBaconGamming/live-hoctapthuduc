@@ -208,6 +208,11 @@ header p {
   color: #00ffea;
 }
 
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 .chat-input {
   display: flex;
   padding: 15px;
@@ -216,33 +221,42 @@ header p {
   animation: fadeInUp 0.8s ease-out;
 }
 
-@keyframes fadeInUp {
-  from { opacity: 0; transform: translateY(20px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
 .chat-input input {
   flex: 1;
-  padding: 10px;
-  border: none;
-  border-radius: 4px;
-  margin-right: 10px;
+  padding: 12px 15px;
+  border: 2px solid transparent;
+  border-radius: 25px;
   font-size: 1em;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.chat-input input::placeholder {
+  color: #bbb;
+}
+
+.chat-input input:focus {
+  border-color: #00ffea;
+  box-shadow: 0 0 10px rgba(0, 255, 234, 0.5);
+  outline: none;
 }
 
 .chat-input button {
-  padding: 10px 15px;
+  padding: 12px 20px;
   background: #00ffea;
   border: none;
-  border-radius: 4px;
+  border-radius: 25px;
   color: #000;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.3s;
+  transition: background 0.3s ease, transform 0.2s ease;
+  margin-left: 10px;
 }
 
 .chat-input button:hover {
   background: #00d4c4;
+  transform: scale(1.05);
 }
 
 /* Overlay khi room ended với hiệu ứng zoom out */
