@@ -1,82 +1,13 @@
+<!-- app/views/liveRoom.ejs -->
 <!DOCTYPE html>
 <html lang="vi">
 <head>
   <meta charset="UTF-8">
   <title><%= room.title %> - Live Room</title>
-  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="/css/liveRoom.css">
   <link rel="icon" type="image/png" href="https://cdn.glitch.global/71030012-56ea-4d26-a426-e0099201df1c/823029_library_512x512.png?v=1741523759119">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-  <style>
-    /* Global styles, video area, and chat styles go here */
-    body {
-      font-family: 'Poppins', sans-serif;
-      background: linear-gradient(135deg, #1e1e2f, #252536);
-      color: #f1f1f1;
-      margin: 0;
-      padding: 0;
-      overflow: hidden;
-    }
-    header {
-      height: 60px;
-      background: #111;
-      color: #fff;
-      display: flex;
-      align-items: center;
-      padding: 0 20px;
-    }
-    header h1 {
-      font-size: 1.4em;
-      margin-right: auto;
-    }
-    header p {
-      margin-left: auto;
-    }
-    .main-content {
-      display: flex;
-      width: 100%;
-      height: calc(100vh - 60px);
-    }
-    .video-area {
-      flex: 1;
-      background: #000;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 20px;
-      position: relative;
-    }
-    .video-wrapper {
-      width: 100%;
-      position: relative;
-      aspect-ratio: 16/9;
-    }
-    .video-element {
-      width: 100%;
-      height: 100%;
-      background: #333;
-      border: 2px solid #00ffea;
-      border-radius: 8px;
-      box-shadow: 0 0 15px rgba(0,255,234,0.6);
-      object-fit: cover;
-    }
-    .video-placeholder {
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: #aaa;
-      font-size: 1.2em;
-      background: rgba(0,0,0,0.6);
-    }
-    
-    
-    /* Chat styles omitted for brevity */
-  </style>
 </head>
 <body>
   <header>
@@ -109,7 +40,6 @@
         </div>
       </div>
     </div>
-    
   </div>
   <div id="roomEndedOverlay">
     <h2>🔴 Buổi phát trực tiếp đã kết thúc</h2>
@@ -117,166 +47,12 @@
       Quay lại danh sách Live
     </button>
   </div>
-  
   <script src="/socket.io/socket.io.js"></script>
+  <!-- Khởi tạo các biến cần dùng từ dữ liệu EJS -->
   <script>
-    // Socket.IO & Chat Setup
-    const socket = io();
     const roomId = "<%= room.id %>";
     const username = "<%= user.username %>";
-    const viewerCount = document.getElementById("viewerCount");
-    const chatMessages = document.getElementById("chatMessages");
-    const messageInput = document.getElementById("messageInput");
-    const sendBtn = document.getElementById("sendBtn");
-
-    socket.emit("joinRoom", { roomId, username });
-    socket.on("userJoined", msg => {
-      const li = document.createElement("li");
-      li.innerHTML = `<i>${msg}</i>`;
-      chatMessages.appendChild(li);
-    });
-    socket.on("newMessage", data => {
-      const li = document.createElement("li");
-      li.textContent = `${data.username}: ${data.message}`;
-      chatMessages.appendChild(li);
-    });
-    socket.on("updateViewers", count => {
-      viewerCount.textContent = count;
-    });
-    sendBtn.addEventListener("click", () => {
-      const msg = messageInput.value.trim();
-      if (!msg) return;
-      socket.emit("chatMessage", { roomId, username, message: msg });
-      messageInput.value = "";
-    });
-    messageInput.addEventListener("keypress", function(e) {
-      if (e.key === "Enter") {
-        e.preventDefault();
-        sendBtn.click();
-      }
-    });
-
-    // WebRTC Setup for Viewer
-    let pc;
-    let remoteStream = new MediaStream();
-    const liveVideo = document.getElementById("liveVideo");
-    liveVideo.srcObject = remoteStream;
-    let playInitiated = false;
-
-    socket.on("webrtcOffer", async ({ offer, roomId: offerRoomId, streamerSocketId }) => {
-      if (offerRoomId !== roomId) return;
-      pc = new RTCPeerConnection({
-  iceServers: [
-    { urls: 'stun:stun.l.google.com:19302' },
-    { urls: "stun:stun.l.google.com:19302" },
-    { urls: "stun:stun.l.google.com:5349" },
-    { urls: "stun:stun1.l.google.com:3478" },
-    { urls: "stun:stun1.l.google.com:5349" },
-    { urls: "stun:stun2.l.google.com:19302" },
-    { urls: "stun:stun2.l.google.com:5349" },
-    { urls: "stun:stun3.l.google.com:3478" },
-    { urls: "stun:stun3.l.google.com:5349" },
-    { urls: "stun:stun4.l.google.com:19302" },
-    { urls: "stun:stun4.l.google.com:5349" },
-    {
-      urls: [
-        'turn:relay1.expressturn.com:3478?transport=udp',
-        'turn:relay1.expressturn.com:3478?transport=tcp'
-      ],
-      username: 'efENPNJI04ST2ENN3C',
-      credential: 'udPrjk4AqDfSh8SY'
-    }
-  ],
-  iceTransportPolicy: 'all' // đảm bảo sử dụng tất cả candidate có sẵn
-});
-      pc.ontrack = event => {
-        // Nếu event.streams[0] tồn tại, sử dụng nó làm nguồn cho video.
-        if (event.streams && event.streams[0]) {
-          liveVideo.srcObject = event.streams[0];
-        } else {
-          // Ngược lại, thêm track vào remoteStream và gán lại srcObject
-          remoteStream.addTrack(event.track);
-          liveVideo.srcObject = remoteStream;
-        }
-        document.getElementById("placeholder").style.display = "none";
-        liveVideo.play().catch(err => console.error("Error playing remote video:", err));
-      };
-      pc.onicecandidate = event => {
-        if (event.candidate) {
-          console.log("New ICE candidate: ", event.candidate);
-          socket.emit("webrtcCandidate", { roomId, candidate: event.candidate });
-        }
-      };
-      pc.oniceconnectionstatechange = () => {
-  console.log("ICE state:", pc.iceConnectionState);
-  if (pc.iceConnectionState === "disconnected" || pc.iceConnectionState === "failed") {
-    // Ví dụ: thông báo lỗi hoặc thực hiện reconnect
-    console.error("ICE connection failed/disconnected. Thực hiện reconnect...");
-    // Bạn có thể thử tạo RTCPeerConnection mới hoặc gửi thông báo cho người dùng
-  }
-};
-
-      try {
-        await pc.setRemoteDescription(new RTCSessionDescription(offer));
-        const answer = await pc.createAnswer();
-        await pc.setLocalDescription(answer);
-        socket.emit("webrtcAnswer", { roomId, answer, targetSocketId: streamerSocketId });
-      } catch (error) {
-        console.error("Error handling WebRTC offer:", error);
-      }
-    });
-
-    socket.on("webrtcCandidate", async ({ candidate, roomId: candidateRoomId }) => {
-      if (candidateRoomId !== roomId || !pc) return;
-      try {
-        await pc.addIceCandidate(new RTCIceCandidate(candidate));
-      } catch (e) {
-        console.error("Error adding ICE candidate", e);
-      }
-    });
-
-    // Listen for screenShareEnded event to reset the video
-    socket.on("screenShareEnded", () => {
-      console.log("Received screenShareEnded event");
-      // Stop all tracks from the remote stream
-      remoteStream.getTracks().forEach(track => track.stop());
-      // Create a new, empty MediaStream
-      remoteStream = new MediaStream();
-      liveVideo.srcObject = remoteStream;
-      // Display the placeholder
-      document.getElementById("placeholder").style.display = "flex";
-    });
-    
-    // Khi phòng live kết thúc
-    socket.on("roomEnded", () => {
-      console.log("Room has ended event received!");
-
-      const overlay = document.getElementById('roomEndedOverlay');
-      const mainContent = document.getElementById('mainContent');
-
-      if (mainContent) mainContent.style.display = 'none';
-
-      // Remove active if somehow already there (safe reset)
-      overlay.classList.remove('active');
-
-      // Force reflow/repaint
-      void overlay.offsetWidth;
-
-      // Now add active -> triggers transition!
-      overlay.classList.add('active');
-
-      // Optional auto redirect after 5 seconds
-      setTimeout(() => {
-        window.location.href = "https://hoctap-9a3.glitch.me/live";
-      }, 15000);
-    });
-    
-    setInterval(() => {
-      if (socket && roomId) {
-        socket.emit("keepAlive", { roomId });
-        console.log("Keep-alive sent for room:", roomId);
-      }
-    }, 15000);
   </script>
+  <script src="/js/liveRoom.js"></script>
 </body>
 </html>

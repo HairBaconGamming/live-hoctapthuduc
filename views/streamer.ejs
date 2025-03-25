@@ -1,78 +1,12 @@
+<!-- app/views/streamer.ejs -->
 <!DOCTYPE html>
 <html lang="vi">
 <head>
   <meta charset="UTF-8">
   <title>Streamer Room - <%= room.title %></title>
-  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="/css/streamer.css">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-  <style>
-    /* Control Panel */
-    .control-panel {
-      position: relative;
-      background: rgba(0,0,0,0.7);
-      border-radius: 8px;
-      padding: 15px;
-      margin: 20px 0;
-      transition: height 0.3s ease, padding 0.3s ease;
-      overflow: hidden;
-    }
-    .control-panel.collapsed {
-      height: 50px;
-      padding: 5px;
-    }
-    .panel-toggle-btn {
-      position: absolute;
-      top: 5px;
-      right: 5px;
-      background: #ff7cf7;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-      color: #fff;
-      width: 32px;
-      height: 32px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-    .panel-content {
-      display: flex;
-      gap: 10px;
-      transition: opacity 0.3s ease;
-    }
-    .control-panel.collapsed .panel-content {
-      opacity: 0;
-      pointer-events: none;
-    }
-    .control-panel button {
-      margin: 5px;
-      padding: 10px 15px;
-      font-size: 1em;
-      border: none;
-      border-radius: 5px;
-      cursor: pointer;
-      background: #ff7cf7;
-      color: #fff;
-      transition: background 0.3s ease;
-    }
-    .control-panel button:hover {
-      background: #e06ac7;
-    }
-    /* Screen Share Preview */
-    #screenShareContainer {
-      margin-top: 20px;
-      text-align: center;
-    }
-    #screenShareContainer video {
-      width: 100%;
-      max-width: 400px;
-      max-height: 400px;
-      border: 2px solid #00ffea;
-      border-radius: 8px;
-      box-shadow: 0 0 15px rgba(0,255,234,0.6);
-    }
-  </style>
 </head>
 <body>
   <div class="live-header">
@@ -91,8 +25,7 @@
     </div>
   </div>
   <div class="container">
-    
-    <!-- Control Panel với toggle -->
+    <!-- Control Panel -->
     <div class="control-panel" id="controlPanel">
       <button id="togglePanelBtn" class="panel-toggle-btn">
         <i class="fas fa-chevron-up"></i>
@@ -106,8 +39,7 @@
         <button id="shareScreenBtn"><i class="fas fa-desktop"></i> Chia sẻ màn hình</button>
       </div>
     </div>
-    
-    <!-- Khung chat -->
+    <!-- Chat Box -->
     <div id="chatBox">
       <h3>💬 Chat trực tiếp với người xem</h3>
       <ul id="chatMessages"></ul>
@@ -116,18 +48,11 @@
       <button id="sendBtn">Gửi</button>
     </div>
   </div>
-
   <script src="/socket.io/socket.io.js"></script>
-  <script type="module">
-    const socket = io();
+  <!-- Khởi tạo các biến cần dùng -->
+  <script>
     const roomId = "<%= room.id %>";
     const username = document.getElementById("username").value;
-    const messageInput = document.getElementById("message");
-    const sendBtn = document.getElementById("sendBtn");
-    const chatMessages = document.getElementById("chatMessages");
-    const viewerCount = document.getElementById("viewerCount");
-
-    // Cập nhật thời gian mở phòng (dựa trên createdAt từ server)
     const roomCreatedAt = new Date("<%= room.createdAt %>");
     function updateOpenTime() {
       const now = new Date();
@@ -140,207 +65,7 @@
     }
     setInterval(updateOpenTime, 1000);
     updateOpenTime();
-
-    // Tham gia phòng
-    socket.emit("joinRoom", { roomId, username });
-    socket.on("userJoined", msg => {
-      const li = document.createElement("li");
-      li.innerHTML = `<i>${msg}</i>`;
-      chatMessages.appendChild(li);
-    });
-    socket.on("newMessage", data => {
-      const li = document.createElement("li");
-      li.textContent = `${data.username}: ${data.message}`;
-      chatMessages.appendChild(li);
-    });
-    socket.on("updateViewers", count => {
-      viewerCount.textContent = count;
-    });
-    sendBtn.addEventListener("click", () => {
-      const message = messageInput.value.trim();
-      if (!message) return;
-      socket.emit("chatMessage", { roomId, username, message });
-      messageInput.value = "";
-    });
-    messageInput.addEventListener("keypress", function(e) {
-      if (e.key === "Enter") {
-        e.preventDefault();
-        sendBtn.click();
-      }
-    });
-
-    // Control Panel Toggle
-    const togglePanelBtn = document.getElementById('togglePanelBtn');
-    const controlPanel = document.getElementById('controlPanel');
-    togglePanelBtn.addEventListener('click', () => {
-      controlPanel.classList.toggle('collapsed');
-      if (controlPanel.classList.contains('collapsed')) {
-        togglePanelBtn.innerHTML = '<i class="fas fa-chevron-down"></i>';
-      } else {
-        togglePanelBtn.innerHTML = '<i class="fas fa-chevron-up"></i>';
-      }
-    });
-
-    document.getElementById("endStreamBtn").addEventListener("click", () => {
-      socket.emit("endRoom", { roomId });
-      alert("Live stream đã kết thúc.");
-      window.location.href = "https://hoctap-9a3.glitch.me/";
-    });
-
-    // Realtime Screen Share: Sử dụng WebRTC signaling qua Socket.IO
-    let localStream = null;
-    let pc; // RTCPeerConnection for screen share
-    // Mảng lưu các viewer chưa được xử lý
-    const pendingViewers = [];
-
-    socket.on("newViewer", async ({ viewerSocketId }) => {
-      if (!localStream) {
-        console.warn("Local stream chưa sẵn sàng, lưu viewer:", viewerSocketId);
-        pendingViewers.push(viewerSocketId);
-        return;
-      }
-      createAndSendOffer(viewerSocketId);
-    });
-
-    // Hàm tạo và gửi offer cho viewer
-    async function createAndSendOffer(viewerSocketId) {
-      const pcForViewer = new RTCPeerConnection({
-        iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
-      });
-      pcs[viewerSocketId] = pcForViewer;
-
-      // Nếu localStream có giá trị, thêm các track vào kết nối
-      localStream.getTracks().forEach(track => pcForViewer.addTrack(track, localStream));
-
-      pcForViewer.onicecandidate = event => {
-        if (event.candidate) {
-          socket.emit("webrtcCandidate", {
-            roomId,
-            candidate: event.candidate,
-            targetSocketId: viewerSocketId
-          });
-        }
-      };
-
-      // Tạo offer cho viewer
-      const offer = await pcForViewer.createOffer();
-      await pcForViewer.setLocalDescription(offer);
-
-      socket.emit("webrtcOffer", {
-        roomId,
-        offer,
-        targetSocketId: viewerSocketId
-      });
-    }
-
-    // Khi streamer bắt đầu chia sẻ màn hình và localStream được gán
-    document.getElementById("shareScreenBtn").addEventListener("click", async () => {
-      try {
-        localStream = await navigator.mediaDevices.getDisplayMedia({
-          video: true,
-          audio: true
-        });
-
-        const screenVideo = document.getElementById("screenShareVideo");
-        screenVideo.srcObject = localStream;
-
-        // Xử lý khi người dùng dừng chia sẻ màn hình
-        localStream.getVideoTracks()[0].addEventListener("ended", () => {
-          console.log("User stopped screen sharing");
-          screenVideo.srcObject = null;
-          localStream = null;
-          socket.emit("screenShareEnded", { roomId });
-        });
-
-        // Tạo RTCPeerConnection chính (nếu cần thiết cho streamer)
-        pc = new RTCPeerConnection({
-  iceServers: [
-    { urls: 'stun:stun.l.google.com:19302' },
-    { urls: "stun:stun.l.google.com:19302" },
-    { urls: "stun:stun.l.google.com:5349" },
-    { urls: "stun:stun1.l.google.com:3478" },
-    { urls: "stun:stun1.l.google.com:5349" },
-    { urls: "stun:stun2.l.google.com:19302" },
-    { urls: "stun:stun2.l.google.com:5349" },
-    { urls: "stun:stun3.l.google.com:3478" },
-    { urls: "stun:stun3.l.google.com:5349" },
-    { urls: "stun:stun4.l.google.com:19302" },
-    { urls: "stun:stun4.l.google.com:5349" },
-    {
-      urls: [
-        'turn:relay1.expressturn.com:3478?transport=udp',
-        'turn:relay1.expressturn.com:3478?transport=tcp'
-      ],
-      username: 'efENPNJI04ST2ENN3C',
-      credential: 'udPrjk4AqDfSh8SY'
-    }
-  ],
-  iceTransportPolicy: 'all' // đảm bảo sử dụng tất cả candidate có sẵn
-});
-
-        localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
-        pc.onicecandidate = event => {
-          if (event.candidate) {
-            console.log("New ICE candidate: ", event.candidate);
-            socket.emit("webrtcCandidate", { roomId, candidate: event.candidate });
-          }
-        };
-
-        // Tạo offer cho các viewer đang chờ
-        while (pendingViewers.length) {
-          const viewerSocketId = pendingViewers.shift();
-          await createAndSendOffer(viewerSocketId);
-        }
-
-        // (Tùy chọn) Gửi offer cho các viewer đã kết nối sau này trong sự kiện "newViewer"
-      } catch (err) {
-        console.error("Error during screen sharing:", err);
-        alert("Cannot share screen. Please ensure you have the proper permissions or try a different browser.");
-      }
-    });
-    
-    // On the streamer side
-    const pcs = {};
-
-    // Khi streamer nhận được answer từ viewer
-    socket.on("webrtcAnswer", async ({ answer, targetSocketId }) => {
-      let pcForViewer = pcs[targetSocketId];
-      if (!pcForViewer) {
-        console.warn("Không tìm thấy peer connection cho viewer: " + targetSocketId + ". Thiết lập lại kết nối...");
-        // Tạo mới một RTCPeerConnection cho viewer đó
-        pcForViewer = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
-        pcs[targetSocketId] = pcForViewer;
-
-        // Thêm các track từ localStream vào pc mới
-        localStream.getTracks().forEach(track => pcForViewer.addTrack(track, localStream));
-
-        // Thiết lập xử lý ICE candidate cho pc mới
-        pcForViewer.onicecandidate = event => {
-          if (event.candidate) {
-            socket.emit("webrtcCandidate", {
-              roomId,
-              candidate: event.candidate,
-              targetSocketId
-            });
-          }
-        };
-
-        // Tạo offer mới cho viewer
-        const offer = await pcForViewer.createOffer();
-        await pcForViewer.setLocalDescription(offer);
-        socket.emit("webrtcOffer", { roomId, offer, targetSocketId });
-      }
-
-      // Sau khi đảm bảo pcForViewer đã tồn tại, tiến hành set remote description
-      await pcForViewer.setRemoteDescription(new RTCSessionDescription(answer));
-    });
-
-    // Xử lý ICE candidates từ viewer
-    socket.on("webrtcCandidate", async ({ candidate, targetSocketId }) => {
-      const pcForViewer = pcs[targetSocketId];
-      if (!pcForViewer) return;
-      await pcForViewer.addIceCandidate(new RTCIceCandidate(candidate));
-    });
   </script>
+  <script src="/js/streamer.js"></script>
 </body>
 </html>

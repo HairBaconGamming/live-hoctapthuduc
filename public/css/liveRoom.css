@@ -1,0 +1,66 @@
+/* Global styles, video area, and chat styles */
+body {
+  font-family: 'Poppins', sans-serif;
+  background: linear-gradient(135deg, #1e1e2f, #252536);
+  color: #f1f1f1;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+header {
+  height: 60px;
+  background: #111;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+}
+header h1 {
+  font-size: 1.4em;
+  margin-right: auto;
+}
+header p {
+  margin-left: auto;
+}
+.main-content {
+  display: flex;
+  width: 100%;
+  height: calc(100vh - 60px);
+}
+.video-area {
+  flex: 1;
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  position: relative;
+}
+.video-wrapper {
+  width: 100%;
+  position: relative;
+  aspect-ratio: 16 / 9;
+}
+.video-element {
+  width: 100%;
+  height: 100%;
+  background: #333;
+  border: 2px solid #00ffea;
+  border-radius: 8px;
+  box-shadow: 0 0 15px rgba(0,255,234,0.6);
+  object-fit: cover;
+}
+.video-placeholder {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #aaa;
+  font-size: 1.2em;
+  background: rgba(0, 0, 0, 0.6);
+}
+/* Các style cho chat (có thể điều chỉnh theo nhu cầu) */
