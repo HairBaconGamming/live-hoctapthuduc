@@ -144,63 +144,111 @@ body {
   box-shadow: 0 0 20px rgba(0,255,234,0.8);
 }
 
-/* Chat Box */
-#chatBox {
-  background: rgba(0, 0, 0, 0.9);
-  border: 2px solid #00ffea;
-  border-radius: 12px;
-  padding: 20px;
-  margin-top: 20px;
-  animation: fadeIn 1s ease-out;
-}
+/* ---------------------- */
+/* Chat Area - Enhanced   */
+/* ---------------------- */
 
-#chatBox h3 {
-  margin-bottom: 15px;
-  font-size: 1.4em;
-  text-align: center;
-}
-
+/* Danh sách tin nhắn */
 #chatMessages {
   list-style: none;
-  max-height: 250px;
+  margin: 0;
+  padding: 10px 15px;
   overflow-y: auto;
-  padding: 0 10px;
-  margin-bottom: 15px;
+  max-height: 300px; /* Điều chỉnh theo nhu cầu */
 }
 
+/* Kiểu message chung */
 #chatMessages li {
   margin-bottom: 10px;
-  animation: messageSlide 0.5s forwards;
+  line-height: 1.4;
+  padding: 5px 10px;
+  border-radius: 4px;
+  font-size: 0.95em;
 }
 
-@keyframes messageSlide {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
+/* Message của chủ phòng (host) */
+#chatMessages li.message-host {
+  background: rgba(0, 255, 234, 0.15);
+  border-left: 4px solid #00ffea;
 }
 
-#chatBox input, 
-#chatBox button {
-  padding: 10px;
+/* Message của thành viên PRO */
+#chatMessages li.message-pro {
+  background: rgba(255, 215, 0, 0.15);
+  border-left: 4px solid #ffd700;
+}
+
+/* Message của khách (non-pro, không phải host) */
+#chatMessages li.message-guest {
+  background: rgba(255, 255, 255, 0.1);
+  border-left: 4px solid #ccc;
+}
+
+/* Message của hệ thống */
+#chatMessages li.message-system {
+  background: rgba(255, 0, 0, 0.15);
+  border-left: 4px solid #ff0000;
+  font-style: italic;
+}
+
+/* Container cho input chat và preview */
+.chat-input-container {
+  display: flex;
+  flex-direction: column;
+  padding: 15px;
+  background: #000;
+  border-top: 1px solid #00ffea;
+}
+
+/* Vùng nhập tin nhắn (textarea) */
+.chat-input-container textarea {
+  width: 100%;
+  padding: 12px 15px;
+  border: 2px solid transparent;
+  border-radius: 25px;
   font-size: 1em;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  resize: none;
+  min-height: 40px;
+  margin-bottom: 10px;
 }
 
-#chatBox input {
-  width: calc(100% - 120px);
-  border: none;
-  border-radius: 6px;
-  margin-right: 10px;
+.chat-input-container textarea::placeholder {
+  color: #bbb;
 }
 
-#chatBox button {
+.chat-input-container textarea:focus {
+  border-color: #00ffea;
+  box-shadow: 0 0 10px rgba(0, 255, 234, 0.5);
+  outline: none;
+}
+
+/* Nút gửi tin nhắn */
+.chat-input-container button {
+  align-self: flex-end;
+  padding: 12px 20px;
   background: #00ffea;
   border: none;
-  border-radius: 6px;
-  cursor: pointer;
+  border-radius: 25px;
+  color: #000;
   font-weight: 600;
-  transition: background 0.3s, transform 0.3s;
+  cursor: pointer;
+  transition: background 0.3s ease, transform 0.2s ease;
 }
 
-#chatBox button:hover {
+.chat-input-container button:hover {
   background: #00d4c4;
   transform: scale(1.05);
+}
+
+/* Vùng preview hiển thị nội dung chat */
+.chat-preview {
+  background: rgba(255, 255, 255, 0.05);
+  padding: 10px 15px;
+  margin: 5px 0;
+  border-radius: 4px;
+  font-size: 0.9em;
+  color: #ddd;
 }

@@ -1,4 +1,3 @@
-<!-- app/views/streamer.ejs -->
 <!DOCTYPE html>
 <html lang="vi">
 <head>
@@ -7,8 +6,14 @@
   <link rel="stylesheet" href="/css/streamer.css">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  <!-- Load Marked để xử lý Markdown -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <!-- Load KaTeX để render công thức toán học -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.15.3/dist/katex.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.15.3/dist/katex.min.js"></script>
 </head>
 <body>
+  <input type="hidden" id="username" value="<%= user.username %>">
   <div class="live-header">
     <div class="live-left">
       <h1 class="live-title">
@@ -43,9 +48,13 @@
     <div id="chatBox">
       <h3>💬 Chat trực tiếp với người xem</h3>
       <ul id="chatMessages"></ul>
-      <input type="hidden" id="username" value="<%= user.username %>">
-      <input type="text" id="message" placeholder="Nhập tin nhắn..." autocomplete="off">
-      <button id="sendBtn">Gửi</button>
+      <!-- Enhanced Chat Input -->
+      <div class="chat-input-container">
+        <textarea id="chatInputArea" placeholder="Nhập tin nhắn... (Hỗ trợ Markdown và KaTeX)"></textarea>
+        <button id="sendChatBtn">Gửi</button>
+      </div>
+      <!-- Chat Preview -->
+      <div id="chatPreview" class="chat-preview"></div>
     </div>
   </div>
   <script src="/socket.io/socket.io.js"></script>
@@ -53,8 +62,16 @@
   <!-- Các biến từ EJS -->
   <script>
     const roomId = "<%= room.id %>";
-    const username = document.getElementById("username").value;
+    const username = document.getElementById("username").value || "<%= user.username %>";
     const roomCreatedAt = new Date("<%= room.createdAt %>");
+    // Giả sử room.owner chứa username của host
+    const roomOwner = "<%= room.owner %>";
+    // Đối tượng user có thuộc tính isPro
+    const user = {
+      username: "<%= user.username %>",
+      isPro: <%= user.isPro ? "true" : "false" %>
+    };
+
     function updateOpenTime() {
       const now = new Date();
       const diff = now - roomCreatedAt;

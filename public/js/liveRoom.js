@@ -17,7 +17,12 @@ socket.on("userJoined", msg => {
 });
 socket.on("newMessage", data => {
   const li = document.createElement("li");
-  li.textContent = `${data.username}: ${data.message}`;
+  // data.message được giả sử là object chứa: username, content, messageType
+  li.innerHTML = `<strong>${data.message.username}:</strong> ${marked.parse(data.message.content)}`;
+  // Gán class cho message theo messageType
+  if (data.message.messageType) {
+    li.classList.add(`message-${data.message.messageType}`);
+  }
   chatMessages.appendChild(li);
 });
 socket.on("updateViewers", count => {

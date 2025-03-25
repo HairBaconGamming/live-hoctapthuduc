@@ -1,15 +1,15 @@
 // /public/js/streamer.js
 
 const socket = io();
-const messageInput = document.getElementById("message");
-const sendBtn = document.getElementById("sendBtn");
+const messageInput = document.getElementById("message"); // Nếu còn dùng input cũ (nếu không, sẽ sử dụng textarea)
+const sendBtn = document.getElementById("sendBtn");         // Nếu có
 const chatMessages = document.getElementById("chatMessages");
 const viewerCount = document.getElementById("viewerCount");
 
-// Gửi thông tin tham gia phòng
+// Gửi thông tin tham gia phòng qua Socket.IO
 socket.emit("joinRoom", { roomId, username });
 
-// Các sự kiện chat
+// Các sự kiện chat từ Socket.IO
 socket.on("userJoined", msg => {
   const li = document.createElement("li");
   li.innerHTML = `<i>${msg}</i>`;
@@ -17,26 +17,89 @@ socket.on("userJoined", msg => {
 });
 socket.on("newMessage", data => {
   const li = document.createElement("li");
-  li.textContent = `${data.username}: ${data.message}`;
+  // data.message là object chứa: username, content, messageType, timestamp
+  // Sử dụng marked để chuyển Markdown sang HTML và render KaTeX nếu có
+  let contentHtml = marked.parse(data.message.content || "");
+  contentHtml = contentHtml.replace(/\$\$(.+?)\$\$/g, (match, formula) => {
+    try {
+      return katex.renderToString(formula, { throwOnError: false });
+    } catch (e) {
+      return `<span class="katex-error">${formula}</span>`;
+    }
+  });
+  li.innerHTML = `<strong>${data.message.username}:</strong> ${contentHtml}`;
+  if (data.message.messageType) {
+    li.classList.add(`message-${data.message.messageType}`);
+  }
   chatMessages.appendChild(li);
 });
 socket.on("updateViewers", count => {
   viewerCount.textContent = count;
 });
-sendBtn.addEventListener("click", () => {
-  const message = messageInput.value.trim();
-  if (!message) return;
-  socket.emit("chatMessage", { roomId, username, message });
-  messageInput.value = "";
-});
-messageInput.addEventListener("keypress", function(e) {
-  if (e.key === "Enter") {
-    e.preventDefault();
-    sendBtn.click();
-  }
+
+// Nếu vẫn sử dụng input cũ (nếu có)
+if(sendBtn && messageInput){
+  sendBtn.addEventListener("click", () => {
+    const message = messageInput.value.trim();
+    if (!message) return;
+    socket.emit("chatMessage", { roomId, username, message: message });
+    messageInput.value = "";
+  });
+  messageInput.addEventListener("keypress", function(e) {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      sendBtn.click();
+    }
+  });
+}
+
+// --- Enhanced Chat Input for Streamer ---
+const chatInputArea = document.getElementById("chatInputArea");
+const sendChatBtn = document.getElementById("sendChatBtn");
+const chatPreview = document.getElementById("chatPreview");
+
+// Cập nhật preview khi người dùng nhập nội dung
+chatInputArea.addEventListener("input", () => {
+  const rawText = chatInputArea.value || "";
+  let html = marked.parse(rawText);
+  // Render KaTeX cho công thức được bao quanh bởi $$ ... $$
+  html = html.replace(/\$\$(.+?)\$\$/g, (match, formula) => {
+    try {
+      return katex.renderToString(formula, { throwOnError: false });
+    } catch (e) {
+      return `<span class="katex-error">${formula}</span>`;
+    }
+  });
+  chatPreview.innerHTML = html;
 });
 
-// Control Panel Toggle
+// Khi nhấn nút gửi từ chat input nâng cao
+sendChatBtn.addEventListener("click", () => {
+  const messageContent = chatInputArea.value.trim();
+  if (!messageContent) return;
+
+  // Xác định loại message: nếu streamer thì loại là "host"
+  let messageType = "host";
+  if (user.isPro && username !== roomOwner) {
+    messageType = "pro";
+  }
+  // Tạo đối tượng message
+  const messageObj = {
+    username: username,
+    content: messageContent,
+    messageType: messageType,
+    timestamp: new Date().toISOString()
+  };
+
+  // Gửi message qua Socket.IO
+  socket.emit("chatMessage", { roomId, message: messageObj });
+
+  // Reset input và preview
+  chatInputArea.value = "";
+  chatPreview.innerHTML = "";
+});
+
+// --- Control Panel & Screen Sharing ---
 const togglePanelBtn = document.getElementById("togglePanelBtn");
 const controlPanel = document.getElementById("controlPanel");
 togglePanelBtn.addEventListener("click", () => {
@@ -46,7 +109,6 @@ togglePanelBtn.addEventListener("click", () => {
     : '<i class="fas fa-chevron-up"></i>';
 });
 
-// Xử lý kết thúc live stream
 document.getElementById("endStreamBtn").addEventListener("click", () => {
   socket.emit("endRoom", { roomId });
   alert("Live stream đã kết thúc.");
@@ -80,7 +142,7 @@ peer.on('open', id => {
   console.log('PeerJS streamer open with ID:', id);
 });
 
-// Lắng nghe cuộc gọi đến (nếu viewer gọi trực tiếp)
+// Lắng nghe cuộc gọi đến từ viewer (nếu viewer gọi trực tiếp)
 peer.on('call', call => {
   if (localStream) {
     call.answer(localStream);
@@ -100,9 +162,8 @@ socket.on("newViewer", ({ viewerId }) => {
   }
 });
 
-// Hàm gọi đến viewer (đóng call cũ nếu cần)
+// Hàm gọi đến viewer (đóng call cũ nếu có)
 function callViewer(viewerId) {
-  // Nếu đã có call cũ, đóng nó đi
   if (currentCall[viewerId]) {
     currentCall[viewerId].close();
   }
@@ -116,7 +177,7 @@ function callViewer(viewerId) {
   });
 }
 
-// Bắt đầu chia sẻ màn hình
+// Bắt đầu chia sẻ màn hình qua PeerJS
 document.getElementById("shareScreenBtn").addEventListener("click", async () => {
   try {
     localStream = await navigator.mediaDevices.getDisplayMedia({

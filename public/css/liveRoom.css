@@ -213,15 +213,18 @@ header p {
   to { opacity: 1; transform: translateY(0); }
 }
 
-.chat-input {
+/* Enhanced Chat Input */
+.chat-input-container {
   display: flex;
   padding: 15px;
   background: #000;
   border-top: 1px solid #00ffea;
-  animation: fadeInUp 0.8s ease-out;
+  align-items: center;
+  gap: 10px;
+  animation: fadeInDown 0.8s ease-out;
 }
 
-.chat-input input {
+.chat-input-container textarea {
   flex: 1;
   padding: 12px 15px;
   border: 2px solid transparent;
@@ -230,19 +233,21 @@ header p {
   transition: border-color 0.3s ease, box-shadow 0.3s ease;
   background: rgba(255, 255, 255, 0.1);
   color: #fff;
+  resize: none;
+  min-height: 40px;
 }
 
-.chat-input input::placeholder {
+.chat-input-container textarea::placeholder {
   color: #bbb;
 }
 
-.chat-input input:focus {
+.chat-input-container textarea:focus {
   border-color: #00ffea;
   box-shadow: 0 0 10px rgba(0, 255, 234, 0.5);
   outline: none;
 }
 
-.chat-input button {
+.chat-input-container button {
   padding: 12px 20px;
   background: #00ffea;
   border: none;
@@ -251,12 +256,54 @@ header p {
   font-weight: 600;
   cursor: pointer;
   transition: background 0.3s ease, transform 0.2s ease;
-  margin-left: 10px;
 }
 
-.chat-input button:hover {
+.chat-input-container button:hover {
   background: #00d4c4;
   transform: scale(1.05);
+}
+
+/* Chat Preview */
+.chat-preview {
+  background: rgba(255, 255, 255, 0.05);
+  padding: 10px 15px;
+  margin: 5px 15px;
+  border-radius: 4px;
+  font-size: 0.9em;
+  color: #ddd;
+}
+
+/* Chat message styling cho các loại tài khoản */
+.chat-messages li {
+  margin-bottom: 10px;
+  line-height: 1.4;
+  padding: 5px 10px;
+  border-radius: 4px;
+}
+
+/* Dành cho host (chủ phòng) */
+.chat-messages li.message-host {
+  background: rgba(0, 255, 234, 0.2);
+  border-left: 4px solid #00ffea;
+}
+
+/* Dành cho thành viên PRO */
+.chat-messages li.message-pro {
+  background: rgba(255, 215, 0, 0.2);
+  border-left: 4px solid #ffd700;
+}
+
+/* Dành cho khách */
+.chat-messages li.message-guest {
+  background: rgba(255, 255, 255, 0.1);
+  border-left: 4px solid #ccc;
+}
+
+/* Dành cho hệ thống */
+.chat-messages li.message-system {
+  background: rgba(255, 0, 0, 0.2);
+  border-left: 4px solid #ff0000;
+  font-style: italic;
 }
 
 /* Overlay khi room ended với hiệu ứng zoom out */
