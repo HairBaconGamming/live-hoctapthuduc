@@ -308,7 +308,7 @@ document.getElementById("liveCamBtn").addEventListener("click", async () => {
     // Lấy stream từ camera và mic (live cam)
     localStream = await navigator.mediaDevices.getUserMedia({
       video: true,
-      audio: true
+      audio: false
     });
     const screenVideo = document.getElementById("screenShareVideo");
     screenVideo.srcObject = localStream;
@@ -360,26 +360,36 @@ async function checkMicAvailability() {
     console.error("Lỗi khi kiểm tra mic:", err);
   }
 }
-async function checkCameraAvailability() {
+async function checkCameraAvailabilityAndRequestPermission() {
   try {
     const devices = await navigator.mediaDevices.enumerateDevices();
     const videoInputs = devices.filter(device => device.kind === "videoinput");
     const liveCamBtn = document.getElementById("liveCamBtn");
     if (videoInputs.length === 0) {
-      // Không tìm thấy camera: vô hiệu hóa nút và cập nhật giao diện
       liveCamBtn.disabled = true;
       liveCamBtn.innerHTML = '<i class="fas fa-camera"></i> No Camera';
       console.log("Không có camera được phát hiện.");
-    } else {
-      console.log(videoInputs);
-      // Có camera: đảm bảo nút được kích hoạt
+      return;
+    }
+    // Thử yêu cầu truy cập camera để kích hoạt quyền (nếu chưa được cấp)
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      // Nếu thành công, ngay lập tức dừng tất cả các track để giải phóng camera
+      stream.getTracks().forEach(track => track.stop());
       liveCamBtn.disabled = false;
+      liveCamBtn.innerHTML = '<i class="fas fa-camera"></i> Live Cam';
+    } catch (err) {
+      console.error("Chưa được cấp quyền camera:", err);
+      // Nếu chưa được cấp quyền, thông báo cho người dùng
+      liveCamBtn.disabled = true;
+      liveCamBtn.innerHTML = '<i class="fas fa-camera"></i> Grant Camera Permission';
+      alert("Vui lòng cấp quyền truy cập camera để sử dụng Live Cam.");
     }
   } catch (err) {
     console.error("Lỗi khi kiểm tra camera:", err);
   }
 }
-checkCameraAvailability();
+checkCameraAvailabilityAndRequestPermission();
 checkMicAvailability();
 
 document.getElementById("toggleMicBtn").addEventListener("click", () => {
