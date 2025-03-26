@@ -275,3 +275,21 @@ viewerPeer.on('call', call => {
     document.getElementById("placeholder").style.display = "flex";
   });
 });
+
+const liveVideo = document.getElementById("liveVideo");
+
+// Sau khi video đã nhận được stream và loaded metadata:
+liveVideo.addEventListener("loadedmetadata", () => {
+  // Tính toán tỉ lệ của video stream
+  const ratio = liveVideo.videoWidth / liveVideo.videoHeight;
+  // Áp dụng vào container video-wrapper (hoặc trực tiếp cho video)
+  const videoWrapper = document.querySelector(".video-wrapper");
+  videoWrapper.style.aspectRatio = `${liveVideo.videoWidth} / ${liveVideo.videoHeight}`;
+  console.log("Aspect ratio set to:", videoWrapper.style.aspectRatio);
+});
+liveVideo.addEventListener('pause', () => {
+  console.log("Video bị pause => tự động play lại");
+  liveVideo.play().catch(err => {
+    console.warn("Không thể play video:", err);
+  });
+});
