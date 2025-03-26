@@ -184,6 +184,23 @@ io.on("connection", socket => {
   socket.on("chatMessage", ({ roomId, username, message }) => {
     io.to(roomId).emit("newMessage", { username, message });
   });
+  
+    // Xử lý pin comment
+  socket.on("pinComment", ({ roomId, message }) => {
+    // Chỉ host mới được pin comment, bạn có thể kiểm tra username của socket
+    const room = liveRooms.find(r => r.id === roomId);
+    if (room && socket.username === room.owner) {
+      // Phát sự kiện commentPinned đến tất cả client trong phòng
+      io.to(roomId).emit("commentPinned", { message });
+      console.log(`Comment pinned in room ${roomId}:`, message);
+    }
+  });
+
+  // Xử lý unpin comment
+  socket.on("unpinComment", ({ roomId }) => {
+    io.to(roomId).emit("commentPinned", { message: {} }); // Gửi message rỗng để xóa comment ghim
+    console.log(`Comment unpinned in room ${roomId}`);
+  });
 
   socket.on("endRoom", ({ roomId }) => {
     const room = liveRooms.find(r => r.id === roomId);

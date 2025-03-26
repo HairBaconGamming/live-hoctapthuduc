@@ -62,6 +62,31 @@ socket.on("newMessage", data => {
   
   chatMessages.appendChild(li);
 });
+socket.on("commentPinned", data => {
+  const pinnedDiv = document.getElementById("pinnedComment");
+  let contentHtml = marked.parse(data.message.content || "");
+  contentHtml = contentHtml.replace(/\$\$(.+?)\$\$/g, (match, formula) => {
+    try {
+      return katex.renderToString(formula, { throwOnError: false });
+    } catch (e) {
+      return `<span class="katex-error">${formula}</span>`;
+    }
+  });
+  pinnedDiv.innerHTML = `
+    <div class="pinned-box">
+      <span class="pin-icon"><i class="fas fa-thumbtack"></i></span>
+      <strong>${data.message.username}:</strong> ${contentHtml}
+      <span class="pinned-timestamp">${new Date(data.message.timestamp).toLocaleTimeString()}</span>
+    </div>
+  `;
+  // Giả sử thêm một nút "Unpin" trong pinned comment:
+  pinnedDiv.innerHTML += `<button class="unpin-btn" onclick="unpinComment()">Unpin</button>`;
+  // Optionally, add animation/highlight effect here.
+});
+function unpinComment() {
+  socket.emit("unpinComment", { roomId });
+  document.getElementById("pinnedComment").innerHTML = "";
+}
 socket.on("updateViewers", count => {
   viewerCount.textContent = count;
 });

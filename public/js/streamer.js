@@ -26,10 +26,11 @@ socket.on("newMessage", data => {
   if (data.message.messageType) {
     li.classList.add(`message-${data.message.messageType}`);
   }
-  // Tạo icon cho tin nhắn
+  
+  // Tạo icon hiển thị kiểu message (như trước)
   const iconSpan = document.createElement("span");
   iconSpan.classList.add("msg-icon");
-
+  
   let contentHtml = marked.parse(data.message.content || "");
   contentHtml = contentHtml.replace(/\$\$(.+?)\$\$/g, (match, formula) => {
     try {
@@ -38,22 +39,60 @@ socket.on("newMessage", data => {
       return `<span class="katex-error">${formula}</span>`;
     }
   });
-
+  
   const contentSpan = document.createElement("span");
   contentSpan.innerHTML = `<strong>${data.message.username}:</strong> ${contentHtml}`;
-
-  // Tạo timestamp (hiển thị khi hover)
+  
+  // Tạo nút Pin nếu người dùng hiện tại là host
+  if (user.username === roomOwner) { // biến user và roomOwner được định nghĩa từ EJS
+    const pinBtn = document.createElement("button");
+    pinBtn.classList.add("pin-btn");
+    pinBtn.innerHTML = '<i class="fas fa-thumbtack"></i>';
+    pinBtn.title = "Pin comment";
+    pinBtn.addEventListener("click", () => {
+      // Gửi sự kiện pin comment tới server
+      socket.emit("pinComment", { roomId, message: data.message });
+    });
+    li.appendChild(pinBtn);
+  }
+  
+  // Tạo timestamp hiển thị khi hover
   const timestampSpan = document.createElement("span");
   timestampSpan.classList.add("msg-timestamp");
   const dateObj = new Date(data.message.timestamp);
   timestampSpan.textContent = dateObj.toLocaleTimeString();
-
+  
   li.appendChild(iconSpan);
   li.appendChild(contentSpan);
   li.appendChild(timestampSpan);
-
+  
   chatMessages.appendChild(li);
 });
+socket.on("commentPinned", data => {
+  const pinnedDiv = document.getElementById("pinnedComment");
+  let contentHtml = marked.parse(data.message.content || "");
+  contentHtml = contentHtml.replace(/\$\$(.+?)\$\$/g, (match, formula) => {
+    try {
+      return katex.renderToString(formula, { throwOnError: false });
+    } catch (e) {
+      return `<span class="katex-error">${formula}</span>`;
+    }
+  });
+  pinnedDiv.innerHTML = `
+    <div class="pinned-box">
+      <span class="pin-icon"><i class="fas fa-thumbtack"></i></span>
+      <strong>${data.message.username}:</strong> ${contentHtml}
+      <span class="pinned-timestamp">${new Date(data.message.timestamp).toLocaleTimeString()}</span>
+      <button class="unpin-btn" onclick="unpinComment()">Unpin</button>
+    </div>
+  `;
+  // Optionally, add animation/highlight effect here.
+});
+function unpinComment() {
+  socket.emit("unpinComment", { roomId });
+  document.getElementById("pinnedComment").innerHTML = "";
+}
+
 socket.on("updateViewers", count => {
   viewerCount.textContent = count;
 });
