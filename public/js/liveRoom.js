@@ -135,8 +135,10 @@ socket.on("hostJoined", () => {
   const waitingOverlay = document.getElementById("waitingOverlay");
   if (waitingOverlay) waitingOverlay.classList.remove("active");
 });
-const waitingOverlay = document.getElementById("waitingOverlay");
-if (waitingOverlay) waitingOverlay.classList.add("active");
+socket.on("waiting", () => {
+  const waitingOverlay = document.getElementById("waitingOverlay");
+  if (waitingOverlay) waitingOverlay.classList.add("active");
+});
 // Nếu vẫn sử dụng input cũ (nếu có)
 if(sendBtn && messageInput){
   sendBtn.addEventListener("click", () => {

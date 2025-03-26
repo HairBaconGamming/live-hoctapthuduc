@@ -120,7 +120,7 @@ socket.on("commentPinned", data => {
   if (user.username === roomOwner) {
     const unpinBtn = document.createElement("button");
     unpinBtn.classList.add("unpin-btn");
-    unpinBtn.innerHTML = '<i class="fas fa-undo-alt"></i>';
+    //unpinBtn.innerHTML = '<i class="fas fa-undo-alt"></i>';
     unpinBtn.title = "Unpin comment";
     unpinBtn.addEventListener("click", () => {
       socket.emit("unpinComment", { roomId });

@@ -169,6 +169,9 @@ io.on("connection", socket => {
           socket.emit("waiting", "Chờ streamer vào live...");
         }
         io.to(roomId).emit("userJoined", `${username} đã tham gia phòng.`);
+        if (room.pinnedComment) {
+          socket.emit("commentPinned", { message: room.pinnedComment });
+        }
       }
     }
   });
@@ -191,6 +194,7 @@ io.on("connection", socket => {
     const room = liveRooms.find(r => r.id === roomId);
     if (room && socket.username === room.owner) {
       // Phát sự kiện commentPinned đến tất cả client trong phòng
+      room.pinnedComment = message;
       io.to(roomId).emit("commentPinned", { message });
       console.log(`Comment pinned in room ${roomId}:`, message);
     }
@@ -198,8 +202,12 @@ io.on("connection", socket => {
 
   // Xử lý unpin comment
   socket.on("unpinComment", ({ roomId }) => {
-    io.to(roomId).emit("commentPinned", { message: {} }); // Gửi message rỗng để xóa comment ghim
-    console.log(`Comment unpinned in room ${roomId}`);
+    const room = liveRooms.find(r => r.id === roomId);
+    if (room && socket.username === room.owner) {
+      room.pinnedComment = null;
+      io.to(roomId).emit("commentPinned", { message: {} });
+      console.log(`Comment unpinned in room ${roomId}`);
+    }
   });
 
   socket.on("endRoom", ({ roomId }) => {
