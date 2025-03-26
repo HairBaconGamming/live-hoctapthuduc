@@ -245,34 +245,54 @@ function callViewer(viewerId) {
   });
 }
 
+// Bắt đầu chia sẻ màn hình có hỗ trợ mic
 document.getElementById("shareScreenBtn").addEventListener("click", async () => {
   try {
     // Lấy stream chia sẻ màn hình (chỉ video)
     const displayStream = await navigator.mediaDevices.getDisplayMedia({
       video: true,
-      audio: true   // không lấy âm thanh từ màn hình
+      audio: false  // không lấy âm thanh từ màn hình
     });
     // Lấy stream từ mic (chỉ audio)
-    const micStream = await navigator.mediaDevices.getUserMedia({
-      video: false,
-      audio: true
-    });
+    let micStream = null;
+    try {
+      micStream = await navigator.mediaDevices.getUserMedia({
+        video: false,
+        audio: true
+      });
+    } catch (micErr) {
+      console.warn("Không lấy được mic: ", micErr);
+      micStream = null;
+    }
     
-    // Gộp các track video và audio thành một MediaStream duy nhất
-    const combinedStream = new MediaStream([
-      ...displayStream.getVideoTracks(),
-      ...micStream.getAudioTracks()
-    ]);
+    // Nếu không có mic, gộp stream chỉ có video
+    if (micStream) {
+      localStream = new MediaStream([
+        ...displayStream.getVideoTracks(),
+        ...micStream.getAudioTracks()
+      ]);
+    } else {
+      localStream = new MediaStream([...displayStream.getVideoTracks()]);
+      // Cập nhật nút toggle mic để báo No Mic
+      const toggleMicBtn = document.getElementById("toggleMicBtn");
+      if (toggleMicBtn) {
+        toggleMicBtn.innerHTML = '<i class="fas fa-microphone-slash"></i> No Mic';
+      }
+    }
     
-    localStream = combinedStream;
-    
-    // Gán stream vào phần tử video hiển thị preview
+    // Gán stream vào phần tử video preview
     const screenVideo = document.getElementById("screenShareVideo");
     screenVideo.srcObject = localStream;
     
-    // Cập nhật trạng thái nút toggle mic (bật mặc định)
+    // Cập nhật trạng thái nút toggle mic (nếu có mic)
     const toggleMicBtn = document.getElementById("toggleMicBtn");
-    toggleMicBtn.innerHTML = '<i class="fas fa-microphone"></i> Mic On';
+    if (toggleMicBtn) {
+      if (micStream) {
+        toggleMicBtn.innerHTML = '<i class="fas fa-microphone"></i> Mic On';
+      } else {
+        toggleMicBtn.innerHTML = '<i class="fas fa-microphone-slash"></i> No Mic';
+      }
+    }
     
     // Khi người dùng dừng chia sẻ màn hình
     localStream.getVideoTracks()[0].addEventListener("ended", () => {
@@ -297,7 +317,27 @@ document.getElementById("shareScreenBtn").addEventListener("click", async () => 
   }
 });
 
-// Thêm xử lý toggle mic
+// Hàm kiểm tra mic ngay khi trang load
+async function checkMicAvailability() {
+  try {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const audioInputs = devices.filter(device => device.kind === "audioinput");
+    const toggleMicBtn = document.getElementById("toggleMicBtn");
+    if (audioInputs.length === 0) {
+      // Không tìm thấy mic: vô hiệu hóa nút và cập nhật giao diện
+      toggleMicBtn.disabled = true;
+      toggleMicBtn.innerHTML = '<i class="fas fa-microphone-slash"></i> No Mic';
+      console.log("Không có mic được phát hiện.");
+    } else {
+      // Có mic: đảm bảo nút được kích hoạt
+      toggleMicBtn.disabled = false;
+    }
+  } catch (err) {
+    console.error("Lỗi khi kiểm tra mic:", err);
+  }
+}
+checkMicAvailability();
+
 document.getElementById("toggleMicBtn").addEventListener("click", () => {
   if (!localStream) {
     alert("Chưa có stream, vui lòng chia sẻ màn hình trước.");
@@ -306,10 +346,14 @@ document.getElementById("toggleMicBtn").addEventListener("click", () => {
   // Lấy các audio track trong localStream
   const audioTracks = localStream.getAudioTracks();
   if (audioTracks.length === 0) {
-    alert("Không tìm thấy mic trong stream.");
+    // Không tìm thấy mic trong stream (trường hợp không có mic)
+    alert("Bạn không có mic!");
+    const toggleMicBtn = document.getElementById("toggleMicBtn");
+    toggleMicBtn.innerHTML = '<i class="fas fa-microphone-slash"></i> No Mic';
+    toggleMicBtn.disabled = true;
     return;
   }
-  // Toggle thuộc tính enabled của các track
+  // Toggle thuộc tính enabled của các audio track
   audioTracks.forEach(track => {
     track.enabled = !track.enabled;
     console.log(`Mic ${track.enabled ? "On" : "Off"}`);

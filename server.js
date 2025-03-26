@@ -80,6 +80,7 @@ app.post("/api/createStream", (req, res) => {
     liveStreamUrl,
     viewers: 0,
     createdAt: new Date(),
+    isLive: false
   };
   liveRooms.push(newRoom);
   console.log("✅ Room created:", newRoom);
@@ -124,7 +125,10 @@ app.get("/live/getToken", isLoggedIn, (req, res) => {
 app.get("/room/:id", checkHoctapAuth, (req, res) => {
   const room = liveRooms.find(r => r.id === req.params.id);
   if (!room) return res.status(404).send("Room không tồn tại.");
+  
+  // Nếu người dùng là chủ phòng, cập nhật isLive thành true
   if (room.ownerid.toString() === req.user.userId.toString()) {
+    room.isLive = true;
     res.render("streamer", { room, user: req.user });
   } else {
     res.render("liveRoom", { room, user: req.user });
