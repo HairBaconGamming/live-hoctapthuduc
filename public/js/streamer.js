@@ -329,8 +329,17 @@ document.getElementById("liveCamBtn").addEventListener("click", async () => {
       callViewer(viewerId);
     }
   } catch (err) {
-    console.error("Error during live cam:", err);
-    alert("Không thể bật Live Cam. Vui lòng kiểm tra quyền hoặc thử trình duyệt khác.");
+    if (err.name === "NotFoundError") {
+      // Nếu không tìm thấy thiết bị video (mặc dù enumerateDevices cho thấy có videoInputs)
+      const liveCamBtn = document.getElementById("liveCamBtn");
+      liveCamBtn.disabled = true;
+      liveCamBtn.innerHTML = '<i class="fas fa-camera"></i> No Camera';
+      console.error("Requested device not found:", err);
+      alert("Không tìm thấy thiết bị camera. Live Cam đã bị vô hiệu hóa.");
+    } else {
+      console.error("Error during live cam:", err);
+      alert("Không thể bật Live Cam. Vui lòng kiểm tra quyền hoặc thử trình duyệt khác.");
+    }
   }
 });
 
@@ -362,6 +371,7 @@ async function checkCameraAvailability() {
       liveCamBtn.innerHTML = '<i class="fas fa-camera"></i> No Camera';
       console.log("Không có camera được phát hiện.");
     } else {
+      console.log(videoInputs);
       // Có camera: đảm bảo nút được kích hoạt
       liveCamBtn.disabled = false;
     }
