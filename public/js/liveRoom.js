@@ -57,6 +57,17 @@ socket.on("newMessage", data => {
 socket.on("updateViewers", count => {
   viewerCount.textContent = count;
 });
+socket.on("hostJoined", () => {
+  // Ẩn overlay "chờ"
+  const waitingOverlay = document.getElementById("waitingOverlay");
+  if (waitingOverlay) waitingOverlay.classList.remove("active");
+});
+// Khi join, nếu không nhận được sự kiện hostJoined sau 5 giây, hiển thị overlay:
+setTimeout(() => {
+  // Giả sử nếu chưa có streamer vào, server không gửi event hostJoined
+  const waitingOverlay = document.getElementById("waitingOverlay");
+  if (waitingOverlay) waitingOverlay.classList.add("active");
+}, 5000);
 // Nếu vẫn sử dụng input cũ (nếu có)
 if(sendBtn && messageInput){
   sendBtn.addEventListener("click", () => {

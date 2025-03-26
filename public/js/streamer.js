@@ -366,3 +366,5 @@ document.getElementById("toggleMicBtn").addEventListener("click", () => {
     toggleMicBtn.innerHTML = '<i class="fas fa-microphone-slash"></i> Mic Off';
   }
 });
+
+socket.emit("hostJoined", { roomId });

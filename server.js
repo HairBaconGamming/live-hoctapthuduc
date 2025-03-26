@@ -15,7 +15,7 @@ const io = socketIO(server);
 // Khởi tạo PeerJS server, ví dụ chạy dưới path "/peerjs"
 const peerServer = ExpressPeerServer(server, {
   debug: true,
-  path: '/myapp' // bạn có thể đặt tên path tùy ý, sau này client sẽ gọi vào: '/peerjs/myapp'
+  path: '/myapp'
 });
 
 const PORT = process.env.PORT || 3001;
@@ -80,7 +80,7 @@ app.post("/api/createStream", (req, res) => {
     liveStreamUrl,
     viewers: 0,
     createdAt: new Date(),
-    isLive: false
+    isLive: false // Ban đầu phòng chưa live (chờ host)
   };
   liveRooms.push(newRoom);
   console.log("✅ Room created:", newRoom);
@@ -131,6 +131,7 @@ app.get("/room/:id", checkHoctapAuth, (req, res) => {
     room.isLive = true;
     res.render("streamer", { room, user: req.user });
   } else {
+    // Viewer join: Họ có thể thấy trạng thái chờ nếu phòng chưa live
     res.render("liveRoom", { room, user: req.user });
   }
 });
@@ -147,11 +148,19 @@ io.on("connection", socket => {
     const room = liveRooms.find(r => r.id === roomId);
     if (room) {
       if (username === room.owner) {
+        // Host join
         room.hostSocketId = socket.id;
-        console.log(`✅ Chủ phòng ${username} đã vào với socketId: ${socket.id}`);
+        room.isLive = true;
+        io.to(roomId).emit("hostJoined"); // Thông báo cho viewer biết host đã vào live
+        console.log(`Host ${username} joined room ${roomId}`);
       } else {
+        // Viewer join: nếu phòng chưa live, bạn có thể gửi event waiting để client hiển thị overlay
         room.viewers++;
         io.to(roomId).emit("updateViewers", room.viewers);
+        // Nếu phòng chưa live, gửi event "waiting" riêng cho viewer
+        if (!room.isLive) {
+          socket.emit("waiting", "Chờ streamer vào live...");
+        }
         io.to(roomId).emit("userJoined", `${username} đã tham gia phòng.`);
       }
     }
@@ -161,7 +170,6 @@ io.on("connection", socket => {
   socket.on("newViewer", ({ viewerId, roomId }) => {
     const room = liveRooms.find(r => r.id === roomId);
     if (room && room.hostSocketId) {
-      // Thông báo cho streamer (với socket của chủ phòng) ID của viewer mới
       io.to(room.hostSocketId).emit("newViewer", { viewerId });
     }
   });
@@ -196,9 +204,17 @@ io.on("connection", socket => {
     const rooms = Array.from(socket.rooms);
     rooms.forEach(roomId => {
       const room = liveRooms.find(r => r.id === roomId);
-      if (room && socket.username && socket.username !== room.owner) {
-        room.viewers = Math.max(0, room.viewers - 1);
-        io.to(roomId).emit("updateViewers", room.viewers);
+      if (room) {
+        if (socket.username && socket.username === room.owner) {
+          // Nếu host disconnect, phát tín hiệu roomEnded và xóa phòng
+          io.to(roomId).emit("roomEnded");
+          liveRooms = liveRooms.filter(r => r.id !== roomId);
+          console.log(`Room ${roomId} ended because host disconnected.`);
+        } else if (socket.username) {
+          // Nếu viewer disconnect, giảm số người xem
+          room.viewers = Math.max(0, room.viewers - 1);
+          io.to(roomId).emit("updateViewers", room.viewers);
+        }
       }
     });
   });
@@ -206,6 +222,29 @@ io.on("connection", socket => {
   socket.on("disconnect", () => {
     console.log("👋 Client disconnected", socket.id);
   });
+});
+
+/* =============================
+    Xử lý server reset (phát tín hiệu roomEnded cho tất cả phòng)
+============================= */
+function resetLiveRooms() {
+  liveRooms.forEach(room => {
+    io.to(room.id).emit("roomEnded");
+    console.log(`Room ${room.id} ended due to server reset.`);
+  });
+  liveRooms = [];
+}
+
+// Ví dụ: khi server nhận tín hiệu shutdown, phát roomEnded cho tất cả
+process.on('SIGTERM', () => {
+  console.log("Server shutting down, ending all live rooms...");
+  resetLiveRooms();
+  process.exit(0);
+});
+process.on('SIGINT', () => {
+  console.log("Server shutting down (SIGINT), ending all live rooms...");
+  resetLiveRooms();
+  process.exit(0);
 });
 
 /* =============================
