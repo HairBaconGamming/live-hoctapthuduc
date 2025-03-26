@@ -17,16 +17,14 @@ socket.on("userJoined", msg => {
 });
 socket.on("newMessage", data => {
   const li = document.createElement("li");
-  // Thêm class dựa trên messageType
   if (data.message.messageType) {
     li.classList.add(`message-${data.message.messageType}`);
   }
   
-  // Tạo phần tử icon
+  // Tạo icon hiển thị kiểu message (như trước)
   const iconSpan = document.createElement("span");
   iconSpan.classList.add("msg-icon");
   
-  // Tạo phần tử chứa nội dung tin nhắn
   let contentHtml = marked.parse(data.message.content || "");
   contentHtml = contentHtml.replace(/\$\$(.+?)\$\$/g, (match, formula) => {
     try {
@@ -37,17 +35,27 @@ socket.on("newMessage", data => {
   });
   
   const contentSpan = document.createElement("span");
-  // In đậm username và sau đó nội dung tin nhắn
   contentSpan.innerHTML = `<strong>${data.message.username}:</strong> ${contentHtml}`;
   
-  // Tạo phần tử timestamp (hiển thị khi hover)
+  // Tạo nút Pin nếu người dùng hiện tại là host
+  if (user.username === roomOwner) { // biến user và roomOwner được định nghĩa từ EJS
+    const pinBtn = document.createElement("button");
+    pinBtn.classList.add("pin-btn");
+    pinBtn.innerHTML = '<i class="fas fa-thumbtack"></i>';
+    pinBtn.title = "Pin comment";
+    pinBtn.addEventListener("click", () => {
+      // Gửi sự kiện pin comment tới server
+      socket.emit("pinComment", { roomId, message: data.message });
+    });
+    li.appendChild(pinBtn);
+  }
+  
+  // Tạo timestamp hiển thị khi hover
   const timestampSpan = document.createElement("span");
   timestampSpan.classList.add("msg-timestamp");
-  // Định dạng timestamp (bạn có thể tùy chỉnh)
   const dateObj = new Date(data.message.timestamp);
   timestampSpan.textContent = dateObj.toLocaleTimeString();
   
-  // Ghép các phần tử lại thành tin nhắn
   li.appendChild(iconSpan);
   li.appendChild(contentSpan);
   li.appendChild(timestampSpan);

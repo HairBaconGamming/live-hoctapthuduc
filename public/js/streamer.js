@@ -284,7 +284,7 @@ document.getElementById("shareScreenBtn").addEventListener("click", async () => 
     // Lấy stream chia sẻ màn hình (video)
     const displayStream = await navigator.mediaDevices.getDisplayMedia({
       video: true,
-      audio: false
+      audio: true
     });
     // Lấy stream mic (audio), cố gắng lấy nhưng nếu không có thì fallback
     let micStream = null;
