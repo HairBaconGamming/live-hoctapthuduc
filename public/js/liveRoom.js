@@ -62,12 +62,8 @@ socket.on("hostJoined", () => {
   const waitingOverlay = document.getElementById("waitingOverlay");
   if (waitingOverlay) waitingOverlay.classList.remove("active");
 });
-// Khi join, nếu không nhận được sự kiện hostJoined sau 5 giây, hiển thị overlay:
-setTimeout(() => {
-  // Giả sử nếu chưa có streamer vào, server không gửi event hostJoined
-  const waitingOverlay = document.getElementById("waitingOverlay");
-  if (waitingOverlay) waitingOverlay.classList.add("active");
-}, 5000);
+const waitingOverlay = document.getElementById("waitingOverlay");
+if (waitingOverlay) waitingOverlay.classList.add("active");
 // Nếu vẫn sử dụng input cũ (nếu có)
 if(sendBtn && messageInput){
   sendBtn.addEventListener("click", () => {
@@ -182,6 +178,8 @@ viewerPeer.on('open', id => {
 });
 
 viewerPeer.on('call', call => {
+  const waitingOverlay = document.getElementById("waitingOverlay");
+  if (waitingOverlay) waitingOverlay.classList.remove("active");
   console.log("Viewer received call");
   // Viewer trả lời call (không cần gửi stream)
   call.answer();
