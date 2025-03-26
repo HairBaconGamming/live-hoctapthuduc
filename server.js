@@ -208,7 +208,7 @@ io.on("connection", socket => {
     Redirect root
 ============================= */
 app.get("/", (req, res) => {
-  res.redirect("https://your-app-domain/");
+  res.redirect("https://hoctap-9a3.glitch.me/live");
 });
 
 /* =============================

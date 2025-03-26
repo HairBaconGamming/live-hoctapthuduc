@@ -17,13 +17,41 @@ socket.on("userJoined", msg => {
 });
 socket.on("newMessage", data => {
   const li = document.createElement("li");
-  // data.message được giả sử là object chứa: username, content, messageType
-  li.innerHTML = `<strong>${data.message.username}:</strong> ${marked.parse(data.message.content)}`;
-  // Gán class cho message theo messageType
-  console.log(data.message.messageType);
+  // Thêm class dựa trên messageType
   if (data.message.messageType) {
     li.classList.add(`message-${data.message.messageType}`);
   }
+  
+  // Tạo phần tử icon
+  const iconSpan = document.createElement("span");
+  iconSpan.classList.add("msg-icon");
+  
+  // Tạo phần tử chứa nội dung tin nhắn
+  let contentHtml = marked.parse(data.message.content || "");
+  contentHtml = contentHtml.replace(/\$\$(.+?)\$\$/g, (match, formula) => {
+    try {
+      return katex.renderToString(formula, { throwOnError: false });
+    } catch (e) {
+      return `<span class="katex-error">${formula}</span>`;
+    }
+  });
+  
+  const contentSpan = document.createElement("span");
+  // In đậm username và sau đó nội dung tin nhắn
+  contentSpan.innerHTML = `<strong>${data.message.username}:</strong> ${contentHtml}`;
+  
+  // Tạo phần tử timestamp (hiển thị khi hover)
+  const timestampSpan = document.createElement("span");
+  timestampSpan.classList.add("msg-timestamp");
+  // Định dạng timestamp (bạn có thể tùy chỉnh)
+  const dateObj = new Date(data.message.timestamp);
+  timestampSpan.textContent = dateObj.toLocaleTimeString();
+  
+  // Ghép các phần tử lại thành tin nhắn
+  li.appendChild(iconSpan);
+  li.appendChild(contentSpan);
+  li.appendChild(timestampSpan);
+  
   chatMessages.appendChild(li);
 });
 socket.on("updateViewers", count => {
