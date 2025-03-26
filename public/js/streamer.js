@@ -363,7 +363,6 @@ async function checkCameraAvailabilityAndRequestPermission() {
 checkCameraAvailabilityAndRequestPermission();
 checkMicAvailability();
 
-// --- Chế độ Share Screen ---
 document.getElementById("shareScreenBtn").addEventListener("click", async () => {
   try {
     // Nếu có stream cũ, tắt nó đi
@@ -373,12 +372,13 @@ document.getElementById("shareScreenBtn").addEventListener("click", async () => 
         currentCall[viewerId].close();
       }
     }
-    // Lấy stream chia sẻ màn hình (video)
+    // Lấy stream chia sẻ màn hình với video và (nếu có) audio hệ thống
     const displayStream = await navigator.mediaDevices.getDisplayMedia({
       video: true,
       audio: true
     });
-    // Lấy stream mic (audio), cố gắng lấy nhưng nếu không có thì fallback
+
+    // Lấy stream từ mic (audio)
     let micStream = null;
     try {
       micStream = await navigator.mediaDevices.getUserMedia({
@@ -389,25 +389,61 @@ document.getElementById("shareScreenBtn").addEventListener("click", async () => 
       console.warn("Không lấy được mic: ", micErr);
       micStream = null;
     }
-    if (micStream) {
-      localStream = new MediaStream([
-        ...displayStream.getVideoTracks(),
-        ...micStream.getAudioTracks()
-      ]);
-    } else {
-      localStream = new MediaStream([...displayStream.getVideoTracks()]);
+
+    // Biến chứa luồng âm thanh đã trộn (mixedAudioStream)
+    let mixedAudioStream = null;
+
+    // Nếu cả display và mic đều có audio, ta sẽ trộn chúng lại
+    if (displayStream.getAudioTracks().length > 0 && micStream && micStream.getAudioTracks().length > 0) {
+      // Tạo AudioContext để trộn
+      const audioContext = new AudioContext();
+      const destination = audioContext.createMediaStreamDestination();
+
+      // Tạo nguồn âm thanh từ audio của màn hình
+      const displayAudioSource = audioContext.createMediaStreamSource(
+        new MediaStream(displayStream.getAudioTracks())
+      );
+      displayAudioSource.connect(destination);
+
+      // Tạo nguồn âm thanh từ mic
+      const micAudioSource = audioContext.createMediaStreamSource(
+        new MediaStream(micStream.getAudioTracks())
+      );
+      micAudioSource.connect(destination);
+
+      mixedAudioStream = destination.stream;
+    } else if (displayStream.getAudioTracks().length > 0) {
+      mixedAudioStream = new MediaStream(displayStream.getAudioTracks());
+    } else if (micStream && micStream.getAudioTracks().length > 0) {
+      mixedAudioStream = new MediaStream(micStream.getAudioTracks());
+    }
+
+    // Nếu không có âm thanh từ cả hai nguồn, thì mixedAudioStream sẽ là null
+    if (!mixedAudioStream) {
+      // Cập nhật nút toggle mic: báo No Mic
       const toggleMicBtn = document.getElementById("toggleMicBtn");
       if (toggleMicBtn) {
         toggleMicBtn.innerHTML = '<i class="fas fa-microphone-slash"></i> No Mic';
+        toggleMicBtn.disabled = true;
       }
+      // Lấy video từ displayStream
+      localStream = new MediaStream([...displayStream.getVideoTracks()]);
+    } else {
+      // Tạo localStream gồm video của màn hình và âm thanh đã trộn
+      localStream = new MediaStream([
+        ...displayStream.getVideoTracks(),
+        ...mixedAudioStream.getAudioTracks()
+      ]);
     }
+
+    // Gán stream vào phần tử video preview
     const screenVideo = document.getElementById("screenShareVideo");
     screenVideo.srcObject = localStream;
 
-    // Cập nhật nút toggle mic dựa trên mic có hay không
+    // Cập nhật trạng thái nút toggle mic dựa trên mic có hay không
     const toggleMicBtn = document.getElementById("toggleMicBtn");
     if (toggleMicBtn) {
-      if (micStream) {
+      if (micStream && micStream.getAudioTracks().length > 0) {
         toggleMicBtn.innerHTML = '<i class="fas fa-microphone"></i> Mic On';
         toggleMicBtn.disabled = false;
       } else {
@@ -416,6 +452,7 @@ document.getElementById("shareScreenBtn").addEventListener("click", async () => 
       }
     }
     
+    // Khi người dùng dừng chia sẻ màn hình (video track kết thúc)
     localStream.getVideoTracks()[0].addEventListener("ended", () => {
       console.log("User stopped screen sharing");
       screenVideo.srcObject = null;
@@ -426,6 +463,7 @@ document.getElementById("shareScreenBtn").addEventListener("click", async () => 
       }
     });
     
+    // Nếu có viewer pending, gọi chúng ngay
     while (pendingViewers.length) {
       const viewerId = pendingViewers.shift();
       callViewer(viewerId);
