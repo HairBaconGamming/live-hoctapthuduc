@@ -148,32 +148,23 @@ io.on("connection", socket => {
     const room = liveRooms.find(r => r.id === roomId);
     if (room) {
       if (username === room.owner) {
-        // Phát hiện đã có hostSocketId cũ
+        // Phát hiện chủ phòng reload
         if (room.hostSocketId && room.hostSocketId !== socket.id) {
-          console.log(`Host reload detected. Forcibly disconnecting old socket: ${room.hostSocketId}`);
-
-          const oldSocket = io.sockets.sockets.get(room.hostSocketId);
-          if (oldSocket) {
-            // Đánh dấu socket cũ là "forceDisconnect" => bỏ qua logic endRoom
-            oldSocket.forceDisconnect = true;
-
-            // Option A: chuyển hướng socket cũ đến trang /live (có thể hiển thị "Bạn đã reload!")
-            oldSocket.emit("reloadRedirect", "https://hoctap-9a3.glitch.me/live");
-
-            // Ngắt kết nối socket cũ
-            oldSocket.disconnect(true);
-          }
+          console.log(`Host reload detected. Ending old room ${roomId}...`);
+          io.sockets.sockets.get(room.hostSocketId)?.disconnect(true);
+          socket.emit("redirectToLive", "Phòng đã kết thúc do reload. Vui lòng quay lại danh sách live.");
+          return; 
         }
 
-        // Cập nhật hostSocketId mới
+        // Nếu không phải reload (chưa có hostSocketId), thiết lập host mới
         room.hostSocketId = socket.id;
         room.isLive = true;
         io.to(roomId).emit("hostJoined");
         console.log(`Host ${username} joined room ${roomId}`);
       } else {
-        // Viewer
         room.viewers++;
         io.to(roomId).emit("updateViewers", room.viewers);
+        // Nếu phòng chưa live, gửi event "waiting" cho viewer
         if (!room.isLive) {
           socket.emit("waiting", "Chờ streamer vào live...");
         }

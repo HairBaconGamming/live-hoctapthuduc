@@ -1,7 +1,9 @@
 // /public/js/streamer.js
 
 const socket = io();
-const messageInput = document.getElementById("message"); // Nếu còn dùng input cũ (nếu không, sẽ sử dụng textarea)
+
+// Các phần tử giao diện chat cũ (nếu có)
+const messageInput = document.getElementById("message"); // Nếu còn dùng input cũ
 const sendBtn = document.getElementById("sendBtn");         // Nếu có
 const chatMessages = document.getElementById("chatMessages");
 const viewerCount = document.getElementById("viewerCount");
@@ -9,7 +11,11 @@ const viewerCount = document.getElementById("viewerCount");
 // Gửi thông tin tham gia phòng qua Socket.IO
 socket.emit("joinRoom", { roomId, username });
 
-// Các sự kiện chat từ Socket.IO
+// Sự kiện socket
+socket.on("redirectToLive", msg => {
+  alert(msg);
+  window.location.href = "https://hoctap-9a3.glitch.me/live";
+});
 socket.on("userJoined", msg => {
   const li = document.createElement("li");
   li.innerHTML = `<i>${msg}</i>`;
@@ -17,16 +23,13 @@ socket.on("userJoined", msg => {
 });
 socket.on("newMessage", data => {
   const li = document.createElement("li");
-  // Thêm class dựa trên messageType
   if (data.message.messageType) {
     li.classList.add(`message-${data.message.messageType}`);
   }
-  
-  // Tạo phần tử icon
+  // Tạo icon cho tin nhắn
   const iconSpan = document.createElement("span");
   iconSpan.classList.add("msg-icon");
-  
-  // Tạo phần tử chứa nội dung tin nhắn
+
   let contentHtml = marked.parse(data.message.content || "");
   contentHtml = contentHtml.replace(/\$\$(.+?)\$\$/g, (match, formula) => {
     try {
@@ -35,27 +38,27 @@ socket.on("newMessage", data => {
       return `<span class="katex-error">${formula}</span>`;
     }
   });
-  
+
   const contentSpan = document.createElement("span");
-  // In đậm username và sau đó nội dung tin nhắn
   contentSpan.innerHTML = `<strong>${data.message.username}:</strong> ${contentHtml}`;
-  
-  // Tạo phần tử timestamp (hiển thị khi hover)
+
+  // Tạo timestamp (hiển thị khi hover)
   const timestampSpan = document.createElement("span");
   timestampSpan.classList.add("msg-timestamp");
-  // Định dạng timestamp (bạn có thể tùy chỉnh)
   const dateObj = new Date(data.message.timestamp);
   timestampSpan.textContent = dateObj.toLocaleTimeString();
-  
-  // Ghép các phần tử lại thành tin nhắn
+
   li.appendChild(iconSpan);
   li.appendChild(contentSpan);
   li.appendChild(timestampSpan);
-  
+
   chatMessages.appendChild(li);
 });
+socket.on("updateViewers", count => {
+  viewerCount.textContent = count;
+});
 
-// Nếu vẫn sử dụng input cũ (nếu có)
+// Nếu còn sử dụng input cũ (dự phòng)
 if(sendBtn && messageInput){
   sendBtn.addEventListener("click", () => {
     const message = messageInput.value.trim();
@@ -71,16 +74,15 @@ if(sendBtn && messageInput){
   });
 }
 
-// --- Enhanced Chat Input for Streamer ---
+// --- Enhanced Chat Input ---
+// Sử dụng textarea và preview
 const chatInputArea = document.getElementById("chatInputArea");
 const sendChatBtn = document.getElementById("sendChatBtn");
 const chatPreview = document.getElementById("chatPreview");
 
-// Cập nhật preview khi người dùng nhập nội dung
 chatInputArea.addEventListener("input", () => {
   const rawText = chatInputArea.value || "";
   let html = marked.parse(rawText);
-  // Render KaTeX cho công thức được bao quanh bởi $$ ... $$
   html = html.replace(/\$\$(.+?)\$\$/g, (match, formula) => {
     try {
       return katex.renderToString(formula, { throwOnError: false });
@@ -91,33 +93,27 @@ chatInputArea.addEventListener("input", () => {
   chatPreview.innerHTML = html;
 });
 
-// Khi nhấn nút gửi từ chat input nâng cao
 sendChatBtn.addEventListener("click", () => {
   const messageContent = chatInputArea.value.trim();
   if (!messageContent) return;
 
-  // Xác định loại message: nếu streamer thì loại là "host"
+  // Xác định loại message: chủ phòng => "host", nếu là PRO và không phải host thì "pro"
   let messageType = "host";
   if (user.isPro && username !== roomOwner) {
     messageType = "pro";
   }
-  // Tạo đối tượng message
   const messageObj = {
     username: username,
     content: messageContent,
     messageType: messageType,
     timestamp: new Date().toISOString()
   };
-
-  // Gửi message qua Socket.IO
   socket.emit("chatMessage", { roomId, message: messageObj });
-
-  // Reset input và preview
   chatInputArea.value = "";
   chatPreview.innerHTML = "";
 });
 
-// --- Control Panel & Screen Sharing ---
+// --- Control Panel & Modal Confirm ---
 const togglePanelBtn = document.getElementById("togglePanelBtn");
 const controlPanel = document.getElementById("controlPanel");
 togglePanelBtn.addEventListener("click", () => {
@@ -127,11 +123,9 @@ togglePanelBtn.addEventListener("click", () => {
     : '<i class="fas fa-chevron-up"></i>';
 });
 
-// Hàm tạo và hiển thị modal confirm
 function showCustomConfirm(message, onConfirm, onCancel) {
   let confirmModal = document.getElementById("customConfirmModal");
   if (!confirmModal) {
-    // Nếu modal chưa có, tạo mới
     confirmModal = document.createElement("div");
     confirmModal.id = "customConfirmModal";
     confirmModal.className = "custom-confirm-modal";
@@ -147,19 +141,15 @@ function showCustomConfirm(message, onConfirm, onCancel) {
       </div>
     `;
     document.body.appendChild(confirmModal);
-    
-    // Gán sự kiện cho nút "Có"
     confirmModal.querySelector(".btn-yes").addEventListener("click", () => {
       if (onConfirm) onConfirm();
       closeCustomConfirm();
     });
-    // Gán sự kiện cho nút "Không"
     confirmModal.querySelector(".btn-no").addEventListener("click", () => {
       if (onCancel) onCancel();
       closeCustomConfirm();
     });
   }
-  // Cập nhật message nếu cần
   confirmModal.querySelector(".confirm-message").textContent = message;
   confirmModal.classList.add("active");
 }
@@ -171,20 +161,16 @@ function closeCustomConfirm() {
   }
 }
 
-// Xử lý nút "Kết thúc live"
 document.getElementById("endStreamBtn").addEventListener("click", () => {
   showCustomConfirm("Bạn có chắc muốn kết thúc live stream không?", () => {
-    // Khi người dùng xác nhận: gửi tín hiệu kết thúc và chuyển hướng
     socket.emit("endRoom", { roomId });
     window.location.href = "https://hoctap-9a3.glitch.me/live";
   }, () => {
-    // Khi người dùng hủy
     console.log("Kết thúc live stream đã bị hủy");
   });
 });
 
-// --- Phần PeerJS cho Streamer ---
-// Sử dụng roomId làm Peer ID cho streamer
+// --- Phần PeerJS & Streaming ---
 const peer = new Peer(roomId, {
   host: 'live-hoctap-9a3.glitch.me',
   port: 443,
@@ -203,20 +189,11 @@ const peer = new Peer(roomId, {
 });
 
 let localStream = null;
-let currentCall = {}; // Lưu các call đang hoạt động theo viewerId
+let currentCall = {}; // Lưu call theo viewerId
 const pendingViewers = [];
 
 peer.on('open', id => {
   console.log('PeerJS streamer open with ID:', id);
-});
-
-// Lắng nghe cuộc gọi đến từ viewer (nếu viewer gọi trực tiếp)
-peer.on('call', call => {
-  if (localStream) {
-    call.answer(localStream);
-  } else {
-    console.error('Local stream chưa sẵn sàng để trả lời cuộc gọi.');
-  }
 });
 
 // Khi có viewer mới từ Socket.IO
@@ -230,7 +207,7 @@ socket.on("newViewer", ({ viewerId }) => {
   }
 });
 
-// Hàm gọi đến viewer (đóng call cũ nếu có)
+// Hàm gọi đến viewer
 function callViewer(viewerId) {
   if (currentCall[viewerId]) {
     currentCall[viewerId].close();
@@ -245,15 +222,22 @@ function callViewer(viewerId) {
   });
 }
 
-// Bắt đầu chia sẻ màn hình có hỗ trợ mic
+// --- Chế độ Share Screen ---
 document.getElementById("shareScreenBtn").addEventListener("click", async () => {
   try {
-    // Lấy stream chia sẻ màn hình (chỉ video)
+    // Nếu có stream cũ, tắt nó đi
+    if (localStream) {
+      localStream.getTracks().forEach(t => t.stop());
+      for (const viewerId in currentCall) {
+        currentCall[viewerId].close();
+      }
+    }
+    // Lấy stream chia sẻ màn hình (video)
     const displayStream = await navigator.mediaDevices.getDisplayMedia({
       video: true,
-      audio: false  // không lấy âm thanh từ màn hình
+      audio: false
     });
-    // Lấy stream từ mic (chỉ audio)
+    // Lấy stream mic (audio), cố gắng lấy nhưng nếu không có thì fallback
     let micStream = null;
     try {
       micStream = await navigator.mediaDevices.getUserMedia({
@@ -264,8 +248,6 @@ document.getElementById("shareScreenBtn").addEventListener("click", async () => 
       console.warn("Không lấy được mic: ", micErr);
       micStream = null;
     }
-    
-    // Nếu không có mic, gộp stream chỉ có video
     if (micStream) {
       localStream = new MediaStream([
         ...displayStream.getVideoTracks(),
@@ -273,40 +255,36 @@ document.getElementById("shareScreenBtn").addEventListener("click", async () => 
       ]);
     } else {
       localStream = new MediaStream([...displayStream.getVideoTracks()]);
-      // Cập nhật nút toggle mic để báo No Mic
       const toggleMicBtn = document.getElementById("toggleMicBtn");
       if (toggleMicBtn) {
         toggleMicBtn.innerHTML = '<i class="fas fa-microphone-slash"></i> No Mic';
       }
     }
-    
-    // Gán stream vào phần tử video preview
     const screenVideo = document.getElementById("screenShareVideo");
     screenVideo.srcObject = localStream;
-    
-    // Cập nhật trạng thái nút toggle mic (nếu có mic)
+
+    // Cập nhật nút toggle mic dựa trên mic có hay không
     const toggleMicBtn = document.getElementById("toggleMicBtn");
     if (toggleMicBtn) {
       if (micStream) {
         toggleMicBtn.innerHTML = '<i class="fas fa-microphone"></i> Mic On';
+        toggleMicBtn.disabled = false;
       } else {
         toggleMicBtn.innerHTML = '<i class="fas fa-microphone-slash"></i> No Mic';
+        toggleMicBtn.disabled = true;
       }
     }
     
-    // Khi người dùng dừng chia sẻ màn hình
     localStream.getVideoTracks()[0].addEventListener("ended", () => {
       console.log("User stopped screen sharing");
       screenVideo.srcObject = null;
       localStream = null;
       socket.emit("screenShareEnded", { roomId });
-      // Đóng tất cả các call đang hoạt động
       for (const viewerId in currentCall) {
         currentCall[viewerId].close();
       }
     });
     
-    // Nếu có viewer pending, gọi chúng ngay
     while (pendingViewers.length) {
       const viewerId = pendingViewers.shift();
       callViewer(viewerId);
@@ -317,48 +295,100 @@ document.getElementById("shareScreenBtn").addEventListener("click", async () => 
   }
 });
 
-// Hàm kiểm tra mic ngay khi trang load
+// --- Chế độ Live Cam ---
+document.getElementById("liveCamBtn").addEventListener("click", async () => {
+  try {
+    // Nếu có stream cũ, tắt nó đi
+    if (localStream) {
+      localStream.getTracks().forEach(t => t.stop());
+      for (const viewerId in currentCall) {
+        currentCall[viewerId].close();
+      }
+    }
+    // Lấy stream từ camera và mic (live cam)
+    localStream = await navigator.mediaDevices.getUserMedia({
+      video: true,
+      audio: true
+    });
+    const screenVideo = document.getElementById("screenShareVideo");
+    screenVideo.srcObject = localStream;
+
+    // Khi người dùng dừng live cam
+    localStream.getVideoTracks()[0].addEventListener("ended", () => {
+      console.log("User stopped live cam");
+      screenVideo.srcObject = null;
+      localStream = null;
+      socket.emit("screenShareEnded", { roomId });
+      for (const viewerId in currentCall) {
+        currentCall[viewerId].close();
+      }
+    });
+    
+    while (pendingViewers.length) {
+      const viewerId = pendingViewers.shift();
+      callViewer(viewerId);
+    }
+  } catch (err) {
+    console.error("Error during live cam:", err);
+    alert("Không thể bật Live Cam. Vui lòng kiểm tra quyền hoặc thử trình duyệt khác.");
+  }
+});
+
+// --- Toggle Mic ---
 async function checkMicAvailability() {
   try {
     const devices = await navigator.mediaDevices.enumerateDevices();
     const audioInputs = devices.filter(device => device.kind === "audioinput");
     const toggleMicBtn = document.getElementById("toggleMicBtn");
     if (audioInputs.length === 0) {
-      // Không tìm thấy mic: vô hiệu hóa nút và cập nhật giao diện
       toggleMicBtn.disabled = true;
       toggleMicBtn.innerHTML = '<i class="fas fa-microphone-slash"></i> No Mic';
       console.log("Không có mic được phát hiện.");
     } else {
-      // Có mic: đảm bảo nút được kích hoạt
       toggleMicBtn.disabled = false;
     }
   } catch (err) {
     console.error("Lỗi khi kiểm tra mic:", err);
   }
 }
+async function checkCameraAvailability() {
+  try {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const videoInputs = devices.filter(device => device.kind === "videoinput");
+    const liveCamBtn = document.getElementById("liveCamBtn");
+    if (videoInputs.length === 0) {
+      // Không tìm thấy camera: vô hiệu hóa nút và cập nhật giao diện
+      liveCamBtn.disabled = true;
+      liveCamBtn.innerHTML = '<i class="fas fa-camera"></i> No Camera';
+      console.log("Không có camera được phát hiện.");
+    } else {
+      // Có camera: đảm bảo nút được kích hoạt
+      liveCamBtn.disabled = false;
+    }
+  } catch (err) {
+    console.error("Lỗi khi kiểm tra camera:", err);
+  }
+}
+checkCameraAvailability();
 checkMicAvailability();
 
 document.getElementById("toggleMicBtn").addEventListener("click", () => {
   if (!localStream) {
-    alert("Chưa có stream, vui lòng chia sẻ màn hình trước.");
+    alert("Chưa có stream, vui lòng chia sẻ màn hình hoặc live cam trước.");
     return;
   }
-  // Lấy các audio track trong localStream
   const audioTracks = localStream.getAudioTracks();
   if (audioTracks.length === 0) {
-    // Không tìm thấy mic trong stream (trường hợp không có mic)
     alert("Bạn không có mic!");
     const toggleMicBtn = document.getElementById("toggleMicBtn");
     toggleMicBtn.innerHTML = '<i class="fas fa-microphone-slash"></i> No Mic';
     toggleMicBtn.disabled = true;
     return;
   }
-  // Toggle thuộc tính enabled của các audio track
   audioTracks.forEach(track => {
     track.enabled = !track.enabled;
     console.log(`Mic ${track.enabled ? "On" : "Off"}`);
   });
-  // Cập nhật giao diện nút
   const toggleMicBtn = document.getElementById("toggleMicBtn");
   if (audioTracks[0].enabled) {
     toggleMicBtn.innerHTML = '<i class="fas fa-microphone"></i> Mic On';
@@ -367,4 +397,5 @@ document.getElementById("toggleMicBtn").addEventListener("click", () => {
   }
 });
 
+// Gửi event hostJoined (có thể dùng khi host vào phòng)
 socket.emit("hostJoined", { roomId });
