@@ -445,50 +445,113 @@ header p {
 }
 
 
-/* Vùng hiển thị comment ghim */
+/* ----------------------
+   Pinned Comment - Cực Kì Đẹp
+----------------------- */
+
 .pinned-comment {
-  background: rgba(255, 255, 255, 0.1);
-  border: 2px solid #00ffea;
-  border-radius: 8px;
-  padding: 10px 15px;
+  position: relative;
   margin: 10px 15px;
-  font-size: 1em;
-  color: #fff;
+  /* Đảm bảo pinned comment nằm trên khung chat */
+  z-index: 2;
+}
+
+/* Hiệu ứng xuất hiện (fade & slide) */
+.pinned-comment.fade-in {
+  animation: pinnedFadeIn 0.6s ease-out;
+}
+
+@keyframes pinnedFadeIn {
+  0% {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Hộp chứa nội dung pinned */
+.pinned-box {
+  background: linear-gradient(135deg, #2a2a40, #3d3d5c);
+  border: 2px solid #00ffea;
+  border-radius: 10px;
+  padding: 12px 16px;
+  color: #f1f1f1;
+  box-shadow: 0 4px 20px rgba(0, 255, 234, 0.2);
   display: flex;
   align-items: center;
   gap: 10px;
-  animation: fadeIn 0.5s ease-out;
+  position: relative;
+  overflow: hidden;
 }
 
-.pinned-box {
+/* Dấu ghim icon */
+.pin-icon {
+  font-size: 1.3em;
+  color: #ffd700; /* Vàng */
   display: flex;
   align-items: center;
-  width: 100%;
-  position: relative;
+  justify-content: center;
 }
 
-.pin-icon {
-  font-size: 1.2em;
-  color: #ffd700;
+/* Nội dung tin nhắn ghim */
+.pinned-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
 }
 
+/* Username */
+.pinned-user {
+  font-weight: 600;
+  color: #00ffea; /* Xanh neon */
+}
+
+/* Nội dung text */
+.pinned-text {
+  line-height: 1.4;
+}
+
+/* Timestamp ở góc phải, nhỏ */
 .pinned-timestamp {
-  margin-left: auto;
+  position: absolute;
+  right: 12px;
+  bottom: 8px;
   font-size: 0.8em;
   color: #ccc;
 }
 
-/* Nút unpin (nếu có) */
+/* Nút Unpin (nếu cần) */
 .unpin-btn {
   background: transparent;
   border: none;
   color: #ff4d4d;
   font-size: 0.9em;
   cursor: pointer;
-  margin-left: 10px;
+  margin-left: auto;
+  transition: transform 0.2s ease;
+}
+.unpin-btn:hover {
+  transform: scale(1.1);
 }
 
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(-5px); }
-  to { opacity: 1; transform: translateY(0); }
+/* Tùy chọn: mũi nhọn “card” */
+.pinned-box::before {
+  content: "";
+  position: absolute;
+  top: -8px;
+  left: 30px;
+  width: 0;
+  height: 0;
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  border-bottom: 8px solid #00ffea;
+}
+
+/* Tùy chọn: Hiệu ứng glow nhẹ quanh pinned comment */
+.pinned-box:hover {
+  box-shadow: 0 4px 20px rgba(0, 255, 234, 0.4);
 }

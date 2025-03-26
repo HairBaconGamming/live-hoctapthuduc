@@ -70,6 +70,35 @@ socket.on("newMessage", data => {
 });
 socket.on("commentPinned", data => {
   const pinnedDiv = document.getElementById("pinnedComment");
+  
+  // Xóa cũ
+  pinnedDiv.innerHTML = "";
+  pinnedDiv.classList.remove("fade-in");
+  
+  // Kiểm tra nếu message rỗng => unpin
+  if (!data.message || !data.message.content) {
+    return; // Không còn comment ghim
+  }
+
+  // Tạo div pinned-box
+  const pinnedBox = document.createElement("div");
+  pinnedBox.classList.add("pinned-box");
+
+  // Icon ghim
+  const pinIcon = document.createElement("span");
+  pinIcon.classList.add("pin-icon");
+  pinIcon.innerHTML = '<i class="fas fa-thumbt"></i>';
+
+  // Container nội dung
+  const pinnedContent = document.createElement("div");
+  pinnedContent.classList.add("pinned-content");
+
+  // Username
+  const userSpan = document.createElement("span");
+  userSpan.classList.add("pinned-user");
+  userSpan.textContent = data.message.username;
+
+  // Nội dung text (đã parse Markdown + KaTeX nếu muốn)
   let contentHtml = marked.parse(data.message.content || "");
   contentHtml = contentHtml.replace(/\$\$(.+?)\$\$/g, (match, formula) => {
     try {
@@ -78,15 +107,39 @@ socket.on("commentPinned", data => {
       return `<span class="katex-error">${formula}</span>`;
     }
   });
-  pinnedDiv.innerHTML = `
-    <div class="pinned-box">
-      <span class="pin-icon"><i class="fas fa-thumbtack"></i></span>
-      <strong>${data.message.username}:</strong> ${contentHtml}
-      <span class="pinned-timestamp">${new Date(data.message.timestamp).toLocaleTimeString()}</span>
-      <button class="unpin-btn" onclick="unpinComment()">Unpin</button>
-    </div>
-  `;
-  // Optionally, add animation/highlight effect here.
+  const textSpan = document.createElement("span");
+  textSpan.classList.add("pinned-text");
+  textSpan.innerHTML = contentHtml;
+
+  // Timestamp
+  const timestampSpan = document.createElement("span");
+  timestampSpan.classList.add("pinned-timestamp");
+  timestampSpan.textContent = new Date(data.message.timestamp).toLocaleTimeString();
+
+  // Tùy chọn: nút unpin nếu user là host
+  if (user.username === roomOwner) {
+    const unpinBtn = document.createElement("button");
+    unpinBtn.classList.add("unpin-btn");
+    unpinBtn.innerHTML = '<i class="fas fa-undo-alt"></i>';
+    unpinBtn.title = "Unpin comment";
+    unpinBtn.addEventListener("click", () => {
+      socket.emit("unpinComment", { roomId });
+    });
+    pinnedBox.appendChild(unpinBtn);
+  }
+
+  // Gắn các phần tử
+  pinnedContent.appendChild(userSpan);
+  pinnedContent.appendChild(textSpan);
+
+  pinnedBox.appendChild(pinIcon);
+  pinnedBox.appendChild(pinnedContent);
+  pinnedBox.appendChild(timestampSpan);
+
+  pinnedDiv.appendChild(pinnedBox);
+  
+  // Thêm animation fade-in
+  pinnedDiv.classList.add("fade-in");
 });
 function unpinComment() {
   socket.emit("unpinComment", { roomId });
