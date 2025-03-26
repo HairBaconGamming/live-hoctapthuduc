@@ -17,8 +17,16 @@ socket.on("userJoined", msg => {
 });
 socket.on("newMessage", data => {
   const li = document.createElement("li");
-  // data.message là object chứa: username, content, messageType, timestamp
-  // Sử dụng marked để chuyển Markdown sang HTML và render KaTeX nếu có
+  // Thêm class dựa trên messageType
+  if (data.message.messageType) {
+    li.classList.add(`message-${data.message.messageType}`);
+  }
+  
+  // Tạo phần tử icon
+  const iconSpan = document.createElement("span");
+  iconSpan.classList.add("msg-icon");
+  
+  // Tạo phần tử chứa nội dung tin nhắn
   let contentHtml = marked.parse(data.message.content || "");
   contentHtml = contentHtml.replace(/\$\$(.+?)\$\$/g, (match, formula) => {
     try {
@@ -27,14 +35,24 @@ socket.on("newMessage", data => {
       return `<span class="katex-error">${formula}</span>`;
     }
   });
-  li.innerHTML = `<strong>${data.message.username}:</strong> ${contentHtml}`;
-  if (data.message.messageType) {
-    li.classList.add(`message-${data.message.messageType}`);
-  }
+  
+  const contentSpan = document.createElement("span");
+  // In đậm username và sau đó nội dung tin nhắn
+  contentSpan.innerHTML = `<strong>${data.message.username}:</strong> ${contentHtml}`;
+  
+  // Tạo phần tử timestamp (hiển thị khi hover)
+  const timestampSpan = document.createElement("span");
+  timestampSpan.classList.add("msg-timestamp");
+  // Định dạng timestamp (bạn có thể tùy chỉnh)
+  const dateObj = new Date(data.message.timestamp);
+  timestampSpan.textContent = dateObj.toLocaleTimeString();
+  
+  // Ghép các phần tử lại thành tin nhắn
+  li.appendChild(iconSpan);
+  li.appendChild(contentSpan);
+  li.appendChild(timestampSpan);
+  
   chatMessages.appendChild(li);
-});
-socket.on("updateViewers", count => {
-  viewerCount.textContent = count;
 });
 
 // Nếu vẫn sử dụng input cũ (nếu có)
@@ -227,16 +245,35 @@ function callViewer(viewerId) {
   });
 }
 
-// Bắt đầu chia sẻ màn hình qua PeerJS
 document.getElementById("shareScreenBtn").addEventListener("click", async () => {
   try {
-    localStream = await navigator.mediaDevices.getDisplayMedia({
+    // Lấy stream chia sẻ màn hình (chỉ video)
+    const displayStream = await navigator.mediaDevices.getDisplayMedia({
       video: true,
+      audio: true   // không lấy âm thanh từ màn hình
+    });
+    // Lấy stream từ mic (chỉ audio)
+    const micStream = await navigator.mediaDevices.getUserMedia({
+      video: false,
       audio: true
     });
+    
+    // Gộp các track video và audio thành một MediaStream duy nhất
+    const combinedStream = new MediaStream([
+      ...displayStream.getVideoTracks(),
+      ...micStream.getAudioTracks()
+    ]);
+    
+    localStream = combinedStream;
+    
+    // Gán stream vào phần tử video hiển thị preview
     const screenVideo = document.getElementById("screenShareVideo");
     screenVideo.srcObject = localStream;
-
+    
+    // Cập nhật trạng thái nút toggle mic (bật mặc định)
+    const toggleMicBtn = document.getElementById("toggleMicBtn");
+    toggleMicBtn.innerHTML = '<i class="fas fa-microphone"></i> Mic On';
+    
     // Khi người dùng dừng chia sẻ màn hình
     localStream.getVideoTracks()[0].addEventListener("ended", () => {
       console.log("User stopped screen sharing");
@@ -248,14 +285,40 @@ document.getElementById("shareScreenBtn").addEventListener("click", async () => 
         currentCall[viewerId].close();
       }
     });
-
+    
     // Nếu có viewer pending, gọi chúng ngay
     while (pendingViewers.length) {
       const viewerId = pendingViewers.shift();
       callViewer(viewerId);
     }
   } catch (err) {
-    console.error("Error during screen sharing:", err);
-    alert("Không thể chia sẻ màn hình. Vui lòng kiểm tra quyền hoặc thử trình duyệt khác.");
+    console.error("Error during screen sharing with mic support:", err);
+    alert("Không thể chia sẻ màn hình và mic. Vui lòng kiểm tra quyền hoặc thử trình duyệt khác.");
+  }
+});
+
+// Thêm xử lý toggle mic
+document.getElementById("toggleMicBtn").addEventListener("click", () => {
+  if (!localStream) {
+    alert("Chưa có stream, vui lòng chia sẻ màn hình trước.");
+    return;
+  }
+  // Lấy các audio track trong localStream
+  const audioTracks = localStream.getAudioTracks();
+  if (audioTracks.length === 0) {
+    alert("Không tìm thấy mic trong stream.");
+    return;
+  }
+  // Toggle thuộc tính enabled của các track
+  audioTracks.forEach(track => {
+    track.enabled = !track.enabled;
+    console.log(`Mic ${track.enabled ? "On" : "Off"}`);
+  });
+  // Cập nhật giao diện nút
+  const toggleMicBtn = document.getElementById("toggleMicBtn");
+  if (audioTracks[0].enabled) {
+    toggleMicBtn.innerHTML = '<i class="fas fa-microphone"></i> Mic On';
+  } else {
+    toggleMicBtn.innerHTML = '<i class="fas fa-microphone-slash"></i> Mic Off';
   }
 });
