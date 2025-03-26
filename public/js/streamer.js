@@ -222,6 +222,55 @@ function callViewer(viewerId) {
   });
 }
 
+// --- Toggle Mic ---
+async function checkMicAvailability() {
+  try {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const audioInputs = devices.filter(device => device.kind === "audioinput");
+    const toggleMicBtn = document.getElementById("toggleMicBtn");
+    if (audioInputs.length === 0) {
+      toggleMicBtn.disabled = true;
+      toggleMicBtn.innerHTML = '<i class="fas fa-microphone-slash"></i> No Mic';
+      console.log("Không có mic được phát hiện.");
+    } else {
+      toggleMicBtn.disabled = false;
+    }
+  } catch (err) {
+    console.error("Lỗi khi kiểm tra mic:", err);
+  }
+}
+async function checkCameraAvailabilityAndRequestPermission() {
+  try {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const videoInputs = devices.filter(device => device.kind === "videoinput");
+    const liveCamBtn = document.getElementById("liveCamBtn");
+    if (videoInputs.length === 0) {
+      liveCamBtn.disabled = true;
+      liveCamBtn.innerHTML = '<i class="fas fa-camera"></i> No Camera';
+      console.log("Không có camera được phát hiện.");
+      return;
+    }
+    // Thử yêu cầu truy cập camera để kích hoạt quyền (nếu chưa được cấp)
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      // Nếu thành công, ngay lập tức dừng tất cả các track để giải phóng camera
+      stream.getTracks().forEach(track => track.stop());
+      liveCamBtn.disabled = false;
+      liveCamBtn.innerHTML = '<i class="fas fa-camera"></i> Live Cam';
+    } catch (err) {
+      console.error("Chưa được cấp quyền camera:", err);
+      // Nếu chưa được cấp quyền, thông báo cho người dùng
+      liveCamBtn.disabled = true;
+      liveCamBtn.innerHTML = '<i class="fas fa-camera"></i> Grant Camera Permission';
+      alert("Vui lòng cấp quyền truy cập camera để sử dụng Live Cam.");
+    }
+  } catch (err) {
+    console.error("Lỗi khi kiểm tra camera:", err);
+  }
+}
+checkCameraAvailabilityAndRequestPermission();
+checkMicAvailability();
+
 // --- Chế độ Share Screen ---
 document.getElementById("shareScreenBtn").addEventListener("click", async () => {
   try {
@@ -295,102 +344,92 @@ document.getElementById("shareScreenBtn").addEventListener("click", async () => 
   }
 });
 
-// --- Chế độ Live Cam ---
+// Global variable to track current streaming mode ("liveCam", "screenShare", or null)
+let currentMode = null;
+
 document.getElementById("liveCamBtn").addEventListener("click", async () => {
+  // Nếu đang ở chế độ live cam, nhấn lại sẽ dừng live cam
+  if (currentMode === "liveCam" && localStream) {
+    console.log("Stopping live cam...");
+    // Dừng tất cả các track trong localStream
+    localStream.getTracks().forEach(track => track.stop());
+    const screenVideo = document.getElementById("screenShareVideo");
+    screenVideo.srcObject = null;
+    localStream = null;
+    currentMode = null;
+    // Phát sự kiện để thông báo cho viewer
+    socket.emit("screenShareEnded", { roomId });
+    // Cập nhật giao diện nút live cam về trạng thái "Live Cam"
+    const liveCamBtn = document.getElementById("liveCamBtn");
+    liveCamBtn.innerHTML = '<i class="fas fa-camera"></i> Live Cam';
+    return;
+  }
+  
+  // Nếu chưa live cam, bắt đầu live cam
   try {
-    // Nếu có stream cũ, tắt nó đi
+    // Nếu có stream cũ, dừng nó
     if (localStream) {
       localStream.getTracks().forEach(t => t.stop());
       for (const viewerId in currentCall) {
         currentCall[viewerId].close();
       }
     }
-    // Lấy stream từ camera và mic (live cam)
-    localStream = await navigator.mediaDevices.getUserMedia({
-      video: true,
-      audio: false
-    });
+    let camStream;
+    try {
+      // Thử lấy stream với cả video và audio
+      camStream = await navigator.mediaDevices.getUserMedia({
+        video: true,
+        audio: true
+      });
+      console.log("Live Cam: Đã lấy được video và mic.");
+    } catch (err) {
+      console.warn("Không lấy được audio cho Live Cam, fallback sang video only.", err);
+      // Nếu không lấy được audio, fallback sang chỉ lấy video
+      camStream = await navigator.mediaDevices.getUserMedia({
+        video: true,
+        audio: false
+      });
+      const toggleMicBtn = document.getElementById("toggleMicBtn");
+      if (toggleMicBtn) {
+        toggleMicBtn.innerHTML = '<i class="fas fa-microphone-slash"></i> No Mic';
+        toggleMicBtn.disabled = true;
+      }
+    }
+    
+    localStream = camStream;
+    currentMode = "liveCam";
+    
     const screenVideo = document.getElementById("screenShareVideo");
     screenVideo.srcObject = localStream;
-
-    // Khi người dùng dừng live cam
+    
+    // Khi người dùng dừng live cam (ví dụ: thông qua giao diện của thiết bị)
     localStream.getVideoTracks()[0].addEventListener("ended", () => {
       console.log("User stopped live cam");
       screenVideo.srcObject = null;
       localStream = null;
+      currentMode = null;
       socket.emit("screenShareEnded", { roomId });
       for (const viewerId in currentCall) {
         currentCall[viewerId].close();
       }
+      const liveCamBtn = document.getElementById("liveCamBtn");
+      liveCamBtn.innerHTML = '<i class="fas fa-camera"></i> Live Cam';
     });
     
+    // Nếu có viewer pending, gọi chúng ngay
     while (pendingViewers.length) {
       const viewerId = pendingViewers.shift();
       callViewer(viewerId);
     }
+    
+    // Cập nhật nút hiển thị "Stop Live Cam"
+    const liveCamBtn = document.getElementById("liveCamBtn");
+    liveCamBtn.innerHTML = '<i class="fas fa-stop"></i> Dừng Live Cam';
   } catch (err) {
-    if (err.name === "NotFoundError") {
-      // Nếu không tìm thấy thiết bị video (mặc dù enumerateDevices cho thấy có videoInputs)
-      const liveCamBtn = document.getElementById("liveCamBtn");
-      liveCamBtn.disabled = true;
-      liveCamBtn.innerHTML = '<i class="fas fa-camera"></i> No Camera';
-      console.error("Requested device not found:", err);
-      alert("Không tìm thấy thiết bị camera. Live Cam đã bị vô hiệu hóa.");
-    } else {
-      console.error("Error during live cam:", err);
-      alert("Không thể bật Live Cam. Vui lòng kiểm tra quyền hoặc thử trình duyệt khác.");
-    }
+    console.error("Error during live cam:", err);
+    alert("Không thể bật Live Cam. Vui lòng kiểm tra quyền hoặc thử trình duyệt khác.");
   }
 });
-
-// --- Toggle Mic ---
-async function checkMicAvailability() {
-  try {
-    const devices = await navigator.mediaDevices.enumerateDevices();
-    const audioInputs = devices.filter(device => device.kind === "audioinput");
-    const toggleMicBtn = document.getElementById("toggleMicBtn");
-    if (audioInputs.length === 0) {
-      toggleMicBtn.disabled = true;
-      toggleMicBtn.innerHTML = '<i class="fas fa-microphone-slash"></i> No Mic';
-      console.log("Không có mic được phát hiện.");
-    } else {
-      toggleMicBtn.disabled = false;
-    }
-  } catch (err) {
-    console.error("Lỗi khi kiểm tra mic:", err);
-  }
-}
-async function checkCameraAvailabilityAndRequestPermission() {
-  try {
-    const devices = await navigator.mediaDevices.enumerateDevices();
-    const videoInputs = devices.filter(device => device.kind === "videoinput");
-    const liveCamBtn = document.getElementById("liveCamBtn");
-    if (videoInputs.length === 0) {
-      liveCamBtn.disabled = true;
-      liveCamBtn.innerHTML = '<i class="fas fa-camera"></i> No Camera';
-      console.log("Không có camera được phát hiện.");
-      return;
-    }
-    // Thử yêu cầu truy cập camera để kích hoạt quyền (nếu chưa được cấp)
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-      // Nếu thành công, ngay lập tức dừng tất cả các track để giải phóng camera
-      stream.getTracks().forEach(track => track.stop());
-      liveCamBtn.disabled = false;
-      liveCamBtn.innerHTML = '<i class="fas fa-camera"></i> Live Cam';
-    } catch (err) {
-      console.error("Chưa được cấp quyền camera:", err);
-      // Nếu chưa được cấp quyền, thông báo cho người dùng
-      liveCamBtn.disabled = true;
-      liveCamBtn.innerHTML = '<i class="fas fa-camera"></i> Grant Camera Permission';
-      alert("Vui lòng cấp quyền truy cập camera để sử dụng Live Cam.");
-    }
-  } catch (err) {
-    console.error("Lỗi khi kiểm tra camera:", err);
-  }
-}
-checkCameraAvailabilityAndRequestPermission();
-checkMicAvailability();
 
 document.getElementById("toggleMicBtn").addEventListener("click", () => {
   if (!localStream) {
