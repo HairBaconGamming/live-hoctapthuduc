@@ -260,8 +260,12 @@ socket.on("joinRoom", ({ roomId, username }) => {
     if (room && socket.username === room.owner) {
       // Loại bỏ viewer khỏi danh sách ban
       room.bannedViewers = room.bannedViewers.filter(u => u !== viewerUsername);
-      // Phát event unban để thông báo host (và có thể update giao diện banned list)
-      io.to(roomId).emit("viewerUnbanned", { viewerUsername });
+
+      // Phát sự kiện cập nhật danh sách ban
+      if (room.hostSocketId) {
+        io.to(room.hostSocketId).emit("updateBannedList", { banned: room.bannedViewers });
+      }
+
       console.log(`Viewer ${viewerUsername} được unban khỏi phòng ${roomId}`);
     }
   });

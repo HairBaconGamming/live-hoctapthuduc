@@ -564,99 +564,29 @@ body {
   transform: scale(0.95);
 }
 
-.banned-modal {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  display: none;
-  align-items: center;
-  justify-content: center;
-  z-index: 9999;
-  backdrop-filter: blur(5px);
-}
-
-.banned-modal.active {
-  display: flex;
-}
-
-.banned-modal-overlay {
-  background: rgba(0, 0, 0, 0.6);
-  width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.banned-modal-box {
-  background: #fff;
-  border-radius: 12px;
-  padding: 20px 30px;
-  max-width: 400px;
-  width: 90%;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.2);
-  text-align: center;
-}
-
-.banned-modal-box h3 {
-  margin-bottom: 15px;
-  color: #333;
-}
-
-.banned-modal-box ul {
-  list-style: none;
-  padding: 0;
-  margin: 0 0 15px 0;
-  max-height: 200px;
-  overflow-y: auto;
-}
-
-.banned-modal-box li {
-  padding: 5px 0;
-  border-bottom: 1px solid #ddd;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.banned-modal-box li:last-child {
-  border-bottom: none;
-}
-
-.banned-modal-box button {
-  background: #00ffea;
-  border: none;
-  border-radius: 4px;
-  padding: 6px 10px;
-  cursor: pointer;
-  color: #000;
-  transition: background 0.2s;
-}
-
-.banned-modal-box button:hover {
-  background: #00d4c4;
-}
-
-/* Modal Viewers List */
+/* =========================
+   MODAL OVERLAY (CHUNG)
+========================= */
+.banned-modal,
 .viewers-modal {
   position: fixed;
   top: 0;
   left: 0;
   width: 100vw;
   height: 100vh;
-  display: none;
+  display: none; /* Ẩn mặc định */
   align-items: center;
   justify-content: center;
   z-index: 9999;
   backdrop-filter: blur(5px);
 }
 
+.banned-modal.active,
 .viewers-modal.active {
-  display: flex;
+  display: flex; /* Hiển thị khi thêm class .active */
 }
 
+.banned-modal-overlay,
 .viewers-modal-overlay {
   background: rgba(0, 0, 0, 0.6);
   width: 100%;
@@ -666,78 +596,161 @@ body {
   justify-content: center;
 }
 
+/* =========================
+   MODAL BOX CHUNG
+========================= */
+.banned-modal-box,
 .viewers-modal-box {
-  background: #fff;
-  border-radius: 12px;
-  padding: 20px 30px;
-  max-width: 400px;
+  background: linear-gradient(135deg, #ffffff, #f0f0ff);
+  border-radius: 16px;
+  padding: 24px 32px;
+  max-width: 450px;
   width: 90%;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.3);
   text-align: center;
+  position: relative;
+  animation: modalFadeIn 0.5s ease-out;
 }
 
+@keyframes modalFadeIn {
+  0% {
+    transform: translateY(-15px);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* Tiêu đề modal */
+.banned-modal-box h3,
 .viewers-modal-box h3 {
-  margin-bottom: 15px;
+  margin-bottom: 20px;
   color: #333;
+  font-size: 1.4em;
 }
 
-.viewers-modal-box input {
-  width: 100%;
-  padding: 8px;
-  margin-bottom: 15px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-}
-
+/* Danh sách (ul) chung */
+.banned-modal-box ul,
 .viewers-modal-box ul {
   list-style: none;
   padding: 0;
-  margin: 0 0 15px 0;
-  max-height: 200px;
+  margin: 0 0 20px 0;
+  max-height: 220px;
   overflow-y: auto;
 }
 
+/* Các item trong danh sách */
+.banned-modal-box li,
 .viewers-modal-box li {
-  padding: 5px 0;
-  border-bottom: 1px solid #eee;
-  text-align: left;
+  padding: 8px 0;
+  border-bottom: 1px solid #ddd;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.95em;
+  color: #333;
 }
 
+.banned-modal-box li:last-child,
 .viewers-modal-box li:last-child {
   border-bottom: none;
 }
 
+/* Nút chung trong modal */
+.banned-modal-box button,
 .viewers-modal-box button {
-  background: #00ffea;
+  background: linear-gradient(135deg, #00ffea, #00d4c4);
   border: none;
-  border-radius: 4px;
-  padding: 8px 12px;
+  border-radius: 8px;
+  padding: 8px 14px;
   cursor: pointer;
   color: #000;
-  transition: background 0.2s;
+  transition: background 0.3s, transform 0.2s;
+  margin: 0 4px;
 }
 
+.banned-modal-box button:hover,
 .viewers-modal-box button:hover {
-  background: #00d4c4;
+  transform: scale(1.05);
+  background: linear-gradient(135deg, #00ffe0, #00c7b3);
 }
 
-.ban-btn {
+.banned-modal-box button:active,
+.viewers-modal-box button:active {
+  transform: scale(0.95);
+}
+
+/* =========================
+   BAN-MODAL CỤ THỂ
+========================= */
+.banned-modal-box {
+  /* Bạn có thể thêm hiệu ứng đậm hơn cho banned modal */
+  background: linear-gradient(135deg, #ffe6e6, #ffffff);
+}
+
+/* Danh sách Banned Viewer */
+.banned-modal-box li {
+  border-bottom: 1px solid #f7cfcf;
+  color: #a33;
+}
+
+/* Nút Unban */
+.banned-modal-box .unban-btn {
+  background: linear-gradient(135deg, #00ffea, #00d4c4);
+  color: #000;
+  font-weight: 600;
+  border: none;
+  border-radius: 8px;
+  padding: 6px 10px;
+  transition: background 0.3s, transform 0.2s;
+}
+
+.banned-modal-box .unban-btn:hover {
+  transform: scale(1.05);
+  background: linear-gradient(135deg, #00ffe0, #00c7b3);
+}
+
+.banned-modal-box .unban-btn:active {
+  transform: scale(0.95);
+}
+
+/* =========================
+   VIEWERS-MODAL CỤ THỂ
+========================= */
+/* Input tìm kiếm */
+.viewers-modal-box input {
+  width: 100%;
+  padding: 10px;
+  margin-bottom: 15px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+}
+
+/* Danh sách viewer item */
+.viewers-modal-box li {
+  border-bottom: 1px solid #eee;
+}
+
+/* Nút ban (nếu có) */
+.viewers-modal-box .ban-btn {
   background: linear-gradient(135deg, #ff4d4d, #ff1a1a);
   color: #fff;
   border: none;
-  border-radius: 4px;
-  padding: 4px 8px;
+  border-radius: 6px;
+  padding: 6px 10px;
   cursor: pointer;
-  transition: background 0.2s ease, transform 0.2s ease;
+  transition: background 0.3s, transform 0.2s;
   margin-left: 10px;
-  font-size: 0.9em;
+  font-size: 0.85em;
 }
 
-.ban-btn:hover {
-  transform: scale(1.1);
-  background: #ff3333;
+.viewers-modal-box .ban-btn:hover {
+  transform: scale(1.05);
+  background: linear-gradient(135deg, #ff3333, #ff0000);
 }
 
-.ban-btn:active {
+.viewers-modal-box .ban-btn:active {
   transform: scale(0.95);
 }
