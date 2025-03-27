@@ -12,7 +12,7 @@
   <!-- Load KaTeX để render công thức toán học -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.15.3/dist/katex.min.css">
   <script src="https://cdn.jsdelivr.net/npm/katex@0.15.3/dist/katex.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/4.6.0/fabric.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
 </head>
 <body>
   <input type="hidden" id="username" value="<%= user.username %>">
@@ -69,7 +69,7 @@
       <div id="chatPreview" class="chat-preview"></div>
     </div>
   </div>
-  <canvas id="chatPipCanvas" style="display: none;"></canvas>
+  <canvas id="pipChatCanvas" width="400" height="600" style="display: none;"></canvas>
   <div id="bannedModal" class="banned-modal">
     <div class="banned-modal-overlay">
       <div class="banned-modal-box">
