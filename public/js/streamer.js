@@ -657,3 +657,59 @@ socket.on("updateBannedList", data => {
     bannedListEl.appendChild(li);
   });
 });
+
+// --- PiP Chat Feature ---
+// Tạo đối tượng canvas và video từ DOM
+const chatCanvas = document.getElementById("chatPipCanvas");
+const canvasCtx = chatCanvas.getContext("2d");
+
+// Bạn có thể đặt kích thước canvas theo ý muốn (ví dụ: 400x600)
+chatCanvas.width = 400;
+chatCanvas.height = 600;
+
+// Tạo một video element ẩn để gán stream từ canvas
+const pipVideo = document.createElement("video");
+pipVideo.style.display = "none";
+document.body.appendChild(pipVideo);
+
+// Lấy stream từ canvas (cập nhật 15 FPS, có thể thay đổi tùy ý)
+const chatStream = chatCanvas.captureStream(15);
+pipVideo.srcObject = chatStream;
+
+// Hàm cập nhật canvas với nội dung chat (lấy từ #chatMessages)
+function updateChatCanvas() {
+  // Xóa canvas
+  canvasCtx.fillStyle = "#1e1e2f"; // nền tối cho chat
+  canvasCtx.fillRect(0, 0, chatCanvas.width, chatCanvas.height);
+  
+  const chatContainer = document.getElementById("chatMessages");
+  if (chatContainer) {
+    const messages = chatContainer.querySelectorAll("li");
+    canvasCtx.font = "16px sans-serif";
+    canvasCtx.fillStyle = "#f1f1f1";
+    let y = 20;
+    
+    messages.forEach(msg => {
+      // Bạn có thể tinh chỉnh font và khoảng cách, chuyển đổi nội dung nếu cần
+      const text = msg.textContent;
+      canvasCtx.fillText(text, 10, y);
+      y += 20; // tăng khoảng cách giữa các dòng
+    });
+  }
+}
+
+// Cập nhật canvas định kỳ (ví dụ, mỗi 100ms)
+setInterval(updateChatCanvas, 100);
+
+// Nút kích hoạt PiP chat
+document.getElementById("pipChatBtn").addEventListener("click", async () => {
+  try {
+    // Đảm bảo video element được play (bắt buộc trước khi gọi requestPictureInPicture)
+    await pipVideo.play();
+    // Yêu cầu chuyển video vào Picture-in-Picture
+    await pipVideo.requestPictureInPicture();
+  } catch (err) {
+    console.error("Error enabling PiP chat:", err);
+    alert("Không thể bật chế độ PiP cho chat. Vui lòng thử lại.");
+  }
+});

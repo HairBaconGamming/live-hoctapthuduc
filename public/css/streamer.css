@@ -754,3 +754,30 @@ body {
 .viewers-modal-box .ban-btn:active {
   transform: scale(0.95);
 }
+
+#pipChatBtn {
+  width: 40px;
+  height: 40px;
+  background: linear-gradient(135deg, #00ffea, #00d4c4);
+  border: none;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+#pipChatBtn i {
+  color: #000;
+  font-size: 1.2em;
+}
+
+#pipChatBtn:hover {
+  transform: scale(1.1);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+}
+
+#pipChatBtn:active {
+  transform: scale(0.95);
+}

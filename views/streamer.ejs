@@ -56,6 +56,9 @@
     <div id="chatBox">
       <h3>💬 Chat trực tiếp với người xem</h3>
       <ul id="chatMessages"></ul>
+      <button id="pipChatBtn">
+        <i class="fas fa-picture-in-picture"></i>
+      </button>
       <!-- Enhanced Chat Input -->
       <div class="chat-input-container">
         <textarea id="chatInputArea" placeholder="Nhập tin nhắn... (Hỗ trợ Markdown và KaTeX)"></textarea>
@@ -65,6 +68,7 @@
       <div id="chatPreview" class="chat-preview"></div>
     </div>
   </div>
+  <canvas id="chatPipCanvas" style="display: none;"></canvas>
   <div id="bannedModal" class="banned-modal">
     <div class="banned-modal-overlay">
       <div class="banned-modal-box">
