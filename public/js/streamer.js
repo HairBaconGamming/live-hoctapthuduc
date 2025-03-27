@@ -695,7 +695,7 @@ function updatePiPChat() {
     if (li.classList.contains("message-host")) {
       bgColor = "rgba(0,255,234,0.15)";
       iconColor = "#00ffea";
-      iconChar = "\uf015"; // fa-home
+      iconChar = "🏠︎"; // fa-home
     } else if (li.classList.contains("message-pro")) {
       bgColor = "rgba(255,215,0,0.15)";
       iconColor = "#ffd700";
