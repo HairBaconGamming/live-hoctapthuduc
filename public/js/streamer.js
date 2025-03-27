@@ -588,3 +588,38 @@ document.getElementById("toggleMicBtn").addEventListener("click", () => {
 
 // Gửi event hostJoined (có thể dùng khi host vào phòng)
 socket.emit("hostJoined", { roomId });
+
+// Mở modal banned khi click nút
+document.getElementById("bannedListBtn").addEventListener("click", () => {
+  // Yêu cầu lấy danh sách banned từ server nếu có (ở đây ta sử dụng dữ liệu có trong room từ server, giả sử host có thể cập nhật thông qua socket)
+  // Hoặc nếu bạn lưu danh sách banned cục bộ, bạn có thể hiển thị trực tiếp
+  // Ví dụ: giả sử server phát event "updateBannedList" khi banned/unban
+  socket.emit("getBannedList", { roomId });
+  
+  // Hiển thị modal
+  document.getElementById("bannedModal").classList.add("active");
+});
+
+// Đóng modal banned
+document.getElementById("closeBannedModal").addEventListener("click", () => {
+  document.getElementById("bannedModal").classList.remove("active");
+});
+
+// Lắng nghe event cập nhật danh sách banned
+socket.on("updateBannedList", data => {
+  // data.banned is an array of viewer usernames banned in this room
+  const bannedListEl = document.getElementById("bannedList");
+  bannedListEl.innerHTML = "";
+  data.banned.forEach(viewerUsername => {
+    const li = document.createElement("li");
+    li.textContent = viewerUsername;
+    // Thêm nút unban cho mỗi viewer
+    const unbanBtn = document.createElement("button");
+    unbanBtn.textContent = "Unban";
+    unbanBtn.addEventListener("click", () => {
+      socket.emit("unbanViewer", { roomId, viewerUsername });
+    });
+    li.appendChild(unbanBtn);
+    bannedListEl.appendChild(li);
+  });
+});

@@ -81,7 +81,8 @@ app.post("/api/createStream", (req, res) => {
     viewers: 0,
     createdAt: new Date(),
     isLive: false, // Ban đầu phòng chưa live (chờ host)
-    bannedViewers: []
+    bannedViewers: [],
+    viewersList: []
   };
   liveRooms.push(newRoom);
   console.log("✅ Room created:", newRoom);
@@ -169,15 +170,21 @@ socket.on("joinRoom", ({ roomId, username }) => {
       console.log(`Host ${username} joined room ${roomId}`);
     } else {
       room.viewers++;
+      // Thêm viewer vào danh sách nếu chưa có
+      if (!room.viewersList.includes(username)) {
+        room.viewersList.push(username);
+      }
       io.to(roomId).emit("updateViewers", room.viewers);
       if (!room.isLive) {
         socket.emit("waiting", "Chờ streamer vào live...");
       }
       io.to(roomId).emit("userJoined", `${username} đã tham gia phòng.`);
-      // Nếu phòng có pinned comment, gửi event riêng cho viewer mới
+      // Gửi pinned comment nếu có
       if (room.pinnedComment) {
         socket.emit("commentPinned", { message: room.pinnedComment });
       }
+      // Cập nhật danh sách viewers cho host (nếu có)
+      io.to(room.hostSocketId).emit("updateViewersList", { viewers: room.viewersList });
     }
   }
 });
@@ -251,6 +258,13 @@ socket.on("joinRoom", ({ roomId, username }) => {
       // Phát event unban để thông báo host (và có thể update giao diện banned list)
       io.to(roomId).emit("viewerUnbanned", { viewerUsername });
       console.log(`Viewer ${viewerUsername} được unban khỏi phòng ${roomId}`);
+    }
+  });
+  
+  socket.on("getBannedList", ({ roomId }) => {
+    const room = liveRooms.find(r => r.id === roomId);
+    if (room) {
+      socket.emit("updateBannedList", { banned: room.bannedViewers });
     }
   });
 
