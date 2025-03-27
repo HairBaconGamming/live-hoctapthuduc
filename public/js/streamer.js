@@ -8,6 +8,12 @@ const sendBtn = document.getElementById("sendBtn");         // Nếu có
 const chatMessages = document.getElementById("chatMessages");
 const viewerCount = document.getElementById("viewerCount");
 
+let localStream = null;
+let currentMode = null;
+let currentCall = {}; // Lưu call theo viewerId
+const pendingViewers = []; // Viewer join trước khi stream sẵn sàng
+const allViewers = new Set(); // Lưu tất cả viewer đã join (để re-call khi chia sẻ mới)
+
 // Gửi thông tin tham gia phòng qua Socket.IO
 socket.emit("joinRoom", { roomId, username });
 
@@ -280,10 +286,6 @@ const peer = new Peer(roomId, {
   }
 });
 
-let localStream = null;
-let currentCall = {}; // Lưu call theo viewerId
-const pendingViewers = [];
-
 peer.on('open', id => {
   console.log('PeerJS streamer open with ID:', id);
 });
@@ -291,6 +293,7 @@ peer.on('open', id => {
 // Khi có viewer mới từ Socket.IO
 socket.on("newViewer", ({ viewerId }) => {
   console.log("New viewer with ID: " + viewerId);
+  allViewers.add(viewerId);
   if (!localStream) {
     console.warn("Local stream chưa sẵn sàng, thêm viewer vào pending.");
     pendingViewers.push(viewerId);
@@ -371,14 +374,16 @@ document.getElementById("shareScreenBtn").addEventListener("click", async () => 
       for (const viewerId in currentCall) {
         currentCall[viewerId].close();
       }
+      // Xóa currentCall để làm mới
+      currentCall = {};
     }
-    // Lấy stream chia sẻ màn hình với video và (nếu có) audio hệ thống
+    // Lấy stream chia sẻ màn hình với video và audio
     const displayStream = await navigator.mediaDevices.getDisplayMedia({
       video: true,
       audio: true
     });
 
-    // Lấy stream từ mic (audio)
+    // Lấy stream từ mic (audio) riêng
     let micStream = null;
     try {
       micStream = await navigator.mediaDevices.getUserMedia({
@@ -390,25 +395,16 @@ document.getElementById("shareScreenBtn").addEventListener("click", async () => 
       micStream = null;
     }
 
-    // Biến chứa luồng âm thanh đã trộn (mixedAudioStream)
     let mixedAudioStream = null;
-
-    // Nếu cả display và mic đều có audio, ta sẽ trộn chúng lại
+    // Nếu cả display và mic đều có audio, trộn chúng lại
     if (displayStream.getAudioTracks().length > 0 && micStream && micStream.getAudioTracks().length > 0) {
-      // Tạo AudioContext để trộn
       const audioContext = new AudioContext();
       const destination = audioContext.createMediaStreamDestination();
 
-      // Tạo nguồn âm thanh từ audio của màn hình
-      const displayAudioSource = audioContext.createMediaStreamSource(
-        new MediaStream(displayStream.getAudioTracks())
-      );
+      const displayAudioSource = audioContext.createMediaStreamSource(new MediaStream(displayStream.getAudioTracks()));
       displayAudioSource.connect(destination);
 
-      // Tạo nguồn âm thanh từ mic
-      const micAudioSource = audioContext.createMediaStreamSource(
-        new MediaStream(micStream.getAudioTracks())
-      );
+      const micAudioSource = audioContext.createMediaStreamSource(new MediaStream(micStream.getAudioTracks()));
       micAudioSource.connect(destination);
 
       mixedAudioStream = destination.stream;
@@ -418,29 +414,23 @@ document.getElementById("shareScreenBtn").addEventListener("click", async () => 
       mixedAudioStream = new MediaStream(micStream.getAudioTracks());
     }
 
-    // Nếu không có âm thanh từ cả hai nguồn, thì mixedAudioStream sẽ là null
     if (!mixedAudioStream) {
-      // Cập nhật nút toggle mic: báo No Mic
       const toggleMicBtn = document.getElementById("toggleMicBtn");
       if (toggleMicBtn) {
         toggleMicBtn.innerHTML = '<i class="fas fa-microphone-slash"></i> No Mic';
         toggleMicBtn.disabled = true;
       }
-      // Lấy video từ displayStream
       localStream = new MediaStream([...displayStream.getVideoTracks()]);
     } else {
-      // Tạo localStream gồm video của màn hình và âm thanh đã trộn
       localStream = new MediaStream([
         ...displayStream.getVideoTracks(),
         ...mixedAudioStream.getAudioTracks()
       ]);
     }
 
-    // Gán stream vào phần tử video preview
     const screenVideo = document.getElementById("screenShareVideo");
     screenVideo.srcObject = localStream;
 
-    // Cập nhật trạng thái nút toggle mic dựa trên mic có hay không
     const toggleMicBtn = document.getElementById("toggleMicBtn");
     if (toggleMicBtn) {
       if (micStream && micStream.getAudioTracks().length > 0) {
@@ -452,7 +442,6 @@ document.getElementById("shareScreenBtn").addEventListener("click", async () => 
       }
     }
     
-    // Khi người dùng dừng chia sẻ màn hình (video track kết thúc)
     localStream.getVideoTracks()[0].addEventListener("ended", () => {
       console.log("User stopped screen sharing");
       screenVideo.srcObject = null;
@@ -463,50 +452,47 @@ document.getElementById("shareScreenBtn").addEventListener("click", async () => 
       }
     });
     
-    // Nếu có viewer pending, gọi chúng ngay
-    while (pendingViewers.length) {
-      const viewerId = pendingViewers.shift();
+    // Sau khi tạo localStream mới, gọi lại tất cả các viewer trong allViewers
+    allViewers.forEach(viewerId => {
       callViewer(viewerId);
-    }
+    });
+    
+    currentMode = "screenShare";
   } catch (err) {
     console.error("Error during screen sharing with mic support:", err);
     alert("Không thể chia sẻ màn hình và mic. Vui lòng kiểm tra quyền hoặc thử trình duyệt khác.");
   }
 });
 
-// Global variable to track current streaming mode ("liveCam", "screenShare", or null)
-let currentMode = null;
-
+// --- Chế độ Live Cam ---
 document.getElementById("liveCamBtn").addEventListener("click", async () => {
   // Nếu đang ở chế độ live cam, nhấn lại sẽ dừng live cam
   if (currentMode === "liveCam" && localStream) {
     console.log("Stopping live cam...");
-    // Dừng tất cả các track trong localStream
     localStream.getTracks().forEach(track => track.stop());
     const screenVideo = document.getElementById("screenShareVideo");
     screenVideo.srcObject = null;
     localStream = null;
     currentMode = null;
-    // Phát sự kiện để thông báo cho viewer
     socket.emit("screenShareEnded", { roomId });
-    // Cập nhật giao diện nút live cam về trạng thái "Live Cam"
+    for (const viewerId in currentCall) {
+      currentCall[viewerId].close();
+    }
     const liveCamBtn = document.getElementById("liveCamBtn");
     liveCamBtn.innerHTML = '<i class="fas fa-camera"></i> Live Cam';
     return;
   }
   
-  // Nếu chưa live cam, bắt đầu live cam
   try {
-    // Nếu có stream cũ, dừng nó
     if (localStream) {
       localStream.getTracks().forEach(t => t.stop());
       for (const viewerId in currentCall) {
         currentCall[viewerId].close();
       }
+      currentCall = {};
     }
     let camStream;
     try {
-      // Thử lấy stream với cả video và audio
       camStream = await navigator.mediaDevices.getUserMedia({
         video: true,
         audio: true
@@ -514,7 +500,6 @@ document.getElementById("liveCamBtn").addEventListener("click", async () => {
       console.log("Live Cam: Đã lấy được video và mic.");
     } catch (err) {
       console.warn("Không lấy được audio cho Live Cam, fallback sang video only.", err);
-      // Nếu không lấy được audio, fallback sang chỉ lấy video
       camStream = await navigator.mediaDevices.getUserMedia({
         video: true,
         audio: false
@@ -532,7 +517,6 @@ document.getElementById("liveCamBtn").addEventListener("click", async () => {
     const screenVideo = document.getElementById("screenShareVideo");
     screenVideo.srcObject = localStream;
     
-    // Khi người dùng dừng live cam (ví dụ: thông qua giao diện của thiết bị)
     localStream.getVideoTracks()[0].addEventListener("ended", () => {
       console.log("User stopped live cam");
       screenVideo.srcObject = null;
@@ -546,13 +530,10 @@ document.getElementById("liveCamBtn").addEventListener("click", async () => {
       liveCamBtn.innerHTML = '<i class="fas fa-camera"></i> Live Cam';
     });
     
-    // Nếu có viewer pending, gọi chúng ngay
-    while (pendingViewers.length) {
-      const viewerId = pendingViewers.shift();
+    allViewers.forEach(viewerId => {
       callViewer(viewerId);
-    }
+    });
     
-    // Cập nhật nút hiển thị "Stop Live Cam"
     const liveCamBtn = document.getElementById("liveCamBtn");
     liveCamBtn.innerHTML = '<i class="fas fa-stop"></i> Dừng Live Cam';
   } catch (err) {
