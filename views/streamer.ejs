@@ -12,6 +12,7 @@
   <!-- Load KaTeX để render công thức toán học -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.15.3/dist/katex.min.css">
   <script src="https://cdn.jsdelivr.net/npm/katex@0.15.3/dist/katex.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/4.6.0/fabric.min.js"></script>
 </head>
 <body>
   <input type="hidden" id="username" value="<%= user.username %>">
@@ -57,7 +58,7 @@
       <h3>💬 Chat trực tiếp với người xem</h3>
       <ul id="chatMessages"></ul>
       <button id="pipChatBtn">
-        <i class="fas fa-picture-in-picture"></i>
+        <i class="fas fa-window-restore"></i>
       </button>
       <!-- Enhanced Chat Input -->
       <div class="chat-input-container">

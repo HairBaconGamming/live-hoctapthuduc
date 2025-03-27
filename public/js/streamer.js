@@ -658,58 +658,126 @@ socket.on("updateBannedList", data => {
   });
 });
 
-// --- PiP Chat Feature ---
-// Tạo đối tượng canvas và video từ DOM
+// Lấy canvas và context
 const chatCanvas = document.getElementById("chatPipCanvas");
 const canvasCtx = chatCanvas.getContext("2d");
 
-// Bạn có thể đặt kích thước canvas theo ý muốn (ví dụ: 400x600)
-chatCanvas.width = 400;
-chatCanvas.height = 600;
+// Kích thước canvas (tùy ý)
+chatCanvas.width = 500;
+chatCanvas.height = 700;
 
-// Tạo một video element ẩn để gán stream từ canvas
+// Tạo video ẩn để gán stream canvas
 const pipVideo = document.createElement("video");
 pipVideo.style.display = "none";
 document.body.appendChild(pipVideo);
 
-// Lấy stream từ canvas (cập nhật 15 FPS, có thể thay đổi tùy ý)
+// Tạo stream từ canvas (15 fps)
 const chatStream = chatCanvas.captureStream(15);
 pipVideo.srcObject = chatStream;
 
-// Hàm cập nhật canvas với nội dung chat (lấy từ #chatMessages)
-function updateChatCanvas() {
-  // Xóa canvas
-  canvasCtx.fillStyle = "#1e1e2f"; // nền tối cho chat
-  canvasCtx.fillRect(0, 0, chatCanvas.width, chatCanvas.height);
-  
-  const chatContainer = document.getElementById("chatMessages");
-  if (chatContainer) {
-    const messages = chatContainer.querySelectorAll("li");
-    canvasCtx.font = "16px sans-serif";
-    canvasCtx.fillStyle = "#f1f1f1";
-    let y = 20;
-    
-    messages.forEach(msg => {
-      // Bạn có thể tinh chỉnh font và khoảng cách, chuyển đổi nội dung nếu cần
-      const text = msg.textContent;
-      canvasCtx.fillText(text, 10, y);
-      y += 20; // tăng khoảng cách giữa các dòng
-    });
-  }
+// Hàm vẽ background + bo góc
+function drawRoundedRect(ctx, x, y, width, height, radius) {
+  ctx.beginPath();
+  ctx.moveTo(x + radius, y);
+  ctx.lineTo(x + width - radius, y);
+  ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+  ctx.lineTo(x + width, y + height - radius);
+  ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+  ctx.lineTo(x + radius, y + height);
+  ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+  ctx.lineTo(x, y + radius);
+  ctx.quadraticCurveTo(x, y, x + radius, y);
+  ctx.closePath();
 }
 
-// Cập nhật canvas định kỳ (ví dụ, mỗi 100ms)
+// Hàm cập nhật canvas theo layout “icon user” bên trái, message giữa, timestamp bên phải
+function updateChatCanvas() {
+  // Vẽ nền gradient full canvas
+  const gradient = canvasCtx.createLinearGradient(0, 0, chatCanvas.width, 0);
+  gradient.addColorStop(0, "#141e30");
+  gradient.addColorStop(1, "#243b55");
+  canvasCtx.fillStyle = gradient;
+  canvasCtx.fillRect(0, 0, chatCanvas.width, chatCanvas.height);
+
+  // Lấy messages
+  const chatContainer = document.getElementById("chatMessages");
+  if (!chatContainer) return;
+  const messages = chatContainer.querySelectorAll("li");
+  
+  // Thiết lập font
+  canvasCtx.font = "14px 'Poppins', sans-serif";
+  canvasCtx.fillStyle = "#fff";
+  
+  let y = 30; // Vị trí y bắt đầu vẽ
+  const lineHeight = 50; // Chiều cao mỗi item
+  
+  messages.forEach(msg => {
+    const textContent = msg.textContent || "";
+    // Tách tạm: username + message + timestamp
+    // Hoặc parse logic do bạn lưu
+    // Ở đây giả sử format: "username: message hh:mm:ss"
+    
+    // Giả sử username, message, timestamp tách bằng ' '
+    // => Cần tách cẩn thận, ví dụ parse logic
+    // Ở đây demo: 
+    // "truonghoangnam: no 11:48:59 PM"
+    // => user: "truonghoangnam", content: "no", time: "11:48:59 PM"
+
+    // Tìm vị trí time => parse
+    // Demo: cắt time = 8 ký tự cuối => "hh:mm:ss X"
+    const timeStr = textContent.slice(-11); // cắt "11:48:59 PM"
+    const mainStr = textContent.slice(0, -11).trim(); // "truonghoangnam: no"
+    
+    let userName = "User";
+    let content = mainStr;
+    // Tách userName ra nếu có ':'
+    const colonIndex = mainStr.indexOf(":");
+    if (colonIndex !== -1) {
+      userName = mainStr.slice(0, colonIndex).trim();
+      content = mainStr.slice(colonIndex + 1).trim();
+    }
+    
+    // Vẽ 1 "dòng" chat
+    // Bối cảnh: 
+    //  - icon user: 10, y => 32x32 icon
+    //  - userName + content: ~60, y => text
+    //  - timestamp: canvas.width - 60, y => text
+    // Tạo 1 background bo góc nếu muốn
+    canvasCtx.save();
+    canvasCtx.fillStyle = "rgba(255,255,255,0.1)";
+    drawRoundedRect(canvasCtx, 10, y - 20, chatCanvas.width - 20, 40, 8);
+    canvasCtx.fill();
+    canvasCtx.restore();
+
+    // Vẽ icon user (demo: 1 rect)
+    // Muốn vẽ icon Font, bạn cần "drawImage" icon hoặc sprite
+    canvasCtx.save();
+    canvasCtx.fillStyle = "#00ffea";
+    canvasCtx.fillRect(20, y - 10, 20, 20); // demo icon = ô vuông
+    canvasCtx.restore();
+
+    // Vẽ userName + content
+    canvasCtx.fillText(`${userName}: ${content}`, 50, y);
+    
+    // Vẽ timestamp ở góc phải
+    const timeWidth = canvasCtx.measureText(timeStr).width;
+    canvasCtx.fillText(timeStr, chatCanvas.width - timeWidth - 20, y);
+    
+    y += lineHeight;
+  });
+}
+
+// Cập nhật canvas mỗi 0.1s
 setInterval(updateChatCanvas, 100);
 
-// Nút kích hoạt PiP chat
+// Nút kích hoạt PiP
 document.getElementById("pipChatBtn").addEventListener("click", async () => {
   try {
-    // Đảm bảo video element được play (bắt buộc trước khi gọi requestPictureInPicture)
     await pipVideo.play();
-    // Yêu cầu chuyển video vào Picture-in-Picture
     await pipVideo.requestPictureInPicture();
+    console.log("PiP chat activated!");
   } catch (err) {
     console.error("Error enabling PiP chat:", err);
-    alert("Không thể bật chế độ PiP cho chat. Vui lòng thử lại.");
+    alert("Không thể bật chế độ PiP cho chat, vui lòng thử lại.");
   }
 });
