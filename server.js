@@ -80,7 +80,8 @@ app.post("/api/createStream", (req, res) => {
     liveStreamUrl,
     viewers: 0,
     createdAt: new Date(),
-    isLive: false // Ban đầu phòng chưa live (chờ host)
+    isLive: false, // Ban đầu phòng chưa live (chờ host)
+    bannedViewers: []
   };
   liveRooms.push(newRoom);
   console.log("✅ Room created:", newRoom);
@@ -142,39 +143,45 @@ app.get("/room/:id", checkHoctapAuth, (req, res) => {
 io.on("connection", socket => {
   console.log("💡 New client connected");
 
-  socket.on("joinRoom", ({ roomId, username }) => {
-    socket.join(roomId);
-    socket.username = username;
-    const room = liveRooms.find(r => r.id === roomId);
-    if (room) {
-      if (username === room.owner) {
-        // Phát hiện chủ phòng reload
-        if (room.hostSocketId && room.hostSocketId !== socket.id) {
-          console.log(`Host reload detected. Ending old room ${roomId}...`);
-          io.sockets.sockets.get(room.hostSocketId)?.disconnect(true);
-          socket.emit("redirectToLive", "Phòng đã kết thúc do reload. Vui lòng quay lại danh sách live.");
-          return; 
-        }
-
-        // Nếu không phải reload (chưa có hostSocketId), thiết lập host mới
-        room.hostSocketId = socket.id;
-        room.isLive = true;
-        io.to(roomId).emit("hostJoined");
-        console.log(`Host ${username} joined room ${roomId}`);
-      } else {
-        room.viewers++;
-        io.to(roomId).emit("updateViewers", room.viewers);
-        // Nếu phòng chưa live, gửi event "waiting" cho viewer
-        if (!room.isLive) {
-          socket.emit("waiting", "Chờ streamer vào live...");
-        }
-        io.to(roomId).emit("userJoined", `${username} đã tham gia phòng.`);
-        if (room.pinnedComment) {
-          socket.emit("commentPinned", { message: room.pinnedComment });
-        }
+socket.on("joinRoom", ({ roomId, username }) => {
+  socket.join(roomId);
+  socket.username = username;
+  const room = liveRooms.find(r => r.id === roomId);
+  if (room) {
+    // Kiểm tra nếu viewer bị ban
+    if (room.bannedViewers.includes(username)) {
+      socket.emit("banned", "Bạn đã bị ban khỏi phòng live này.");
+      // Có thể disconnect socket nếu cần
+      socket.leave(roomId);
+      return;
+    }
+    
+    if (username === room.owner) {
+      if (room.hostSocketId && room.hostSocketId !== socket.id) {
+        console.log(`Host reload detected. Ending old room ${roomId}...`);
+        io.sockets.sockets.get(room.hostSocketId)?.disconnect(true);
+        socket.emit("redirectToLive", "Phòng đã kết thúc do reload. Vui lòng quay lại danh sách live.");
+        return; 
+      }
+      room.hostSocketId = socket.id;
+      room.isLive = true;
+      io.to(roomId).emit("hostJoined");
+      console.log(`Host ${username} joined room ${roomId}`);
+    } else {
+      room.viewers++;
+      io.to(roomId).emit("updateViewers", room.viewers);
+      if (!room.isLive) {
+        socket.emit("waiting", "Chờ streamer vào live...");
+      }
+      io.to(roomId).emit("userJoined", `${username} đã tham gia phòng.`);
+      // Nếu phòng có pinned comment, gửi event riêng cho viewer mới
+      if (room.pinnedComment) {
+        socket.emit("commentPinned", { message: room.pinnedComment });
       }
     }
-  });
+  }
+});
+
 
   // Khi viewer gửi thông tin PeerJS ID cho streamer
   socket.on("newViewer", ({ viewerId, roomId }) => {
@@ -207,6 +214,43 @@ io.on("connection", socket => {
       room.pinnedComment = null;
       io.to(roomId).emit("commentPinned", { message: {} });
       console.log(`Comment unpinned in room ${roomId}`);
+    }
+  });
+  
+  socket.on("banViewer", ({ roomId, viewerUsername }) => {
+    const room = liveRooms.find(r => r.id === roomId);
+    if (room && socket.username === room.owner) {
+      // Thêm viewer vào danh sách ban nếu chưa có
+      if (!room.bannedViewers.includes(viewerUsername)) {
+        room.bannedViewers.push(viewerUsername);
+        // Phát event "banned" tới viewer đó (nếu kết nối đang tồn tại)
+        // Ta có thể duyệt qua tất cả socket và so sánh username
+        io.in(roomId).clients((err, clients) => {
+          if (err) throw err;
+          clients.forEach(clientId => {
+            const clientSocket = io.sockets.sockets.get(clientId);
+            if (clientSocket && clientSocket.username === viewerUsername) {
+              clientSocket.emit("banned", "Bạn đã bị ban khỏi phòng live.");
+              clientSocket.leave(roomId);
+              // Cập nhật số viewer
+              room.viewers = Math.max(0, room.viewers - 1);
+              io.to(roomId).emit("updateViewers", room.viewers);
+            }
+          });
+        });
+        console.log(`Viewer ${viewerUsername} bị ban khỏi phòng ${roomId}`);
+      }
+    }
+  });
+
+  socket.on("unbanViewer", ({ roomId, viewerUsername }) => {
+    const room = liveRooms.find(r => r.id === roomId);
+    if (room && socket.username === room.owner) {
+      // Loại bỏ viewer khỏi danh sách ban
+      room.bannedViewers = room.bannedViewers.filter(u => u !== viewerUsername);
+      // Phát event unban để thông báo host (và có thể update giao diện banned list)
+      io.to(roomId).emit("viewerUnbanned", { viewerUsername });
+      console.log(`Viewer ${viewerUsername} được unban khỏi phòng ${roomId}`);
     }
   });
 

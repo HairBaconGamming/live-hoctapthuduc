@@ -139,6 +139,11 @@ socket.on("waiting", () => {
   const waitingOverlay = document.getElementById("waitingOverlay");
   if (waitingOverlay) waitingOverlay.classList.add("active");
 });
+socket.on("banned", msg => {
+  alert(msg);
+  // Redirect về trang danh sách live stream
+  window.location.href = "https://hoctap-9a3.glitch.me/live";
+});
 // Nếu vẫn sử dụng input cũ (nếu có)
 if(sendBtn && messageInput){
   sendBtn.addEventListener("click", () => {

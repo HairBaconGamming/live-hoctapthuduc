@@ -40,6 +40,7 @@
         <h3>Screen Share Preview</h3>
         <video id="screenShareVideo" autoplay muted playsinline></video>
       </div>
+      <button id="bannedListBtn"><i class="fas fa-ban"></i> Danh sách Ban</button>
       <div class="panel-content">
         <button id="endStreamBtn"><i class="fas fa-power-off"></i> Kết thúc live</button>
         <button id="shareScreenBtn"><i class="fas fa-desktop"></i> Chia sẻ màn hình</button>
@@ -59,6 +60,15 @@
       </div>
       <!-- Chat Preview -->
       <div id="chatPreview" class="chat-preview"></div>
+    </div>
+  </div>
+  <div id="bannedModal" class="banned-modal">
+    <div class="banned-modal-overlay">
+      <div class="banned-modal-box">
+        <h3>Danh sách Viewer Bị Ban</h3>
+        <ul id="bannedList"></ul>
+        <button id="closeBannedModal">Đóng</button>
+      </div>
     </div>
   </div>
   <script src="/socket.io/socket.io.js"></script>
