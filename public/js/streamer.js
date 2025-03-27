@@ -589,6 +589,59 @@ document.getElementById("toggleMicBtn").addEventListener("click", () => {
 // Gửi event hostJoined (có thể dùng khi host vào phòng)
 socket.emit("hostJoined", { roomId });
 
+// Mở modal danh sách viewers
+document.getElementById("viewersListBtn").addEventListener("click", () => {
+  socket.emit("getViewersList", { roomId });
+  document.getElementById("viewersModal").classList.add("active");
+});
+
+// Đóng modal
+document.getElementById("closeViewersModal").addEventListener("click", () => {
+  document.getElementById("viewersModal").classList.remove("active");
+});
+
+// Lắng nghe sự kiện cập nhật danh sách viewers
+socket.on("updateViewersList", data => {
+  const viewersListEl = document.getElementById("viewersList");
+  viewersListEl.innerHTML = "";
+  data.viewers.forEach(username => {
+    const li = document.createElement("li");
+    // Tạo span chứa tên viewer
+    const nameSpan = document.createElement("span");
+    nameSpan.textContent = username;
+    
+    // Tạo nút ban cho viewer (chỉ host sẽ thấy nút này)
+    const banBtn = document.createElement("button");
+    banBtn.classList.add("ban-btn");
+    banBtn.textContent = "Ban";
+    banBtn.addEventListener("click", () => {
+      // Xác nhận ban
+      if (confirm(`Bạn có chắc chắn muốn ban viewer "${username}" không?`)) {
+        socket.emit("banViewer", { roomId, viewerUsername: username });
+      }
+    });
+    
+    li.appendChild(nameSpan);
+    li.appendChild(banBtn);
+    viewersListEl.appendChild(li);
+  });
+  // Lưu danh sách viewers vào biến toàn cục (nếu cần cho tìm kiếm)
+  window.currentViewersList = data.viewers;
+});
+
+// Tìm kiếm trong danh sách viewers
+document.getElementById("viewersSearch").addEventListener("input", function() {
+  const query = this.value.toLowerCase();
+  const liElements = document.querySelectorAll("#viewersList li");
+  liElements.forEach(li => {
+    if (li.textContent.toLowerCase().includes(query)) {
+      li.style.display = "";
+    } else {
+      li.style.display = "none";
+    }
+  });
+});
+
 // Mở modal banned khi click nút
 document.getElementById("bannedListBtn").addEventListener("click", () => {
   // Yêu cầu lấy danh sách banned từ server nếu có (ở đây ta sử dụng dữ liệu có trong room từ server, giả sử host có thể cập nhật thông qua socket)

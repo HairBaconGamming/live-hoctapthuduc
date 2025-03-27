@@ -40,12 +40,15 @@
         <h3>Screen Share Preview</h3>
         <video id="screenShareVideo" autoplay muted playsinline></video>
       </div>
-      <button id="bannedListBtn"><i class="fas fa-ban"></i> Danh sách Ban</button>
       <div class="panel-content">
         <button id="endStreamBtn"><i class="fas fa-power-off"></i> Kết thúc live</button>
         <button id="shareScreenBtn"><i class="fas fa-desktop"></i> Chia sẻ màn hình</button>
         <button id="liveCamBtn"><i class="fas fa-camera"></i> Live Cam</button>
         <button id="toggleMicBtn"><i class="fas fa-microphone"></i> Mic On</button>
+      </div>
+      <div class="panel-content">
+        <button id="bannedListBtn"><i class="fas fa-ban"></i> Danh sách Ban</button>
+        <button id="viewersListBtn"><i class="fas fa-users"></i> Danh sách Viewers</button>
       </div>
     </div>
     <!-- Chat Box -->
@@ -68,6 +71,17 @@
         <h3>Danh sách Viewer Bị Ban</h3>
         <ul id="bannedList"></ul>
         <button id="closeBannedModal">Đóng</button>
+      </div>
+    </div>
+  </div>
+  <!-- Modal Viewers List -->
+  <div id="viewersModal" class="viewers-modal">
+    <div class="viewers-modal-overlay">
+      <div class="viewers-modal-box">
+        <h3>Danh sách Viewers</h3>
+        <input type="text" id="viewersSearch" placeholder="Tìm kiếm viewer..." />
+        <ul id="viewersList"></ul>
+        <button id="closeViewersModal">Đóng</button>
       </div>
     </div>
   </div>
