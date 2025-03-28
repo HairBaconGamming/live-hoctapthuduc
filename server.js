@@ -30,11 +30,18 @@ function isLoggedIn(req, res, next) {
 // Middleware: kiểm tra token (dùng JWT)
 function checkHoctapAuth(req, res, next) {
   const token = req.query.token || req.headers["x-hoctap-token"];
-  if (!token) {
-    return res.status(401).send("Unauthorized: no token provided");
-  }
+  if (!token) return res.status(401).send("Unauthorized: no token provided");
+  
   try {
     const payload = jwt.verify(token, SECRET_KEY);
+    const currentIP = req.ip;
+    const currentUA = req.headers['user-agent'];
+    
+    // So sánh
+    if (payload.ip !== currentIP || payload.ua !== currentUA) {
+      return res.status(401).send("Unauthorized: token not valid for this IP/UA");
+    }
+    
     req.user = payload;
     next();
   } catch (err) {
@@ -110,13 +117,15 @@ app.get("/api/rooms", (req, res) => {
 ============================= */
 app.get("/live/getToken", isLoggedIn, (req, res) => {
   const roomId = req.query.roomId;
+  const userAgent = req.headers['user-agent'];
+  const ip = req.ip; // hoặc req.headers['x-forwarded-for']...
   if (!roomId) {
     return res.status(400).json({ error: "RoomId không hợp lệ." });
   }
   const token = jwt.sign(
-    { userId: req.user._id, username: req.user.username },
+    { userId: req.user._id, username: req.user.username, ip, ua: userAgent },
     SECRET_KEY,
-    { expiresIn: "5h" }
+    { expiresIn: "15m" }
   );
   res.json({ token });
 });
