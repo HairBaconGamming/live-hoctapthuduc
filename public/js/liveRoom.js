@@ -26,6 +26,12 @@ socket.on("userJoined", msg => {
   li.innerHTML = `<i>${msg}</i>`;
   chatMessages.appendChild(li);
 });
+function scrollChatToBottom() {
+  const chatContainer = document.getElementById("chatMessages");
+  if (chatContainer) {
+    chatContainer.scrollTop = chatContainer.scrollHeight;
+  }
+}
 socket.on("newMessage", data => {
   const li = document.createElement("li");
   if (data.message.messageType) {
@@ -72,6 +78,8 @@ socket.on("newMessage", data => {
   li.appendChild(timestampSpan);
   
   chatMessages.appendChild(li);
+  
+  scrollChatToBottom();
 });
 socket.on("commentPinned", data => {
   const pinnedDiv = document.getElementById("pinnedComment");

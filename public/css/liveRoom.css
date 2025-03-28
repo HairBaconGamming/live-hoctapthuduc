@@ -223,9 +223,10 @@ video::-webkit-media-controls-start-playback-button {
 }
 
 #chatContent {
-  flex: 1;
-  padding: 15px;
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column; /* xếp tin nhắn + input theo chiều dọc */
+  flex: 1;               /* chiếm hết chiều cao còn lại */
+  overflow: hidden;      /* ẩn overflow, sẽ để scroll cho chatMessages */
 }
 
 .chat-messages {
@@ -258,11 +259,11 @@ video::-webkit-media-controls-start-playback-button {
 
 /* Danh sách tin nhắn */
 #chatMessages {
-  list-style: none;
+  flex: 1;               /* chiếm không gian còn lại */
+  overflow-y: auto;      /* cho phép cuộn dọc */
   margin: 0;
   padding: 10px 15px;
-  overflow-y: auto;
-  max-height: 300px; /* Điều chỉnh theo nhu cầu */
+  list-style: none;
 }
 
 /* Kiểu message chung */

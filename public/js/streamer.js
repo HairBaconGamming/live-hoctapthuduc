@@ -32,6 +32,12 @@ socket.on("userJoined", msg => {
   li.innerHTML = `<i>${msg}</i>`;
   chatMessages.appendChild(li);
 });
+function scrollChatToBottom() {
+  const chatContainer = document.getElementById("chatMessages");
+  if (chatContainer) {
+    chatContainer.scrollTop = chatContainer.scrollHeight;
+  }
+}
 socket.on("newMessage", data => {
   const li = document.createElement("li");
   if (data.message.messageType) {
@@ -78,6 +84,8 @@ socket.on("newMessage", data => {
   li.appendChild(timestampSpan);
   
   chatMessages.appendChild(li);
+  
+  scrollChatToBottom();
 });
 socket.on("commentPinned", data => {
   const pinnedDiv = document.getElementById("pinnedComment");
@@ -691,79 +699,11 @@ const pipVideo = document.createElement("video");
 pipVideo.style.display = "none";
 document.body.appendChild(pipVideo);
 
-// Tạo stream từ canvas
-const pipStream = pipCanvas.captureStream(15); // 15 fps
+// Tạo stream từ canvas (15 fps)
+const pipStream = pipCanvas.captureStream(15);
 pipVideo.srcObject = pipStream;
-function updatePiPChat() {
-  // Xoá toàn bộ canvas
-  pipCtx.clearRect(0, 0, pipCanvas.width, pipCanvas.height);
-  
-  // Vẽ nền gradient
-  const grad = pipCtx.createLinearGradient(0, 0, pipCanvas.width, 0);
-  grad.addColorStop(0, "#141e30");
-  grad.addColorStop(1, "#243b55");
-  pipCtx.fillStyle = grad;
-  pipCtx.fillRect(0, 0, pipCanvas.width, pipCanvas.height);
 
-  // Lấy danh sách li
-  const liList = document.querySelectorAll("#chatMessages li");
-  let y = 20; // toạ độ y bắt đầu vẽ
-  const lineHeight = 50; // khoảng cách dòng
-  
-  liList.forEach(li => {
-    // Xác định class
-    let bgColor = "rgba(255,255,255,0.1)";
-    let iconColor = "#ccc";
-    let iconChar = "\uf2bd"; // user icon (FontAwesome)
-    
-    if (li.classList.contains("message-host")) {
-      bgColor = "rgba(0,255,234,0.15)";
-      iconColor = "#00ffea";
-      iconChar = "🏠︎"; // fa-home
-    } else if (li.classList.contains("message-pro")) {
-      bgColor = "rgba(255,215,0,0.15)";
-      iconColor = "#ffd700";
-      iconChar = "\uf005"; // fa-star
-    } else if (li.classList.contains("message-system")) {
-      bgColor = "rgba(190,190,190,0.15)";
-      iconColor = "#ff0000";
-      iconChar = "🛈"; // fa-exclamation-triangle
-    } 
-    // guest => default
-    
-    // Lấy text
-    const text = li.textContent.trim(); 
-    // text format: "username: message hh:mm:ss" => tuỳ logic parse
-    
-    // Vẽ 1 ô (background)
-    pipCtx.fillStyle = bgColor;
-    // bo góc => ta vẽ rect bo góc đơn giản
-    drawRoundedRect(pipCtx, 10, y - 10, pipCanvas.width - 20, 40, 8);
-    pipCtx.fill();
-
-    // Vẽ icon (FontAwesome)
-    // Dùng font "Font Awesome 5 Free" + fillText => ta set font
-    pipCtx.save();
-    pipCtx.font = "20px 'Font Awesome 6 Free'";
-    pipCtx.fillStyle = iconColor;
-    pipCtx.textBaseline = "top";
-    // icon
-    pipCtx.fillText(iconChar, 20, y - 5); 
-    pipCtx.restore();
-
-    // Vẽ text
-    pipCtx.save();
-    pipCtx.font = "14px 'Poppins', sans-serif";
-    pipCtx.fillStyle = "#fff";
-    pipCtx.textBaseline = "top";
-    pipCtx.fillText(text, 50, y);
-    pipCtx.restore();
-
-    y += lineHeight;
-  });
-}
-
-// Hàm vẽ rect bo góc
+// Hàm vẽ rect bo góc (sử dụng cho bubble)
 function drawRoundedRect(ctx, x, y, w, h, r) {
   ctx.beginPath();
   ctx.moveTo(x + r, y);
@@ -778,16 +718,92 @@ function drawRoundedRect(ctx, x, y, w, h, r) {
   ctx.closePath();
 }
 
-// Cập nhật canvas mỗi 0.2s
+// Hàm cập nhật canvas PiP chat
+function updatePiPChat() {
+  // Xoá toàn bộ canvas
+  pipCtx.clearRect(0, 0, pipCanvas.width, pipCanvas.height);
+  
+  // Vẽ nền gradient ngang
+  const grad = pipCtx.createLinearGradient(0, 0, pipCanvas.width, 0);
+  grad.addColorStop(0, "#141e30");
+  grad.addColorStop(1, "#243b55");
+  pipCtx.fillStyle = grad;
+  pipCtx.fillRect(0, 0, pipCanvas.width, pipCanvas.height);
+
+  // Lấy danh sách tin nhắn từ DOM
+  const liList = document.querySelectorAll("#chatMessages li");
+  const lineHeight = 50; // khoảng cách mỗi tin nhắn
+  const totalHeight = liList.length * lineHeight;
+  // Nếu tổng chiều cao > canvas, tính offset sao cho dòng cuối nằm ở dưới
+  const startY = totalHeight > pipCanvas.height ? pipCanvas.height - totalHeight + 20 : 20;
+  let y = startY;
+
+  liList.forEach(li => {
+    // Xác định kiểu message dựa trên class
+    let bgColor = "rgba(255,255,255,0.1)";
+    let iconColor = "#ccc";
+    let iconChar = "\uf2bd"; // default user icon (FontAwesome code)
+    
+    if (li.classList.contains("message-host")) {
+      bgColor = "rgba(0,255,234,0.15)";
+      iconColor = "#00ffea";
+      // Nếu không có icon FontAwesome, có thể dùng emoji:
+      iconChar = "🏠︎"; // biểu tượng chủ phòng
+    } else if (li.classList.contains("message-pro")) {
+      bgColor = "rgba(255,215,0,0.15)";
+      iconColor = "#ffd700";
+      iconChar = "\uf005"; // fa-star
+    } else if (li.classList.contains("message-system")) {
+      bgColor = "rgba(190,190,190,0.15)";
+      iconColor = "#ff0000";
+      iconChar = "🛈"; // biểu tượng hệ thống
+    }
+    // Lấy text từ li (giả sử hiển thị đầy đủ tin nhắn, bao gồm username và nội dung)
+    const text = li.textContent.trim();
+
+    // Vẽ background bubble với bo góc
+    pipCtx.fillStyle = bgColor;
+    drawRoundedRect(pipCtx, 10, y - 10, pipCanvas.width - 20, 40, 8);
+    pipCtx.fill();
+
+    // Vẽ icon
+    pipCtx.save();
+    pipCtx.font = "20px 'Font Awesome 6 Free'";
+    pipCtx.fillStyle = iconColor;
+    pipCtx.textBaseline = "top";
+    pipCtx.fillText(iconChar, 20, y - 5);
+    pipCtx.restore();
+
+    // Vẽ nội dung tin nhắn (username + message)
+    pipCtx.save();
+    pipCtx.font = "14px 'Poppins', sans-serif";
+    pipCtx.fillStyle = "#fff";
+    pipCtx.textBaseline = "top";
+    pipCtx.fillText(text, 50, y);
+    pipCtx.restore();
+
+    // (Optionally) Thêm hiệu ứng animation cho tin nhắn
+    // Ví dụ, có thể thêm một shadow mờ nhẹ:
+    pipCtx.shadowColor = "rgba(0,0,0,0.5)";
+    pipCtx.shadowBlur = 3;
+
+    y += lineHeight;
+  });
+}
+
+// Cập nhật canvas PiP chat mỗi 200ms
 setInterval(updatePiPChat, 200);
 
-// Nút PiP
+// Đảm bảo canvas luôn "cuộn xuống" cuối: do tính toán startY dựa trên tổng chiều cao
+
+// Nút kích hoạt PiP chat
 document.getElementById("pipChatBtn").addEventListener("click", async () => {
   try {
     await pipVideo.play();
     await pipVideo.requestPictureInPicture();
+    console.log("PiP chat activated!");
   } catch (err) {
     console.error("Error enabling PiP chat:", err);
-    alert("Không thể bật PiP chat.");
+    alert("Không thể bật PiP chat, vui lòng thử lại.");
   }
 });
