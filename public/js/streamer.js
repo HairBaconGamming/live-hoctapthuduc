@@ -160,15 +160,16 @@ socket.on("updateViewers", count => {
 socket.on("viewerLeft", msg => {
   // Ví dụ: hiển thị thông báo trong chat hoặc overlay
   const li = document.createElement("li");
+  li.classList.add(`message-system`);
   li.style.fontStyle = "italic";
   li.style.color = "#ccc";
-  
   li.textContent = msg;
   chatMessages.appendChild(li);
 });
 socket.on("viewerBanned", msg => {
   // Hiển thị thông báo trên chat cho host
   const li = document.createElement("li");
+  li.classList.add(`message-system`);
   li.style.fontStyle = "italic";
   li.style.color = "#ff4d4d";
   li.textContent = msg;

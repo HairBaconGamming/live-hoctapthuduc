@@ -17,9 +17,16 @@
   <header>
     <h1 class="live-title">
       <i class="fas fa-video"></i>
-      Live Stream: <span class="stream-title"><%= room.title %></span>
+      Live: <span class="stream-title"><%= room.title %></span>
     </h1>
-    <p>Người xem: <span id="viewerCount">0</span></p>
+    <p class="viewer-info">
+      <i class="fas fa-users viewer-icon"></i> Người xem: <span id="viewerCount">0</span>
+    </p>
+    <!-- Nút thoát phòng với icon -->
+    <button id="exitRoomBtn" class="exit-room-btn">
+      <i class="fas fa-right-from-bracket"></i>
+      <span>Thoát</span>
+    </button>
   </header>
   <div class="main-content" id="mainContent">
     <!-- Video Area -->

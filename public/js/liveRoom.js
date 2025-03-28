@@ -9,9 +9,20 @@ const sendBtn = document.getElementById("sendBtn");
 // Gửi thông tin tham gia phòng
 socket.emit("joinRoom", { roomId, username });
 
+window.addEventListener('beforeunload', () => {
+  socket.disconnect();
+});
+document.getElementById("exitRoomBtn").addEventListener("click", () => {
+  // Ngắt kết nối socket
+  socket.disconnect();
+  // Chuyển hướng về trang danh sách live stream
+  window.location.href = "https://hoctap-9a3.glitch.me/live";
+});
+
 // Các sự kiện chat
 socket.on("userJoined", msg => {
   const li = document.createElement("li");
+  li.classList.add(`message-system`);
   li.innerHTML = `<i>${msg}</i>`;
   chatMessages.appendChild(li);
 });
@@ -162,6 +173,7 @@ if(sendBtn && messageInput){
 socket.on("viewerLeft", msg => {
   // Ví dụ: hiển thị thông báo trong chat hoặc overlay
   const li = document.createElement("li");
+  li.classList.add(`message-system`);
   li.style.fontStyle = "italic";
   li.style.color = "#ccc";
   li.textContent = msg;

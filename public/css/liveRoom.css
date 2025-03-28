@@ -292,7 +292,7 @@ video::-webkit-media-controls-start-playback-button {
 
 /* Dành cho hệ thống */
 #chatMessages li.message-system {
-  background: rgba(255, 0, 0, 0.15);
+  background: rgba(190,190,190, 0.15);
   border-left: 4px solid #ff0000;
   font-style: italic;
 }
@@ -560,4 +560,38 @@ video::-webkit-media-controls-start-playback-button {
 /* Tùy chọn: Hiệu ứng glow nhẹ quanh pinned comment */
 .pinned-box:hover {
   box-shadow: 0 4px 20px rgba(0, 255, 234, 0.4);
+}
+
+
+/* Nút thoát phòng được thiết kế gọn, hiện đại */
+.exit-room-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: linear-gradient(135deg, #ff4d4d, #ff1a1a);
+  border: none;
+  border-radius: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  color: #fff;
+  font-size: 0.9em;
+}
+
+.exit-room-btn i {
+  font-size: 1.2em;
+}
+
+.exit-room-btn:hover {
+  transform: scale(1.05);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+}
+
+.exit-room-btn:active {
+  transform: scale(0.95);
+}
+
+/* Đảm bảo nút không quá to, hợp với header */
+header .exit-room-btn {
+  margin-left: 20px;
 }
