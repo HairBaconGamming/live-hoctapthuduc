@@ -17,6 +17,10 @@ const allViewers = new Set(); // Lưu tất cả viewer đã join (để re-call
 // Gửi thông tin tham gia phòng qua Socket.IO
 socket.emit("joinRoom", { roomId, username });
 
+window.addEventListener('beforeunload', () => {
+  socket.disconnect();
+});
+
 // Sự kiện socket
 socket.on("redirectToLive", msg => {
   alert(msg);
@@ -721,9 +725,9 @@ function updatePiPChat() {
       iconColor = "#ffd700";
       iconChar = "\uf005"; // fa-star
     } else if (li.classList.contains("message-system")) {
-      bgColor = "rgba(255,0,0,0.15)";
+      bgColor = "rgba(190,190,190,0.15)";
       iconColor = "#ff0000";
-      iconChar = "\uf071"; // fa-exclamation-triangle
+      iconChar = "🛈"; // fa-exclamation-triangle
     } 
     // guest => default
     
@@ -740,7 +744,7 @@ function updatePiPChat() {
     // Vẽ icon (FontAwesome)
     // Dùng font "Font Awesome 5 Free" + fillText => ta set font
     pipCtx.save();
-    pipCtx.font = "20px 'Font Awesome 5 Free'";
+    pipCtx.font = "20px 'Font Awesome 6 Free'";
     pipCtx.fillStyle = iconColor;
     pipCtx.textBaseline = "top";
     // icon

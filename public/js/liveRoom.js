@@ -139,7 +139,14 @@ function unpinComment() {
   document.getElementById("pinnedComment").innerHTML = "";
 }
 socket.on("updateViewers", count => {
-  viewerCount.textContent = count;
+  const viewerCountEl = document.getElementById("viewerCount");
+  viewerCountEl.textContent = count;
+  // Thêm class animation
+  viewerCountEl.classList.add("viewer-count-animate");
+  // Sau 500ms, xóa class để animation có thể chạy lại khi update lần sau
+  setTimeout(() => {
+    viewerCountEl.classList.remove("viewer-count-animate");
+  }, 500);
 });
 socket.on("hostJoined", () => {
   // Ẩn overlay "chờ"

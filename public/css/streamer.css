@@ -218,7 +218,7 @@ body {
 /* Dành cho hệ thống */
 #chatMessages li.message-system {
   background: rgba(190,190,190, 0.15);
-  border-left: 4px solid #ff0000;
+  border-left: 4px solid #000000;
   font-style: italic;
 }
 #chatMessages li.message-system .msg-icon::before {

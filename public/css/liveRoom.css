@@ -53,6 +53,39 @@ header p {
   font-size: 1em;
 }
 
+.viewer-info {
+  font-size: 1em;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #fff;
+}
+
+.viewer-icon {
+  font-size: 1.2em;
+  color: #00ffea;
+}
+
+/* Animation khi cập nhật viewer count */
+@keyframes viewerPulse {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.viewer-count-animate {
+  animation: viewerPulse 0.5s ease-in-out;
+}
+
 /* Layout chính */
 .main-content {
   display: flex;
@@ -293,7 +326,7 @@ video::-webkit-media-controls-start-playback-button {
 /* Dành cho hệ thống */
 #chatMessages li.message-system {
   background: rgba(190,190,190, 0.15);
-  border-left: 4px solid #ff0000;
+  border-left: 4px solid #000000;
   font-style: italic;
 }
 #chatMessages li.message-system .msg-icon::before {
