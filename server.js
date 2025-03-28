@@ -8,9 +8,6 @@ const bodyParser = require("body-parser");
 const socketIO = require("socket.io");
 const jwt = require("jsonwebtoken");
 const { ExpressPeerServer } = require("peer"); // Import ExpressPeerServer
-const helmet = require("helmet");
-const cors = require("cors");
-
 const app = express();
 const server = http.createServer(app);
 const io = socketIO(server);
@@ -28,14 +25,6 @@ const SECRET_KEY = process.env.JWT_SECRET || "your_secret_key";
 function isLoggedIn(req, res, next) {
   if (req.user) return next();
   return res.status(401).send("Unauthorized: Please log in.");
-}
-
-function normalizeIP(ip) {
-  // Nếu IP có dạng "::ffff:xxx.xxx.xxx.xxx", trả về phần IPv4
-  if (ip.startsWith("::ffff:")) {
-    return ip.replace("::ffff:", "");
-  }
-  return ip;
 }
 
 function checkHoctapAuth(req, res, next) {
@@ -57,7 +46,6 @@ app.use("/peerjs", peerServer);
 app.use(cors());
 app.use(bodyParser.json());
 app.use(express.static("public"));
-app.set('trust proxy', 1);
 app.set("view engine", "ejs");
 app.set("views", __dirname + "/views");
 
