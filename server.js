@@ -8,6 +8,8 @@ const bodyParser = require("body-parser");
 const socketIO = require("socket.io");
 const jwt = require("jsonwebtoken");
 const { ExpressPeerServer } = require("peer"); // Import ExpressPeerServer
+const helmet = require("helmet");
+const cors = require("cors");
 
 const app = express();
 const server = http.createServer(app);
@@ -28,7 +30,14 @@ function isLoggedIn(req, res, next) {
   return res.status(401).send("Unauthorized: Please log in.");
 }
 
-// Middleware: kiểm tra token (dùng JWT)
+function normalizeIP(ip) {
+  // Nếu IP có dạng "::ffff:xxx.xxx.xxx.xxx", trả về phần IPv4
+  if (ip.startsWith("::ffff:")) {
+    return ip.replace("::ffff:", "");
+  }
+  return ip;
+}
+
 function checkHoctapAuth(req, res, next) {
   const token = req.query.token || req.headers["x-hoctap-token"];
   if (!token) {
@@ -36,15 +45,6 @@ function checkHoctapAuth(req, res, next) {
   }
   try {
     const payload = jwt.verify(token, SECRET_KEY);
-    const currentIP = req.ip || req.headers["x-forwarded-for"] || "0.0.0.0";
-    const currentUA = req.headers["user-agent"] || "";
-    console.log("Payload IP:", payload.ip, "Current IP:", currentIP);
-    console.log("Payload UA:", payload.ua, "Current UA:", currentUA);
-    
-    if (payload.ip !== currentIP || payload.ua !== currentUA) {
-      return res.status(401).send("Unauthorized: token not valid for this IP/UA");
-    }
-    
     req.user = payload;
     next();
   } catch (err) {
@@ -52,13 +52,12 @@ function checkHoctapAuth(req, res, next) {
   }
 }
 
-app.set('trust proxy', true);
-
 // Cấu hình middleware
 app.use("/peerjs", peerServer);
 app.use(cors());
 app.use(bodyParser.json());
 app.use(express.static("public"));
+app.set('trust proxy', 1);
 app.set("view engine", "ejs");
 app.set("views", __dirname + "/views");
 
@@ -126,17 +125,10 @@ app.get("/live/getToken", isLoggedIn, (req, res) => {
     return res.status(400).json({ error: "RoomId không hợp lệ." });
   }
 
-  // Lấy IP và User-Agent hiện tại
-  const userAgent = req.headers["user-agent"];
-  const ip = req.ip || req.headers["x-forwarded-for"] || "0.0.0.0";
-
-  // Tạo token JWT ràng buộc IP, UA và chỉ sống 15 phút
   const token = jwt.sign(
     {
       userId: req.user._id,
-      username: req.user.username,
-      ip,
-      ua: userAgent
+      username: req.user.username
     },
     SECRET_KEY,
     { expiresIn: "15m" }
