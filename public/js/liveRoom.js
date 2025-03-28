@@ -159,6 +159,14 @@ if(sendBtn && messageInput){
     }
   });
 }
+socket.on("viewerLeft", msg => {
+  // Ví dụ: hiển thị thông báo trong chat hoặc overlay
+  const li = document.createElement("li");
+  li.style.fontStyle = "italic";
+  li.style.color = "#ccc";
+  li.textContent = msg;
+  chatMessages.appendChild(li);
+});
 // --- Enhanced Chat Input for Streamer ---
 const chatInputArea = document.getElementById("chatInputArea");
 const sendChatBtn = document.getElementById("sendChatBtn");

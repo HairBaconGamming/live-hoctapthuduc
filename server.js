@@ -229,7 +229,6 @@ socket.on("joinRoom", ({ roomId, username }) => {
     if (room && socket.username === room.owner) {
       if (!room.bannedViewers.includes(viewerUsername)) {
         room.bannedViewers.push(viewerUsername);
-        // Lấy danh sách các socket trong room
         io.in(roomId).allSockets().then(sockets => {
           sockets.forEach(clientId => {
             const clientSocket = io.sockets.sockets.get(clientId);
@@ -243,12 +242,11 @@ socket.on("joinRoom", ({ roomId, username }) => {
         }).catch(err => {
           console.error("Lỗi khi lấy danh sách socket:", err);
         });
-
         // Cập nhật danh sách viewers cho host
+        room.viewersList = room.viewersList.filter(u => u !== viewerUsername);
         if (room.hostSocketId) {
-          // Cập nhật viewersList: loại bỏ viewer bị ban
-          room.viewersList = room.viewersList.filter(u => u !== viewerUsername);
           io.to(room.hostSocketId).emit("updateViewersList", { viewers: room.viewersList });
+          io.to(room.hostSocketId).emit("viewerBanned", `${viewerUsername} đã bị ban khỏi phòng.`);
         }
         console.log(`Viewer ${viewerUsername} bị ban khỏi phòng ${roomId}`);
       }
@@ -317,10 +315,10 @@ socket.on("joinRoom", ({ roomId, username }) => {
           console.log(`Room ${roomId} ended because host disconnected.`);
         } else if (socket.username) {
           room.viewers = Math.max(0, room.viewers - 1);
-          // Cập nhật viewersList: loại bỏ username của viewer disconnect
+          // Cập nhật danh sách viewers (nếu sử dụng viewersList)
           room.viewersList = room.viewersList.filter(u => u !== socket.username);
           io.to(roomId).emit("updateViewers", room.viewers);
-          // Nếu có host, cập nhật danh sách viewers cho host
+          io.to(roomId).emit("viewerLeft", `${socket.username} đã thoát phòng.`);
           if (room.hostSocketId) {
             io.to(room.hostSocketId).emit("updateViewersList", { viewers: room.viewersList });
           }

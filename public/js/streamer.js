@@ -24,6 +24,7 @@ socket.on("redirectToLive", msg => {
 });
 socket.on("userJoined", msg => {
   const li = document.createElement("li");
+  li.classList.add(`message-system`);
   li.innerHTML = `<i>${msg}</i>`;
   chatMessages.appendChild(li);
 });
@@ -154,6 +155,24 @@ function unpinComment() {
 
 socket.on("updateViewers", count => {
   viewerCount.textContent = count;
+});
+
+socket.on("viewerLeft", msg => {
+  // Ví dụ: hiển thị thông báo trong chat hoặc overlay
+  const li = document.createElement("li");
+  li.style.fontStyle = "italic";
+  li.style.color = "#ccc";
+  
+  li.textContent = msg;
+  chatMessages.appendChild(li);
+});
+socket.on("viewerBanned", msg => {
+  // Hiển thị thông báo trên chat cho host
+  const li = document.createElement("li");
+  li.style.fontStyle = "italic";
+  li.style.color = "#ff4d4d";
+  li.textContent = msg;
+  chatMessages.appendChild(li);
 });
 
 // Nếu còn sử dụng input cũ (dự phòng)
