@@ -1,6 +1,5 @@
 // app/server.js
 const express = require("express");
-const axios = require("axios");
 const http = require("http");
 const { v4: uuidv4 } = require("uuid");
 const cors = require("cors");
@@ -8,6 +7,7 @@ const bodyParser = require("body-parser");
 const socketIO = require("socket.io");
 const jwt = require("jsonwebtoken");
 const { ExpressPeerServer } = require("peer"); // Import ExpressPeerServer
+
 const app = express();
 const server = http.createServer(app);
 const io = socketIO(server);
@@ -27,6 +27,7 @@ function isLoggedIn(req, res, next) {
   return res.status(401).send("Unauthorized: Please log in.");
 }
 
+// Middleware: kiểm tra token (dùng JWT)
 function checkHoctapAuth(req, res, next) {
   const token = req.query.token || req.headers["x-hoctap-token"];
   if (!token) {
@@ -45,6 +46,16 @@ function checkHoctapAuth(req, res, next) {
 app.use("/peerjs", peerServer);
 app.use(cors());
 app.use(bodyParser.json());
+app.use((req, res, next) => {
+  res.setHeader("Content-Security-Policy", 
+    "default-src 'self'; " +
+    "img-src 'self' https://cdn.glitch.global https://gc.kis.v2.scr.kaspersky-labs.com; " +
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; " +
+    "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://unpkg.com https://gc.kis.v2.scr.kaspersky-labs.com wss://gc.kis.v2.scr.kaspersky-labs.com; " +
+    "font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net;"
+  );
+  next();
+});
 app.use(express.static("public"));
 app.set("view engine", "ejs");
 app.set("views", __dirname + "/views");
@@ -112,16 +123,11 @@ app.get("/live/getToken", isLoggedIn, (req, res) => {
   if (!roomId) {
     return res.status(400).json({ error: "RoomId không hợp lệ." });
   }
-
   const token = jwt.sign(
-    {
-      userId: req.user._id,
-      username: req.user.username
-    },
+    { userId: req.user._id, username: req.user.username },
     SECRET_KEY,
-    { expiresIn: "15m" }
+    { expiresIn: "5h" }
   );
-
   res.json({ token });
 });
 
