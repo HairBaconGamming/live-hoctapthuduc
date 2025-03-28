@@ -36,21 +36,23 @@ function checkHoctapAuth(req, res, next) {
   }
   try {
     const payload = jwt.verify(token, SECRET_KEY);
-
-    // So sánh IP, UA
     const currentIP = req.ip || req.headers["x-forwarded-for"] || "0.0.0.0";
     const currentUA = req.headers["user-agent"] || "";
-
+    console.log("Payload IP:", payload.ip, "Current IP:", currentIP);
+    console.log("Payload UA:", payload.ua, "Current UA:", currentUA);
+    
     if (payload.ip !== currentIP || payload.ua !== currentUA) {
       return res.status(401).send("Unauthorized: token not valid for this IP/UA");
     }
-
+    
     req.user = payload;
     next();
   } catch (err) {
     return res.status(401).send("Unauthorized: invalid token");
   }
 }
+
+app.set('trust proxy', true);
 
 // Cấu hình middleware
 app.use("/peerjs", peerServer);
