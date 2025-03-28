@@ -1,5 +1,6 @@
 // app/server.js
 const express = require("express");
+const axios = require("axios");
 const http = require("http");
 const { v4: uuidv4 } = require("uuid");
 const cors = require("cors");
@@ -30,18 +31,20 @@ function isLoggedIn(req, res, next) {
 // Middleware: kiểm tra token (dùng JWT)
 function checkHoctapAuth(req, res, next) {
   const token = req.query.token || req.headers["x-hoctap-token"];
-  if (!token) return res.status(401).send("Unauthorized: no token provided");
-  
+  if (!token) {
+    return res.status(401).send("Unauthorized: no token provided");
+  }
   try {
     const payload = jwt.verify(token, SECRET_KEY);
-    const currentIP = req.ip;
-    const currentUA = req.headers['user-agent'];
-    
-    // So sánh
+
+    // So sánh IP, UA
+    const currentIP = req.ip || req.headers["x-forwarded-for"] || "0.0.0.0";
+    const currentUA = req.headers["user-agent"] || "";
+
     if (payload.ip !== currentIP || payload.ua !== currentUA) {
       return res.status(401).send("Unauthorized: token not valid for this IP/UA");
     }
-    
+
     req.user = payload;
     next();
   } catch (err) {
@@ -117,16 +120,26 @@ app.get("/api/rooms", (req, res) => {
 ============================= */
 app.get("/live/getToken", isLoggedIn, (req, res) => {
   const roomId = req.query.roomId;
-  const userAgent = req.headers['user-agent'];
-  const ip = req.ip; // hoặc req.headers['x-forwarded-for']...
   if (!roomId) {
     return res.status(400).json({ error: "RoomId không hợp lệ." });
   }
+
+  // Lấy IP và User-Agent hiện tại
+  const userAgent = req.headers["user-agent"];
+  const ip = req.ip || req.headers["x-forwarded-for"] || "0.0.0.0";
+
+  // Tạo token JWT ràng buộc IP, UA và chỉ sống 15 phút
   const token = jwt.sign(
-    { userId: req.user._id, username: req.user.username, ip, ua: userAgent },
+    {
+      userId: req.user._id,
+      username: req.user.username,
+      ip,
+      ua: userAgent
+    },
     SECRET_KEY,
     { expiresIn: "15m" }
   );
+
   res.json({ token });
 });
 
