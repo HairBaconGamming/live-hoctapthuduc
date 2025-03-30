@@ -333,3 +333,24 @@ liveVideo.addEventListener('pause', () => {
     console.warn("Không thể play video:", err);
   });
 });
+liveVideo.addEventListener("canplay", () => {
+  liveVideo.play().catch(err => {
+    console.error("Error playing remote video:", err);
+    // Hiển thị nút "Play" để người dùng click
+    const playButton = document.createElement("button");
+    playButton.innerText = "Bấm để phát video";
+    playButton.style.position = "absolute";
+    playButton.style.top = "50%";
+    playButton.style.left = "50%";
+    playButton.style.transform = "translate(-50%, -50%)";
+    playButton.style.padding = "10px 20px";
+    playButton.style.fontSize = "16px";
+    document.body.appendChild(playButton);
+
+    playButton.addEventListener("click", () => {
+      liveVideo.play().then(() => {
+        playButton.remove();
+      });
+    });
+  });
+});
