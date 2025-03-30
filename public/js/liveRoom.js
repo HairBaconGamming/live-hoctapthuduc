@@ -336,21 +336,21 @@ liveVideo.addEventListener('pause', () => {
 liveVideo.addEventListener("canplay", () => {
   liveVideo.play().catch(err => {
     console.error("Error playing remote video:", err);
-    // Hiển thị nút "Play" để người dùng click
-    const playButton = document.createElement("button");
-    playButton.innerText = "Bấm để phát video";
-    playButton.style.position = "absolute";
-    playButton.style.top = "50%";
-    playButton.style.left = "50%";
-    playButton.style.transform = "translate(-50%, -50%)";
-    playButton.style.padding = "10px 20px";
-    playButton.style.fontSize = "16px";
-    document.body.appendChild(playButton);
+    // Tạo overlay nút play đẹp mắt nếu chưa có
+    let playOverlay = document.getElementById("playOverlay");
+    if (!playOverlay) {
+      playOverlay = document.createElement("div");
+      playOverlay.id = "playOverlay";
+      playOverlay.innerHTML = `<button id="playButton"><i class="fas fa-play"></i></button>`;
+      document.body.appendChild(playOverlay);
+    }
+  });
 
-    playButton.addEventListener("click", () => {
-      liveVideo.play().then(() => {
-        playButton.remove();
-      });
+  // Xử lý nút play overlay
+  document.body.addEventListener("click", () => {
+    liveVideo.play().then(() => {
+      const playOverlay = document.getElementById("playOverlay");
+      if (playOverlay) playOverlay.remove();
     });
   });
 });
