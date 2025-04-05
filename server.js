@@ -74,7 +74,7 @@ app.post("/api/createStream", (req, res) => {
   // Kiểm tra xem user đã có phòng live chưa
   const existingRoom = liveRooms.find(room => room.ownerid === roomOwnerId);
   if (existingRoom) {
-    return res.status(400).json({
+    return res.json({
       error: "Bạn đã có một phòng live đang hoạt động.",
       existingRoomUrl: existingRoom.liveStreamUrl,
       roomId: existingRoom.id
