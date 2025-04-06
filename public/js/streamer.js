@@ -164,8 +164,82 @@ document.addEventListener('DOMContentLoaded', () => {
     function addChatMessage(content, type = 'guest', username = 'System', timestamp = new Date(), originalMessage = null) { /* ... Full code from previous answer ... */ const li = document.createElement("li"); li.className = `chat-message-item message-${type}`; const iconSpan = document.createElement("span"); iconSpan.className = "msg-icon"; let iconClass = "fa-user"; if(type === 'host') iconClass = "fa-star"; else if(type === 'pro') iconClass = "fa-crown"; else if(type === 'system') iconClass = "fa-info-circle"; else if(type === 'left') iconClass = "fa-sign-out-alt"; else if(type === 'ban') iconClass = "fa-user-slash"; iconSpan.innerHTML = `<i class="fas ${iconClass}"></i>`; li.appendChild(iconSpan); const cont = document.createElement("div"); cont.className = "msg-content-container"; const head = document.createElement("div"); head.className = "msg-header"; const userS = document.createElement("span"); userS.className = "msg-username"; userS.textContent = username; head.appendChild(userS); const timeS = document.createElement("span"); timeS.className = "msg-timestamp"; timeS.textContent = new Date(timestamp).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' }); head.appendChild(timeS); cont.appendChild(head); const bodyS = document.createElement("span"); bodyS.className = "msg-body prose-styling"; let finalHtml = content || ''; if (type !== 'system' && typeof marked !== 'undefined') { try { finalHtml = marked.parse(content || ''); const t=document.createElement('div');t.innerHTML=finalHtml;if(typeof renderMathInElement==='function')renderMathInElement(t,{delimiters:[{left:"$$",right:"$$",display:!0},{left:"$",right:"$",display:!1},{left:"\\(",right:"\\)",display:!1},{left:"\\[",right:"\\]",display:!0}],throwOnError:!1});finalHtml=t.innerHTML;} catch(e){console.error("Marked/Katex Err:", e); finalHtml = content;} } bodyS.innerHTML = finalHtml; cont.appendChild(bodyS); li.appendChild(cont); if (streamerConfig.username === streamerConfig.roomOwner && type !== 'system' && originalMessage) { const acts = document.createElement('div'); acts.className='msg-actions'; const pinBtn = document.createElement("button"); pinBtn.className="action-btn pin-btn"; pinBtn.innerHTML = '<i class="fas fa-thumbtack"></i>'; pinBtn.title="Ghim"; pinBtn.onclick=()=>{if(!socket)return;playButtonFeedback(pinBtn);socket.emit("pinComment",{roomId:streamerConfig.roomId,message:originalMessage});}; acts.appendChild(pinBtn); if(username!==streamerConfig.username){ const banBtn=document.createElement("button"); banBtn.className="action-btn ban-user-btn"; banBtn.innerHTML='<i class="fas fa-user-slash"></i>'; banBtn.title=`Chặn ${username}`; banBtn.onclick=()=>{if(!socket)return;playButtonFeedback(banBtn);showCustomConfirm(`Chặn ${username}?`,()=>socket.emit("banViewer",{roomId:streamerConfig.roomId,viewerUsername:username}));}; acts.appendChild(banBtn); } li.appendChild(acts); } if (!prefersReducedMotion) { gsap.from(li, { duration: 0.5, autoAlpha: 0, y: 15, ease: 'power2.out' }); } else { gsap.set(li, { autoAlpha: 1 }); } elements.chatMessagesList.appendChild(li); scrollChatToBottom(); }
     function displayPinnedComment(message) { /* ... Full code from previous answer ... */ const wasVisible = elements.pinnedCommentContainer.style.height !== '0px' && elements.pinnedCommentContainer.style.opacity !== '0'; const targetHeight = message ? 'auto' : 0; const targetOpacity = message ? 1 : 0; gsap.to(elements.pinnedCommentContainer, { duration: 0.4, height: targetHeight, autoAlpha: targetOpacity, ease: 'power1.inOut', onComplete: () => { elements.pinnedCommentContainer.innerHTML = ""; if (message) { elements.pinnedCommentContainer.classList.add('has-content'); const pb=document.createElement("div"); pb.className="pinned-box"; const pi=document.createElement("span");pi.className="pin-icon";pi.innerHTML='<i class="fas fa-thumbtack"></i>'; const pc=document.createElement("div");pc.className="pinned-content"; const us=document.createElement("span");us.className="pinned-user";us.textContent=message.username; const ts=document.createElement("span");ts.className="pinned-text prose-styling"; const tss=document.createElement("span");tss.className="pinned-timestamp";tss.textContent=new Date(message.timestamp).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}); let ch=message.content||'';if(typeof marked!=='undefined'){try{ch=marked.parse(ch);const t=document.createElement('div');t.innerHTML=ch;if(typeof renderMathInElement==='function')renderMathInElement(t,{delimiters:[{left:"$$",right:"$$",display:!0},{left:"$",right:"$",display:!1},{left:"\\(",right:"\\)",display:!1},{left:"\\[",right:"\\]",display:!0}],throwOnError:!1});ch=t.innerHTML}catch(e){console.error("Pin Mark Err:",e)}}; ts.innerHTML=ch; pc.appendChild(us);pc.appendChild(ts); pb.appendChild(pi);pb.appendChild(pc);pb.appendChild(tss); if(streamerConfig.username===streamerConfig.roomOwner){const btn=document.createElement("button");btn.className="unpin-btn";btn.title="Bỏ ghim";btn.innerHTML=`<i class="fas fa-times"></i>`;btn.onclick=()=>{if(!socket)return;playButtonFeedback(btn);socket.emit("unpinComment",{roomId:streamerConfig.roomId});};pb.appendChild(btn);} elements.pinnedCommentContainer.appendChild(pb); if (!wasVisible && !prefersReducedMotion) { gsap.from(pb, { duration: 0.5, y: -10, autoAlpha: 0, ease: 'power2.out'}); } } else { elements.pinnedCommentContainer.classList.remove('has-content'); } }}); }
     function sendChatMessage(){ /* ... Full code from previous answer ... */ if (!socket || !socket.connected) { console.error("Socket not init/conn"); alert("Lỗi chat."); return; } const msg = elements.chatInputArea.value.trim(); if (!msg) return; const msgType = "host"; const msgObj = { username: streamerConfig.username, content: msg, messageType: msgType, timestamp: new Date().toISOString() }; socket.emit("chatMessage", { roomId: streamerConfig.roomId, message: msgObj }); elements.chatInputArea.value = ""; elements.chatPreview.innerHTML = ""; elements.chatInputArea.style.height = 'auto'; }
-    function openModal(modalElement) { /* ... Full code from previous answer ... */ if (!modalElement) return; const mc = modalElement.querySelector('.modal-content'); if (!prefersReducedMotion) { gsap.timeline().set(modalElement, { display: 'flex' }).to(modalElement, { duration: 0.4, autoAlpha: 1, ease: 'power2.out' }).from(mc, { duration: 0.5, y: -30, scale: 0.95, ease: 'back.out(1.4)' }, "-=0.2"); } else { gsap.set(modalElement, { display: 'flex', autoAlpha: 1 }); } document.body.style.overflow = 'hidden'; }
-    function closeModal(modalElement) { /* ... Full code from previous answer ... */ if (!modalElement) return; const mc = modalElement.querySelector('.modal-content'); if (!prefersReducedMotion) { gsap.timeline({ onComplete: () => { modalElement.style.display = 'none'; document.body.style.overflow = ''; } }).to(mc, { duration: 0.3, scale: 0.9, autoAlpha: 0, ease: 'power1.in' }).to(modalElement, { duration: 0.4, autoAlpha: 0, ease: 'power1.in' }, "-=0.2"); } else { gsap.set(modalElement, { display: 'none', autoAlpha: 0 }); document.body.style.overflow = ''; } }
+         function openModal(modalElement) {
+         if (!modalElement) return;
+         console.log(`Opening modal: ${modalElement.id}`); // Debug log
+
+         // Stop any potentially running close animation on this modal
+         gsap.killTweensOf(modalElement);
+         gsap.killTweensOf(modalElement.querySelector('.modal-content'));
+
+         if (!prefersReducedMotion) {
+             // 1. Set initial state BEFORE animation starts
+             gsap.set(modalElement, {
+                 display: 'flex', // Set display FIRST
+                 autoAlpha: 0,    // Start invisible
+             });
+             gsap.set(modalElement.querySelector('.modal-content'), {
+                 y: -30,           // Start slightly above
+                 scale: 0.95       // Start slightly smaller
+             });
+
+             // 2. Animate IN
+             gsap.timeline()
+                 .to(modalElement, {
+                     duration: 0.4,
+                     autoAlpha: 1, // Fade in overlay/backdrop
+                     ease: 'power2.out'
+                 })
+                 .to(modalElement.querySelector('.modal-content'), {
+                     duration: 0.5,
+                     y: 0,           // Move to final position
+                     scale: 1,       // Scale to final size
+                     autoAlpha: 1,   // Ensure content is visible (redundant but safe)
+                     ease: 'back.out(1.4)' // Bouncy feel
+                 }, "-=0.3"); // Overlap slightly
+         } else {
+             // Instant show for reduced motion
+             gsap.set(modalElement, { display: 'flex', autoAlpha: 1 });
+             gsap.set(modalElement.querySelector('.modal-content'), { y: 0, scale: 1 }); // Reset transforms
+         }
+         document.body.style.overflow = 'hidden'; // Prevent background scroll
+     }
+
+     function closeModal(modalElement) {
+         if (!modalElement || gsap.getProperty(modalElement, "autoAlpha") === 0) return; // Don't close if already hidden/closing
+         console.log(`Closing modal: ${modalElement.id}`); // Debug log
+
+          // Stop any potentially running open animation
+         gsap.killTweensOf(modalElement);
+         gsap.killTweensOf(modalElement.querySelector('.modal-content'));
+
+          if (!prefersReducedMotion) {
+             gsap.timeline({
+                    onComplete: () => {
+                        // Crucially, only set display:none AFTER animation finishes
+                        gsap.set(modalElement, { display: 'none' });
+                        document.body.style.overflow = ''; // Restore scroll AFTER hiding
+                    }
+                })
+                 // Animate content out first
+                 .to(modalElement.querySelector('.modal-content'), {
+                     duration: 0.3,
+                     scale: 0.9, // Shrink content
+                     autoAlpha: 0, // Fade content out
+                     ease: 'power1.in'
+                 })
+                 // Then fade out overlay/backdrop
+                 .to(modalElement, {
+                     duration: 0.4,
+                     autoAlpha: 0, // Fade out the whole modal container
+                     ease: 'power1.in'
+                 }, "-=0.2"); // Overlap slightly
+         } else {
+             // Instant hide for reduced motion
+             gsap.set(modalElement, { display: 'none', autoAlpha: 0 });
+             document.body.style.overflow = '';
+         }
+    }
     function renderListModal(listElement, items, isBannedList) { /* ... Full code from previous answer ... */ if(!listElement)return;listElement.innerHTML='';if(!items||items.length===0){listElement.innerHTML=`<li class="user-list-item empty">${isBannedList?'Không có ai bị chặn.':'Chưa có người xem.'}</li>`;return;}items.forEach(u=>{const li=document.createElement('li');li.className='user-list-item';const ns=document.createElement('span');ns.className='list-username';ns.textContent=u;li.appendChild(ns);const aw=document.createElement('div');aw.className='list-actions';if(isBannedList){const ub=document.createElement('button');ub.className='action-btn unban-btn';ub.innerHTML='<i class="fas fa-undo"></i> Bỏ chặn';ub.onclick=()=>{if(!socket)return;playButtonFeedback(ub);showCustomConfirm(`Bỏ chặn ${u}?`,()=>socket.emit("unbanViewer",{roomId:streamerConfig.roomId,viewerUsername:u}));};aw.appendChild(ub);}else if(u!==streamerConfig.username){const bb=document.createElement('button');bb.className='action-btn ban-btn';bb.innerHTML='<i class="fas fa-user-slash"></i> Chặn';bb.onclick=()=>{if(!socket)return;playButtonFeedback(bb);showCustomConfirm(`Chặn ${u}?`,()=>socket.emit("banViewer",{roomId:streamerConfig.roomId,viewerUsername:u}));};aw.appendChild(bb);}li.appendChild(aw);listElement.appendChild(li);});if(!prefersReducedMotion&&listElement.closest('.modal-v2')?.style.display==='flex'){gsap.from(listElement.children,{duration:0.4,autoAlpha:0,y:10,stagger:0.05,ease:'power1.out'});}}
     function showCustomConfirm(message, onConfirm, onCancel) { /* ... Full code from previous answer ... */ if (typeof showAdvCustomConfirm === 'function') { showAdvCustomConfirm(message, onConfirm, onCancel); } else if (typeof window.showCustomConfirm === 'function') { window.showCustomConfirm(message).then(c => { if(c && onConfirm) onConfirm(); else if (!c && onCancel) onCancel(); }); } else { if (window.confirm(message)) { if(onConfirm) onConfirm(); } else { if(onCancel) onCancel(); } } }
     function updateStreamDuration() { /* ... Full code from previous answer ... */ if(!elements.streamDuration)return;const n=new Date();const d=n-streamStartTime;if(d<0)return;const h=Math.floor(d/36e5);const m=Math.floor((d%36e5)/6e4);const s=Math.floor((d%6e4)/1e3);elements.streamDuration.textContent=`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`; }
@@ -245,83 +319,101 @@ document.addEventListener('DOMContentLoaded', () => {
     // ==================================
     function initUIEventListeners() {
         // --- Control Panel Toggle ---
-    elements.togglePanelBtn?.addEventListener("click", () => {
-        isPanelCollapsed = elements.controlPanel.classList.toggle("collapsed"); // Toggle class first
-        const icon = elements.togglePanelBtn.querySelector('i');
-        if (!elements.panelContent) return;
+        elements.togglePanelBtn?.addEventListener("click", () => {
+            isPanelCollapsed = elements.controlPanel.classList.toggle("collapsed"); // Toggle class first
+            const icon = elements.togglePanelBtn.querySelector('i');
+            if (!elements.panelContent) return;
 
-        // Animate icon rotation
-        gsap.to(icon, { rotation: isPanelCollapsed ? 180 : 0, duration: 0.4, ease: 'power2.inOut' });
+            // Animate icon rotation
+            gsap.to(icon, { rotation: isPanelCollapsed ? 180 : 0, duration: 0.4, ease: 'power2.inOut' });
 
-        if (!prefersReducedMotion) {
-            if (isPanelCollapsed) {
-                // --- Collapse Animation ---
-                 // Animate buttons out first
-                 gsap.to(elements.controlButtons, {
-                    duration: 0.25, // Faster fade out
-                    autoAlpha: 0,
-                    y: 10, // Move down slightly
-                    stagger: 0.04,
-                    ease: 'power1.in',
-                    overwrite: true // Ensure it stops any 'from' animation
-                 });
-                 // Then animate panel height/padding
-                 gsap.to(elements.panelContent, {
-                    duration: 0.4,
-                    height: 0,
-                    paddingTop: 0,
-                    paddingBottom: 0,
-                    marginTop: 0,
-                    autoAlpha: 0,
-                    ease: 'power2.inOut',
-                    delay: 0.1 // Delay slightly after buttons start fading
-                 });
-            } else {
-                // --- Expand Animation ---
-                 // Set initial state (needed for height calculation)
-                 gsap.set(elements.panelContent, { display: 'block', height: 'auto', autoAlpha: 1 });
-                 const height = elements.panelContent.scrollHeight; // Get natural height
-                  // Animate panel height/padding first
-                 gsap.fromTo(elements.panelContent,
-                     { height: 0, autoAlpha: 0, paddingTop: 0, paddingBottom: 0, marginTop: 0 },
-                     {
-                         duration: 0.5, // Slightly longer expand
-                         height: height,
-                         paddingTop: 20, // Should match CSS default padding
-                         // paddingBottom: 0, // Keep 0
-                         marginTop: 20, // Should match CSS default margin
-                         autoAlpha: 1,
-                         ease: 'power3.out',
-                         // Animate buttons IN after panel is mostly open
-                         onComplete: () => {
-                              // Ensure height is 'auto' after animation for dynamic content
-                             gsap.set(elements.panelContent, { height: 'auto' });
-                              if(elements.controlButtons.length > 0) {
-                                 gsap.fromTo(elements.controlButtons,
-                                     { y: 15, autoAlpha: 0 }, // Start from slightly below
-                                     { duration: 0.5, y: 0, autoAlpha: 1, stagger: 0.06, ease: 'power2.out', overwrite: true }
-                                 );
-                              }
+            if (!prefersReducedMotion) {
+                if (isPanelCollapsed) {
+                    // --- Collapse Animation ---
+                     // Animate buttons out first
+                     gsap.to(elements.controlButtons, {
+                        duration: 0.25, // Faster fade out
+                        autoAlpha: 0,
+                        y: 10, // Move down slightly
+                        stagger: 0.04,
+                        ease: 'power1.in',
+                        overwrite: true // Ensure it stops any 'from' animation
+                     });
+                     // Then animate panel height/padding
+                     gsap.to(elements.panelContent, {
+                        duration: 0.4,
+                        height: 0,
+                        paddingTop: 0,
+                        paddingBottom: 0,
+                        marginTop: 0,
+                        autoAlpha: 0,
+                        ease: 'power2.inOut',
+                        delay: 0.1 // Delay slightly after buttons start fading
+                     });
+                } else {
+                    // --- Expand Animation ---
+                     // Set initial state (needed for height calculation)
+                     gsap.set(elements.panelContent, { display: 'block', height: 'auto', autoAlpha: 1 });
+                     const height = elements.panelContent.scrollHeight; // Get natural height
+                      // Animate panel height/padding first
+                     gsap.fromTo(elements.panelContent,
+                         { height: 0, autoAlpha: 0, paddingTop: 0, paddingBottom: 0, marginTop: 0 },
+                         {
+                             duration: 0.5, // Slightly longer expand
+                             height: height,
+                             paddingTop: 20, // Should match CSS default padding
+                             // paddingBottom: 0, // Keep 0
+                             marginTop: 20, // Should match CSS default margin
+                             autoAlpha: 1,
+                             ease: 'power3.out',
+                             // Animate buttons IN after panel is mostly open
+                             onComplete: () => {
+                                  // Ensure height is 'auto' after animation for dynamic content
+                                 gsap.set(elements.panelContent, { height: 'auto' });
+                                  if(elements.controlButtons.length > 0) {
+                                     gsap.fromTo(elements.controlButtons,
+                                         { y: 15, autoAlpha: 0 }, // Start from slightly below
+                                         { duration: 0.5, y: 0, autoAlpha: 1, stagger: 0.06, ease: 'power2.out', overwrite: true }
+                                     );
+                                  }
+                             }
                          }
-                     }
-                 );
+                     );
+                }
+            } else { // Reduced motion toggle
+                 elements.panelContent.style.display = isPanelCollapsed ? 'none' : 'block';
+                 gsap.set(elements.controlButtons, { autoAlpha: isPanelCollapsed ? 0: 1}); // Instantly show/hide buttons
             }
-        } else { // Reduced motion toggle
-             elements.panelContent.style.display = isPanelCollapsed ? 'none' : 'block';
-             gsap.set(elements.controlButtons, { autoAlpha: isPanelCollapsed ? 0: 1}); // Instantly show/hide buttons
-        }
-    });
+        });
         // --- Stream Control Buttons ---
         elements.shareScreenBtn?.addEventListener('click', () => { playButtonFeedback(elements.shareScreenBtn); startScreenShare(); });
         elements.liveCamBtn?.addEventListener('click', () => { playButtonFeedback(elements.liveCamBtn); startLiveCam(); });
         elements.toggleMicBtn?.addEventListener('click', () => { playButtonFeedback(elements.toggleMicBtn); toggleMicrophone(); });
-        elements.endStreamBtn?.addEventListener('click', () => { if (!socket) { console.error("Socket not connected."); return; } playButtonFeedback(elements.endStreamBtn); showCustomConfirm("Xác nhận kết thúc stream?", () => { stopLocalStream(); socket.emit("endRoom", { roomId: streamerConfig.roomId }); window.location.href = "/live"; }); });
+        elements.endStreamBtn?.addEventListener('click', () => { if (!socket) { console.error("Socket not connected."); return; } playButtonFeedback(elements.endStreamBtn); showCustomConfirm("Xác nhận kết thúc stream?", () => { stopLocalStream(); socket.emit("endRoom", { roomId: streamerConfig.roomId }); window.location.href = "https://hoctap-9a3.glitch.me/live"; }); });
         // --- Modal Buttons ---
-        elements.viewersListBtn?.addEventListener('click', () => { if (!socket) return; playButtonFeedback(elements.viewersListBtn); socket.emit("getViewersList", { roomId: streamerConfig.roomId }); openModal(elements.viewersModal); });
-        elements.bannedListBtn?.addEventListener('click', () => { if (!socket) return; playButtonFeedback(elements.bannedListBtn); socket.emit("getBannedList", { roomId: streamerConfig.roomId }); openModal(elements.bannedModal); });
-        elements.closeViewersModalBtn?.addEventListener('click', () => closeModal(elements.viewersModal));
-        elements.closeBannedModalBtn?.addEventListener('click', () => closeModal(elements.bannedModal));
-        document.querySelectorAll('.modal-backdrop').forEach(b => { b.addEventListener('click', () => closeModal(b.closest('.modal-v2'))); });
+        elements.viewersListBtn?.addEventListener('click', () => {
+            if (!socket) return;
+            playButtonFeedback(elements.viewersListBtn);
+            socket.emit("getViewersList", { roomId: streamerConfig.roomId });
+            openModal(elements.viewersModal); // Use the updated openModal
+         });
+        elements.bannedListBtn?.addEventListener('click', () => {
+            if (!socket) return;
+            playButtonFeedback(elements.bannedListBtn);
+            socket.emit("getBannedList", { roomId: streamerConfig.roomId });
+            openModal(elements.bannedModal); // Use the updated openModal
+         });
+        elements.closeViewersModalBtn?.addEventListener('click', () => closeModal(elements.viewersModal)); // Use updated closeModal
+        elements.closeBannedModalBtn?.addEventListener('click', () => closeModal(elements.bannedModal)); // Use updated closeModal
+        // Close modal on backdrop click
+         document.querySelectorAll('.modal-backdrop').forEach(backdrop => {
+             backdrop.addEventListener('click', (e) => {
+                 // Ensure click is directly on backdrop, not content
+                 if (e.target === backdrop) {
+                    closeModal(backdrop.closest('.modal-v2')); // Use updated closeModal
+                 }
+             });
+         });
         // --- Chat Input ---
         elements.sendChatBtn?.addEventListener('click', sendChatMessage);
         elements.chatInputArea?.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChatMessage(); } });
