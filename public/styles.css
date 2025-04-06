@@ -1,4 +1,97 @@
 
+/* --- Font Imports --- */
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Montserrat:wght@400;500;700;900&display=swap');
+/* Optional Display font for striking large headings */
+/* @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&display=swap'); */
+
+/* --- Enhanced CSS Variables --- */
+:root {
+  /* --- Core Colors (Maintain color style) --- */
+  --primary-color: #7873f5;
+  --primary-color-rgb: 120, 115, 245;
+  --secondary-color: #ff6ec4; /* Pink */
+  --secondary-color-rgb: 255, 110, 196;
+  --accent-color: #ffdd57; /* Yellow */
+  --accent-color-rgb: 255, 221, 87;
+  --danger-color: #F44336;
+  --danger-color-hover: #e53935;
+  --success-color: #4CAF50;
+  --success-color-hover: #388E3C;
+  --info-color: #2196F3;
+  --warning-color: #ff9800;
+  --gold-color-start: #f6d365;
+  --gold-color-end: #fda085;
+
+  /* --- Text Colors (Adjust contrast if needed) --- */
+  /* Ensure these colors have sufficient contrast on their respective backgrounds */
+  --text-light: #f0f0f0;       /* Text on dark background */
+  --text-medium: #a0a0c0;     /* Secondary text on dark background */
+  --text-dark: #181828;       /* Main text on light background (slightly darker) */
+  --text-muted: #555;       /* Secondary text on light background (slightly darker) */
+  --text-placeholder: #aaa; /* Placeholder (slightly lighter) */
+
+  /* --- Background Colors & Layers --- */
+  --bg-dark: #12121f; /* Deeper dark background */
+  --bg-dark-rgb: 18, 18, 31;
+  --bg-light: #f8f9fc; /* More subtle light background */
+  --bg-white: #ffffff;
+  --bg-card-dark: rgba(30, 30, 50, 0.7); /* Dark card, increased transparency and blur */
+  --bg-card-light: #fff;
+  --bg-input: #fff;
+  --bg-hover-light: #e9edf2; /* Gentle light hover */
+  --bg-hover-dark: rgba(255, 255, 255, 0.08); /* Dark hover */
+  --bg-selected: rgba(var(--primary-color-rgb), 0.15); /* Subtle item selection */
+  --bg-success-light: #e8f5e9;
+  --bg-danger-light: #ffebee;
+
+  /* --- Complex Borders & Shadows --- */
+  --border-color-dark: rgba(255, 255, 255, 0.15);
+  --border-color-light: #e0e4e8; /* Light border */
+  --border-color-medium: #ced4da;
+  --border-color-focus: var(--secondary-color);
+  --shadow-light: 0 3px 8px rgba(0, 0, 0, 0.06);
+  --shadow-medium: 0 6px 18px rgba(0, 0, 0, 0.1);
+  --shadow-dark: 0 10px 30px rgba(0, 0, 0, 0.15);
+  --shadow-inset: inset 0 2px 5px rgba(0, 0, 0, 0.1);
+  --shadow-glow-primary: 0 0 15px 3px rgba(var(--primary-color-rgb), 0.3),
+                         0 0 25px 8px rgba(var(--primary-color-rgb), 0.1);
+  --shadow-glow-secondary: 0 0 15px 3px rgba(var(--secondary-color-rgb), 0.3),
+                           0 0 25px 8px rgba(var(--secondary-color-rgb), 0.1);
+
+  /* --- Advanced Glow Effects --- */
+  --glow-color-primary: rgba(var(--primary-color-rgb), 0.5);
+  --glow-color-secondary: rgba(var(--secondary-color-rgb), 0.4);
+  --glow-color-accent: rgba(var(--accent-color-rgb), 0.6);
+
+  /* --- Fonts (Maintained) --- */
+  --font-main: 'Poppins', sans-serif;
+  --font-heading: 'Montserrat', sans-serif;
+  /* --font-display: 'Playfair Display', serif; */ /* If using Display font */
+
+  /* --- Sizes & Enhanced Transitions --- */
+  --container-width: 1240px; /* Slightly increased */
+  --border-radius-small: 5px;
+  --border-radius-medium: 10px;
+  --border-radius-large: 20px;
+  --border-radius-pill: 50px; /* More rounded */
+  --transition-fast: 0.25s ease-out;
+  --transition-smooth: 0.5s cubic-bezier(0.25, 0.8, 0.25, 1); /* Smoother */
+  --transition-elastic: 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55); /* Elastic */
+  --transition-bouncy: 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275); /* Very bouncy */
+  --transition-complex: 0.7s cubic-bezier(0.165, 0.84, 0.44, 1);
+
+  /* --- Notification Variables (Maintained or customize) --- */
+  --notification-width: 380px;
+  --notification-height: 100px; /* Note: Actual height might vary with content */
+  --icon-size: 60px; /* Used in JS? Defined here for consistency */
+  --anim-duration-entry: 0.7s; /* Slower, smoother */
+  --anim-duration-exit: 0.5s;
+
+  /* --- Header/Footer Height (For calculations) --- */
+  --header-height: 70px; /* Example value, adjust if you have a fixed header */
+  --footer-height: 120px; /* Example value, adjust based on your footer */
+
+}
 /* --- Alert Toasts (Add entry/exit animations) --- */
 @keyframes toastInRight {
   from { transform: translateX(110%) scale(0.9); opacity: 0; } /* Added scale */

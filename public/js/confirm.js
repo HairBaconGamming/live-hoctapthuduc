@@ -4,7 +4,7 @@
 // Bạn cần tạo CSS riêng cho modal này để đồng bộ giao diện.
 
 /* --- public/js/confirm.js --- */
-function customConfirm(message) {
+function showCustomConfirm(message) {
   return new Promise((resolve) => { // Không cần reject ở đây
     const confirmModal = document.getElementById('customConfirm');
     const confirmMessage = document.getElementById('customConfirmMessage');
