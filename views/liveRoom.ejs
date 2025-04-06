@@ -1,82 +1,155 @@
-<!-- app/views/liveRoom.ejs -->
 <!DOCTYPE html>
 <html lang="vi">
 <head>
-  <meta charset="UTF-8">
-  <title><%= room.title %> - Phòng live</title>
-  <link rel="stylesheet" href="/css/liveRoom.css">
-  <link rel="icon" type="image/png" href="https://cdn.glitch.global/71030012-56ea-4d26-a426-e0099201df1c/823029_library_512x512.png?v=1741523759119">
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.15.3/dist/katex.min.css">
-  <script src="https://cdn.jsdelivr.net/npm/katex@0.15.3/dist/katex.min.js"></script>
+    <meta charset="UTF-8">
+    <title><%= room.title %> - Live Stream</title> <%# Changed title slightly %>
+    <link rel="stylesheet" href="/css/liveRoom.css"> <%# New CSS file %>
+    <link rel="icon" type="image/png" href="https://cdn.glitch.global/71030012-56ea-4d26-a426-e0099201df1c/823029_library_512x512.png?v=1741523759119">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"> <%# Use Inter font %>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <%# Marked & KaTeX NEED to be loaded BEFORE liveRoom.js if used in chat rendering %>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js" defer></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/contrib/auto-render.min.js" defer></script> <%# Auto-render for KaTeX %>
 </head>
-<body>
-  <input type="hidden" id="username" value="<%= user.username %>">
-  <header>
-    <h1 class="live-title">
-      <i class="fas fa-video"></i>
-      Live: <span class="stream-title"><%= room.title %></span>
-    </h1>
-    <p class="viewer-info">
-      <i class="fas fa-users viewer-icon"></i> Người xem: <span id="viewerCount">0</span>
-    </p>
-    <!-- Nút thoát phòng với icon -->
-    <button id="exitRoomBtn" class="exit-room-btn">
-      <i class="fas fa-right-from-bracket"></i>
-      <span>Thoát</span>
-    </button>
-  </header>
-  <div class="main-content" id="mainContent">
-    <!-- Video Area -->
-    <div class="video-area">
-      <div class="video-wrapper">
-        <video id="liveVideo" class="video-element" autoplay playsinline controls></video>
-        <div id="placeholder" class="video-placeholder">
-          Chủ phòng hiện chưa chia sẻ màn hình
-        </div>
-      </div>
+<body class="live-room-body"> <%# Unique body class %>
+    <input type="hidden" id="viewerUsername" value="<%= user.username %>"> <%# Changed ID %>
+
+    <!-- Background Effects -->
+    <div class="live-room-background">
+        <div id="live-particles-bg"></div> <%# tsparticles background %>
+        <div class="gradient-flare flare-1"></div>
+        <div class="gradient-flare flare-2"></div>
     </div>
-    <!-- Phần Chat Area -->
-    <div class="chat-area" id="chatArea">
-      <div class="chat-header">
-        <span>Phòng Chat</span>
-      </div>
-      <div id="chatContent">
-        <div id="pinnedComment" class="pinned-comment"></div>
-        <ul class="chat-messages" id="chatMessages"></ul>
-        <!-- Enhanced Chat Input -->
-        <div class="chat-input-container">
-          <textarea id="chatInputArea" placeholder="Nhập tin nhắn... (Hỗ trợ Markdown và KaTeX)"></textarea>
-          <button id="sendChatBtn">Gửi</button>
+
+    <!-- Main Header -->
+    <header class="live-room-main-header" data-animate="header-slide-down">
+        <div class="header-info">
+            <i class="fas fa-broadcast-tower stream-live-icon"></i>
+             <h1 class="live-room-title">
+                Live: <span class="stream-title-text"><%= room.title %></span>
+             </h1>
+             <span class="host-info">(Host: <%= room.owner %>)</span>
         </div>
-        <!-- Vùng preview hiển thị nội dung Markdown/KaTeX -->
-        <div id="chatPreview" class="chat-preview"></div>
-      </div>
-    </div>
-  </div>
-  <div id="waitingOverlay" class="waiting-overlay">
-    <h2>Chờ chủ phòng vào live...</h2>
-  </div>
-  <div id="roomEndedOverlay">
-    <h2>🔴 Buổi phát trực tiếp đã kết thúc</h2>
-    <button onclick="window.location.href='https://hoctap-9a3.glitch.me/live'">
-      Quay lại danh sách Live
-    </button>
-  </div>
-  <script src="/socket.io/socket.io.js"></script>
-  <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
-  <!-- Các biến từ EJS -->
-  <script>
-    const roomOwner = "<%= room.owner %>";
-    const roomId = "<%= room.id %>";
-    const username = "<%= user.username %>";
-    const user = {
-      username: "<%= user.username %>",
-      isPro: <%= user.isPro ? "true" : "false" %>
-    };
-  </script>
-  <script src="/js/liveRoom.js"></script>
+        <div class="header-stats">
+            <div class="viewer-count-widget">
+                <i class="fas fa-eye"></i>
+                <span id="viewerCountLive" class="viewer-count-live">0</span>
+            </div>
+             <button id="exitRoomBtnLive" class="exit-room-btn-v2" title="Rời khỏi phòng">
+                 <i class="fas fa-sign-out-alt"></i>
+             </button>
+        </div>
+    </header>
+
+    <!-- Main Content Layout (Video + Chat) -->
+    <div class="live-room-main-content" id="mainContentLive">
+
+        <!-- Video Area -->
+        <section class="live-video-area" data-animate="video-fade-in">
+            <div class="video-player-wrapper">
+                <video id="liveVideoFeed" class="live-video-element" autoplay playsinline></video> <%# Changed ID %>
+                 <%# Placeholder shown when no stream %>
+                 <div id="streamPlaceholder" class="stream-video-placeholder active">
+                     <div class="placeholder-content">
+                         <i class="fas fa-spinner fa-spin placeholder-icon"></i>
+                         <p>Đang chờ tín hiệu từ Host...</p>
+                         <span>(<%= room.title %>)</span>
+                     </div>
+                 </div>
+                 <%# Optional: Add stream status indicator (LIVE/OFFLINE) %>
+                 <div class="stream-live-indicator" id="liveIndicator">LIVE</div>
+            </div>
+        </section>
+
+        <!-- Chat Area -->
+        <aside class="live-chat-area" data-animate="chat-slide-in">
+            <div class="live-chat-container">
+                <header class="chat-area-header">
+                    <h3><i class="far fa-comments"></i> Chat Trực Tiếp</h3>
+                    <%# Optional: Add button to toggle chat visibility? %>
+                </header>
+                 <div id="pinnedCommentLive" class="pinned-comment-live">
+                     <%# Pinned comment injected by JS %>
+                 </div>
+                 <div class="chat-messages-container"> <%# Scrollable container %>
+                    <ul class="chat-messages-list-v2" id="chatMessagesLive"></ul> <%# Changed ID %>
+                 </div>
+                <footer class="chat-input-footer">
+                     <div id="chatPreviewLive" class="chat-preview-live"></div> <%# Preview above input %>
+                     <div class="chat-input-wrapper">
+                        <textarea id="chatInputAreaLive" placeholder="Nhập tin nhắn..." rows="1"></textarea> <%# Changed ID %>
+                        <button id="sendChatBtnLive" class="send-chat-btn-v2" aria-label="Gửi"> <%# Changed ID %>
+                            <i class="fas fa-paper-plane"></i>
+                        </button>
+                     </div>
+                 </footer>
+            </div>
+        </aside>
+
+    </div> <!-- End .live-room-main-content -->
+
+    <!-- Overlays -->
+     <div id="waitingOverlayLive" class="live-status-overlay waiting-overlay active"> <%# Start active %>
+         <div class="overlay-content">
+             <div class="overlay-spinner"><div></div><div></div><div></div></div>
+             <h2>Đang chờ Host bắt đầu...</h2>
+             <p>Buổi live "<%= room.title %>" sẽ sớm bắt đầu.</p>
+         </div>
+     </div>
+
+     <div id="roomEndedOverlayLive" class="live-status-overlay ended-overlay"> <%# Initially hidden %>
+         <div class="overlay-content">
+             <i class="fas fa-stop-circle overlay-icon"></i>
+             <h2>Buổi Live Đã Kết Thúc</h2>
+             <p>Cảm ơn bạn đã tham gia "<%= room.title %>".</p>
+             <button onclick="window.location.href='/live'" class="btn btn-primary-glow overlay-action-btn">
+                 <i class="fas fa-list-ul"></i> Xem các buổi Live khác
+             </button>
+         </div>
+     </div>
+
+     <!-- Play Button Overlay (If needed for autoplay issues) -->
+     <div id="playOverlayLive" class="live-status-overlay play-overlay">
+         <div class="overlay-content">
+              <button id="playButtonLive" class="play-action-btn" aria-label="Bắt đầu xem">
+                  <i class="fas fa-play"></i>
+              </button>
+              <p>Nhấn để bắt đầu xem</p>
+         </div>
+     </div>
+
+
+    <!-- PeerJS & Socket.IO -->
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
+
+    <!-- EJS Variables to JS -->
+    <script>
+        const liveRoomConfig = {
+            roomId: "<%= room.id %>",
+            username: "<%= user.username %>", // Current viewer username
+            roomOwner: "<%= room.owner %>",   // Host username
+            userIsPro: <%= user.isPro ? "true" : "false" %>,
+            peerConfig: { // Use same config as streamer for consistency
+                host: 'live-hoctap-9a3.glitch.me', port: 443, path: '/peerjs/myapp', secure: true,
+                 config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] } // Simple STUN
+            }
+        };
+    </script>
+       
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js"></script>
+    <script src="/socket.io/socket.io.js"></script> <%# Socket.IO client %>
+    <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script> <%# PeerJS %>
+    <script src="https://cdn.jsdelivr.net/npm/tsparticles@2.9.3/tsparticles.bundle.min.js"></script> <%# tsParticles %>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script> <%# Marked (if needed client-side) %>
+
+     <!-- Include necessary shared JS (alerts, confirm if needed) -->
+     <script src="/js/alerts.js"></script>
+     <!-- Include the specific JS for the viewer -->
+    <script src="/js/liveRoom.js"></script> <%# New JS file name %>
+
 </body>
 </html>
