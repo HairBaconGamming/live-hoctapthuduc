@@ -61,7 +61,7 @@ document.addEventListener('DOMContentLoaded', () => {
            .from('.live-video-area', { duration: 0.9, x: -50, autoAlpha: 0, ease: 'power3.out'}, "-=0.4")
            .from('.live-chat-area', { duration: 0.9, x: 50, autoAlpha: 0, ease: 'power3.out'}, "<") // Same time as video area
            .from('.live-room-main-header .header-info > *', { duration: 0.5, y: -10, autoAlpha: 0, stagger: 0.1, ease: 'power1.out'}, "-=0.7")
-           .from('.live-room-main-header .header-stats > *', { duration: 0.5, y: -10, autoAlpha: 0, stagger: 0.1, ease: 'power1.out'}, "<");
+           .from('.live-room-main-header .header-stats > *', { duration: 0.5, y: -10, autoAlpha: 1, stagger: 0.1, ease: 'power1.out'}, "<");
            // Note: Chat messages have their own entrance animation in addChatMessage
      }
 
@@ -101,6 +101,7 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log("Viewer socket connected:", socket.id);
             // Send viewerId only after PeerJS is open
             if (viewerPeer && viewerPeer.id) {
+                 socket.emit("joinRoom", { roomId: liveRoomConfig.roomId, username: liveRoomConfig.username  });
                  socket.emit("newViewer", { viewerId: viewerPeer.id, roomId: liveRoomConfig.roomId, username: liveRoomConfig.username });
             } else {
                  console.log("Socket connected, waiting for PeerJS...");
@@ -114,22 +115,9 @@ document.addEventListener('DOMContentLoaded', () => {
          socket.on("userJoined", msg => addChatMessage(msg, 'system', 'join'));
          socket.on("viewerLeft", msg => addChatMessage(msg, 'system', 'left'));
          // --- CORRECTED newMessage Handler ---
-         socket.on("newMessage", data => {
-             // Check if data and message exist
-             if (data && data.message) {
-                 // Call addChatMessage with the received data
-                 addChatMessage(
-                     data.message.content,
-                     data.message.messageType || 'guest', // Use type from message or default
-                     data.message.username,
-                     new Date(data.message.timestamp || Date.now()), // Use timestamp or now
-                     null // Pass null for originalMessage as this isn't needed for viewer pin display
-                 );
-             } else {
-                 console.warn("Received incomplete newMessage data:", data);
-             }
-         });
-        socket.on("updateViewers", count => { if(elements.viewerCount) elements.viewerCount.textContent = count; animateViewerCount(elements.viewerCount); });
+         socket.on("newMessage", data => { if (data?.message?.content) addChatMessage(data.message.content, data.message.messageType || 'guest', data.message.username || 'Anonymous', new Date(data.message.timestamp || Date.now()), data.message); else console.warn("Received invalid message data:", data); });
+        
+         socket.on("updateViewers", count => { if(elements.viewerCount) elements.viewerCount.textContent = count; animateViewerCount(elements.viewerCount); });
          socket.on("commentPinned", data => displayPinnedComment(data.message));
          socket.on("commentUnpinned", () => displayPinnedComment(null));
          socket.on("hostJoined", () => hideOverlay(elements.waitingOverlay)); // Hide waiting when host joins/rejoins

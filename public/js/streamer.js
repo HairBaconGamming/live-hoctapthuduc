@@ -88,9 +88,9 @@ document.addEventListener('DOMContentLoaded', () => {
     function initSocket() { /* ... Full code from previous answer ... */
         if (socket && socket.connected) { console.log("Socket already connected."); return; }
         socket = io();
-        socket.on("connect_error", (err) => { console.error("Socket Connection Error:", err.message); alert(`Lỗi kết nối server: ${err.message}`); });
+        socket.on("connect_error", (err) => { console.error("Socket Connection Error:", err.message); alert(`Lỗi kết nối server: ${err.message}`); window.location.href = "https://hoctap-9a3.glitch.me/live";});
         socket.on("connect", () => { console.log("Socket connected:", socket.id); socket.emit("joinRoom", { roomId: streamerConfig.roomId, username: streamerConfig.username }); if (peerInstance && peerInstance.id && !peerInstance.disconnected) { socket.emit("streamerReady", { roomId: streamerConfig.roomId, peerId: peerInstance.id }); } else { console.warn("Socket connected, but peer not ready to send streamerReady."); } });
-        socket.on("disconnect", (reason) => { console.warn("Socket disconnected:", reason); alert("Mất kết nối tới server chat."); });
+        socket.on("disconnect", (reason) => { console.warn("Socket disconnected:", reason); alert("Mất kết nối tới server chat."); window.location.href = "https://hoctap-9a3.glitch.me/live";});
         socket.on("userJoined", msg => addChatMessage(msg, 'system'));
         socket.on("viewerLeft", msg => addChatMessage(msg, 'system', 'left'));
         socket.on("newMessage", data => { if (data?.message?.content) addChatMessage(data.message.content, data.message.messageType || 'guest', data.message.username || 'Anonymous', new Date(data.message.timestamp || Date.now()), data.message); else console.warn("Received invalid message data:", data); });
@@ -101,7 +101,7 @@ document.addEventListener('DOMContentLoaded', () => {
         socket.on("viewerDisconnected", ({ viewerId }) => { if (!viewerId) return; console.log("Viewer disconnected:", viewerId); allJoinedViewers.delete(viewerId); if (currentCalls[viewerId]) { currentCalls[viewerId].close(); delete currentCalls[viewerId]; } });
         socket.on("updateViewersList", data => renderListModal(elements.viewersModalList, data?.viewers || [], false));
         socket.on("updateBannedList", data => renderListModal(elements.bannedModalList, data?.banned || [], true));
-        socket.on("forceEndStream", message => { alert(message || "Stream đã bị kết thúc bởi quản trị viên."); stopLocalStream(); if (socket) socket.disconnect(); window.location.href = "/live"; });
+        socket.on("forceEndStream", message => { alert(message || "Stream đã bị kết thúc bởi quản trị viên."); stopLocalStream(); if (socket) socket.disconnect(); window.location.href = "https://hoctap-9a3.glitch.me/live"; });
         socket.on("viewerBanned", msg => addChatMessage(msg, 'system', 'ban'));
     } // End initSocket
 
