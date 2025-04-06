@@ -1,0 +1,341 @@
+
+/* --- Alert Toasts (Add entry/exit animations) --- */
+@keyframes toastInRight {
+  from { transform: translateX(110%) scale(0.9); opacity: 0; } /* Added scale */
+  to   { transform: translateX(0) scale(1); opacity: 1; }
+}
+@keyframes toastOutRight {
+  from { transform: translateX(0) scale(1); opacity: 1; }
+  to   { transform: translateX(110%) scale(0.9); opacity: 0; } /* Added scale */
+}
+#alert-container {
+    position: fixed; top: calc(var(--header-height, 70px) + 20px); /* Use variable */ right: 20px; z-index: 9999; display: flex; flex-direction: column; gap: 15px; /* Increase gap */ pointer-events: none; /* Only toasts receive events */
+    width: max-content; /* Adjust width based on content */
+    max-width: 400px; /* Limit max width */
+}
+.alert-toast {
+    display: flex; align-items: stretch; /* Stretch icon and content */ min-width: 320px;
+    border-radius: var(--border-radius-medium);
+    box-shadow: var(--shadow-dark);
+    overflow: hidden; /* For rounding icon area */
+    opacity: 0; /* Start hidden */
+    animation: toastInRight var(--anim-duration-entry) var(--transition-bouncy) forwards;
+    pointer-events: auto; /* Allow click/hover */
+    position: relative; /* For progress bar */
+    background: var(--bg-white); /* Default white background */
+    color: var(--text-dark);
+    will-change: transform, opacity; /* Performance hint */
+}
+.alert-toast.exiting { /* Class added when toast is about to disappear */
+    animation: toastOutRight var(--anim-duration-exit) ease-in forwards;
+}
+/* Optional progress bar for toast */
+.alert-toast::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    height: 4px;
+    width: 100%;
+    background-color: rgba(0,0,0,0.1);
+    /* Animation needs to be controlled by JS by setting --toast-duration */
+    animation: toastProgress linear forwards;
+    animation-duration: var(--toast-duration, 5s); /* Default duration */
+}
+@keyframes toastProgress { from { width: 100%; } to { width: 0%; } }
+
+/* Icon Area */
+.toast-icon-area {
+    padding: 15px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 60px; /* Fixed width */
+}
+.toast-icon-area i { /* Font Awesome icon */
+    font-size: 1.8rem;
+}
+
+/* Content Area */
+.toast-content {
+    padding: 15px 20px 15px 15px;
+    flex-grow: 1;
+    /* Allow text wrapping */
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+}
+.toast-title {
+    font-weight: 700;
+    margin-bottom: 5px;
+    font-size: 1.1rem;
+}
+.toast-message {
+    font-size: 0.95rem;
+    line-height: 1.5;
+    color: var(--text-muted);
+}
+
+/* Close Button */
+.toast-close {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    padding: 0 15px;
+    cursor: pointer;
+    font-size: 1.3rem;
+    opacity: 0.7;
+    transition: opacity var(--transition-fast), color var(--transition-fast), transform var(--transition-fast);
+    align-self: flex-start; /* Align to top */
+    margin-top: 10px; /* Adjust vertical alignment */
+    flex-shrink: 0; /* Prevent shrinking */
+}
+.toast-close:hover {
+    opacity: 1;
+    color: var(--text-dark);
+    transform: scale(1.1);
+}
+
+/* --- Toast Types (Using colors and icons) --- */
+/* Success */
+.alert-toast.success { background: var(--bg-success-light); border-left: 5px solid var(--success-color); }
+.alert-toast.success .toast-icon-area { background: var(--success-color); color: white; }
+.alert-toast.success .toast-title { color: var(--success-color-hover); }
+.alert-toast.success::after { background-color: var(--success-color); }
+.alert-toast.success .toast-close { color: var(--success-color); }
+.alert-toast.success .toast-close:hover { color: var(--success-color-hover); }
+.alert-toast.success .toast-icon-area i::before { content: "\f058"; /* Example: FontAwesome check-circle */ font-family: "Font Awesome 5 Free"; font-weight: 900; }
+
+/* Error */
+.alert-toast.error { background: var(--bg-danger-light); border-left: 5px solid var(--danger-color); }
+.alert-toast.error .toast-icon-area { background: var(--danger-color); color: white; }
+.alert-toast.error .toast-title { color: var(--danger-color-hover); }
+.alert-toast.error::after { background-color: var(--danger-color); }
+.alert-toast.error .toast-close { color: var(--danger-color); }
+.alert-toast.error .toast-close:hover { color: var(--danger-color-hover); }
+.alert-toast.error .toast-icon-area i::before { content: "\f071"; /* Example: FontAwesome exclamation-triangle */ font-family: "Font Awesome 5 Free"; font-weight: 900; }
+
+/* Info */
+.alert-toast.info { background: #e3f2fd; border-left: 5px solid var(--info-color); }
+.alert-toast.info .toast-icon-area { background: var(--info-color); color: white; }
+.alert-toast.info .toast-title { color: #1565c0; }
+.alert-toast.info::after { background-color: var(--info-color); }
+.alert-toast.info .toast-close { color: var(--info-color); }
+.alert-toast.info .toast-close:hover { color: #1565c0; }
+.alert-toast.info .toast-icon-area i::before { content: "\f05a"; /* Example: FontAwesome info-circle */ font-family: "Font Awesome 5 Free"; font-weight: 900; }
+
+/* Warning */
+.alert-toast.warning { background: #fff8e1; border-left: 5px solid var(--warning-color); }
+.alert-toast.warning .toast-icon-area { background: var(--warning-color); color: white; }
+.alert-toast.warning .toast-title { color: #e65100; }
+.alert-toast.warning::after { background-color: var(--warning-color); }
+.alert-toast.warning .toast-close { color: var(--warning-color); }
+.alert-toast.warning .toast-close:hover { color: #e65100; }
+.alert-toast.warning .toast-icon-area i::before { content: "\f06a"; /* Example: FontAwesome exclamation-circle */ font-family: "Font Awesome 5 Free"; font-weight: 900; }
+
+
+/* --- Custom Confirm Modal - Elaborate & Complex --- */
+
+/* --- Container Overlay --- */
+#customConfirm {
+  position: fixed;
+  inset: 0; /* top: 0; left: 0; right: 0; bottom: 0; */
+  background-color: rgba(var(--bg-dark-rgb), 0.7); /* Dark transparent background */
+  backdrop-filter: blur(12px) saturate(150%); /* Strong glassmorphism effect */
+  -webkit-backdrop-filter: blur(12px) saturate(150%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10001; /* Slightly above loading overlay */
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.5s var(--transition-smooth), backdrop-filter 0.5s var(--transition-smooth);
+  will-change: opacity, backdrop-filter; /* Performance optimization */
+}
+
+#customConfirm.active {
+  opacity: 1;
+  pointer-events: auto;
+  /* Subtle overlay animation on entry */
+  animation: overlayFadeIn 0.6s var(--transition-smooth) forwards;
+}
+@keyframes overlayFadeIn {
+    from { backdrop-filter: blur(0px) saturate(100%); }
+    to { backdrop-filter: blur(12px) saturate(150%); }
+}
+
+/* --- Modal Box Wrapper --- */
+/* Assumes structure: <div id="customConfirm"><div class="confirm-modal-box">...</div></div> */
+.confirm-modal-box {
+  --modal-bg-start: rgba(255, 255, 255, 0.95); /* Slightly transparent white bg */
+  --modal-bg-end: rgba(245, 247, 250, 0.9);
+  --modal-border-color: rgba(var(--primary-color-rgb), 0.3);
+  --modal-glow-color-1: rgba(var(--primary-color-rgb), 0.2);
+  --modal-glow-color-2: rgba(var(--secondary-color-rgb), 0.15);
+
+  background: linear-gradient(145deg, var(--modal-bg-start), var(--modal-bg-end));
+  color: var(--text-dark);
+  padding: 45px 50px; /* Large padding */
+  border-radius: var(--border-radius-large); /* Very rounded */
+  max-width: 480px; /* Limit width */
+  width: calc(100% - 40px); /* Ensure doesn't overflow small screens */
+  text-align: center;
+  position: relative; /* For pseudo-elements and buttons */
+  overflow: hidden; /* Hide overflowing effects */
+  box-shadow: 0 15px 45px rgba(0, 0, 0, 0.2), /* Main shadow */
+              0 0 30px var(--modal-glow-color-1), /* Purple/blue glow */
+              0 0 50px var(--modal-glow-color-2); /* Subtle pink glow */
+  border: 1px solid rgba(255, 255, 255, 0.2); /* Subtle light border */
+
+  /* Entry/exit animation */
+  transform: scale(0.8) translateY(30px) rotateX(-15deg); /* Initial state */
+  opacity: 0;
+  transition: transform 0.6s var(--transition-bouncy), opacity 0.5s ease-out;
+  will-change: transform, opacity;
+  transform-origin: center center;
+}
+
+#customConfirm.active .confirm-modal-box {
+  transform: scale(1) translateY(0) rotateX(0deg);
+  opacity: 1;
+  transition-delay: 0.1s; /* Appear slightly after overlay */
+}
+
+/* --- Animated Gradient Border Effect --- */
+.confirm-modal-box::before {
+  content: "";
+  position: absolute;
+  inset: -3px; /* Border thickness */
+  border-radius: inherit; /* Follow box's border-radius */
+  background: conic-gradient(
+    from var(--angle, 0deg),
+    var(--primary-color),
+    var(--secondary-color),
+    var(--accent-color),
+    var(--secondary-color),
+    var(--primary-color)
+  );
+  filter: blur(8px) opacity(0.8); /* Blur and reduce opacity */
+  z-index: -1; /* Below content */
+  animation: rotateGradient 8s linear infinite paused; /* Initially paused */
+  opacity: 0; /* Initially hidden */
+  transition: opacity 0.6s ease-out;
+}
+
+#customConfirm.active .confirm-modal-box::before {
+  animation-play-state: running; /* Run animation when modal is active */
+  opacity: 1; /* Show border when modal is active */
+  transition-delay: 0.3s; /* Show after modal stabilizes */
+}
+/* Note: @property --angle and @keyframes rotateGradient should exist elsewhere or be repeated */
+
+/* --- Optional Noise/Texture Overlay Effect --- */
+.confirm-modal-box::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: url('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="4" height="4" viewBox="0 0 4 4"%3E%3Cpath d="M1 3h1v1H1V3zm2-2h1v1H3V1z" fill="%23000000" fill-opacity=".03"%3E%3C/path%3E%3C/svg%3E'); /* Inline SVG noise */
+  opacity: 0.5;
+  pointer-events: none;
+  z-index: 0; /* Above background but below text */
+}
+
+
+/* --- Message Content --- */
+#customConfirmMessage {
+  font-size: 1.2rem; /* Larger size */
+  line-height: 1.7;
+  margin-bottom: 35px; /* Increase bottom spacing */
+  color: var(--text-dark); /* Ensure contrast */
+  font-weight: 500; /* Slightly bolder */
+  font-family: var(--font-main);
+  /* Optional text entry animation (can be triggered by JS adding a class) */
+  /* opacity: 0; */
+  /* transform: translateY(10px); */
+  /* transition: opacity 0.4s ease-out 0.4s, transform 0.4s ease-out 0.4s; */
+}
+/* #customConfirm.active #customConfirmMessage {
+  opacity: 1;
+  transform: translateY(0);
+} */
+
+/* --- Button Container --- */
+.confirm-buttons {
+  display: flex;
+  justify-content: center; /* Or space-evenly, flex-end */
+  gap: 20px; /* Spacing between buttons */
+  margin-top: 30px;
+}
+
+/* --- Styling for OK and Cancel Buttons --- */
+#customConfirmOk,
+#customConfirmCancel {
+  /* Inherit base .btn styles */
+  display: inline-block;
+  padding: 12px 35px; /* Increase padding */
+  border-radius: var(--border-radius-pill);
+  text-decoration: none;
+  transition: all var(--transition-elastic); /* Use elastic default */
+  font-family: var(--font-main);
+  font-weight: 700; /* Bolder */
+  cursor: pointer;
+  border: none;
+  text-align: center;
+  line-height: 1.5;
+  position: relative;
+  overflow: hidden;
+  z-index: 1;
+  will-change: transform, box-shadow;
+  font-size: 1rem;
+  letter-spacing: 0.5px;
+}
+
+/* OK (Confirm) Button - Similar to btn-primary/btn-success but customizable */
+#customConfirmOk {
+  background: linear-gradient(45deg, var(--success-color), #66bb6a); /* Green */
+  color: var(--text-light);
+  box-shadow: 0 5px 15px rgba(76, 175, 80, 0.3),
+              0 2px 5px rgba(102, 187, 106, 0.2);
+}
+#customConfirmOk::before { /* Light sweep effect */
+  content: '';
+  position: absolute;
+  top: 0; left: -100%; width: 50%; height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+  transform: skewX(-25deg);
+  transition: left var(--transition-smooth);
+}
+#customConfirmOk:hover {
+  transform: translateY(-4px) scale(1.05); /* Lift higher */
+  box-shadow: 0 8px 20px rgba(76, 175, 80, 0.4),
+              0 4px 8px rgba(102, 187, 106, 0.3),
+              0 0 15px rgba(76, 175, 80, 0.2); /* Add subtle glow */
+}
+#customConfirmOk:hover::before {
+  left: 120%;
+}
+#customConfirmOk:active {
+  transform: translateY(0px) scale(1); /* Clearer push down */
+  filter: brightness(0.9);
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.15); /* Inset shadow on press */
+}
+
+/* Cancel Button - Similar to btn-secondary or light btn-danger */
+#customConfirmCancel {
+  background-color: var(--bg-white);
+  color: var(--text-muted); /* Grey color */
+  border: 2px solid var(--border-color-light);
+  box-shadow: var(--shadow-light);
+}
+#customConfirmCancel:hover {
+  background-color: var(--bg-hover-light);
+  border-color: var(--text-muted); /* Clearer border on hover */
+  color: var(--text-dark);
+  transform: scale(1.03) translateY(-2px);
+  box-shadow: var(--shadow-medium);
+}
+#customConfirmCancel:active {
+  transform: translateY(0px) scale(1);
+  background-color: #eee; /* Darken slightly on press */
+  box-shadow: inset 0 1px 3px rgba(0,0,0,0.1);
+}
