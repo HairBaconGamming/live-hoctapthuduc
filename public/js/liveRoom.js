@@ -94,6 +94,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // SOCKET.IO
     // ==================================
     function initSocket() {
+        if (socket && socket.connected) { console.log("Socket already connected."); return; }
         socket = io();
 
         socket.on("connect", () => {
@@ -208,7 +209,45 @@ document.addEventListener('DOMContentLoaded', () => {
     // ==================================
     // UI & CHAT FUNCTIONS
     // ==================================
-     function scrollChatToBottom() { /* ... Keep as before ... */ }
+    function scrollChatToBottom() {
+        // Use the correct ID for the chat message list container based on the EJS file
+        // For liveRoom.ejs (Viewer):
+        const chatMessagesContainer = document.getElementById("chatMessagesLive")?.parentNode;
+        // For streamer.ejs (Host):
+        // const chatMessagesContainer = document.getElementById("chatMessagesV2")?.parentNode; // Or whatever the scrollable wrapper ID is
+
+        if (chatMessagesContainer) {
+            // A small delay can sometimes help ensure the scroll height is updated after adding a new message,
+            // especially if there are complex rendering or animations.
+            setTimeout(() => {
+                // Check if user is scrolled up significantly - if so, don't force scroll down
+                const scrollThreshold = 50; // Pixels from bottom
+                const isScrolledUp = chatMessagesContainer.scrollHeight - chatMessagesContainer.scrollTop - chatMessagesContainer.clientHeight > scrollThreshold;
+
+                if (!isScrolledUp) {
+                    // Option 1: Instant Scroll (Most reliable)
+                    chatMessagesContainer.scrollTop = chatMessagesContainer.scrollHeight;
+
+                    // Option 2: Smooth Scroll with GSAP (Can sometimes be interrupted by new messages)
+                    // if (typeof gsap !== 'undefined' && !prefersReducedMotion) {
+                    //     gsap.to(chatMessagesContainer, {
+                    //         duration: 0.3, // Adjust duration
+                    //         scrollTop: chatMessagesContainer.scrollHeight,
+                    //         ease: 'power1.out',
+                    //         overwrite: 'auto' // Allow interruption by user scroll
+                    //     });
+                    // } else {
+                    //     chatMessagesContainer.scrollTop = chatMessagesContainer.scrollHeight; // Fallback
+                    // }
+                } else {
+                    console.log("User scrolled up, not forcing scroll to bottom.");
+                    // Optional: Show a "New message" indicator if scrolled up
+                }
+            }, 50); // 50ms delay - adjust if needed
+        } else {
+            console.warn("Chat message container not found for scrolling.");
+        }
+    }
 
     function addChatMessage(content, type = 'guest', username = 'System', timestamp = new Date(), originalMessage = null) {
         const li = document.createElement("li");
