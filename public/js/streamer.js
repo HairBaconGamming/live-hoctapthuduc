@@ -1,809 +1,837 @@
-// /public/js/streamer.js
+// /public/js/streamer-masterpiece.js
 
-const socket = io();
-
-// Các phần tử giao diện chat cũ (nếu có)
-const messageInput = document.getElementById("message"); // Nếu còn dùng input cũ
-const sendBtn = document.getElementById("sendBtn");         // Nếu có
-const chatMessages = document.getElementById("chatMessages");
-const viewerCount = document.getElementById("viewerCount");
-
-let localStream = null;
-let currentMode = null;
-let currentCall = {}; // Lưu call theo viewerId
-const pendingViewers = []; // Viewer join trước khi stream sẵn sàng
-const allViewers = new Set(); // Lưu tất cả viewer đã join (để re-call khi chia sẻ mới)
-
-// Gửi thông tin tham gia phòng qua Socket.IO
-socket.emit("joinRoom", { roomId, username });
-
-window.addEventListener('beforeunload', () => {
-  socket.disconnect();
-});
-
-// Sự kiện socket
-socket.on("redirectToLive", msg => {
-  alert(msg);
-  window.location.href = "https://hoctap-9a3.glitch.me/live";
-});
-socket.on("userJoined", msg => {
-  const li = document.createElement("li");
-  li.classList.add(`message-system`);
-  li.innerHTML = `<i>${msg}</i>`;
-  chatMessages.appendChild(li);
-});
-function scrollChatToBottom() {
-  const chatContainer = document.getElementById("chatMessages");
-  if (chatContainer) {
-    chatContainer.scrollTop = chatContainer.scrollHeight;
-  }
-}
-socket.on("newMessage", data => {
-  const li = document.createElement("li");
-  if (data.message.messageType) {
-    li.classList.add(`message-${data.message.messageType}`);
-  }
-  
-  // Tạo icon hiển thị kiểu message (như trước)
-  const iconSpan = document.createElement("span");
-  iconSpan.classList.add("msg-icon");
-  
-  let contentHtml = marked.parse(data.message.content || "");
-  contentHtml = contentHtml.replace(/\$\$(.+?)\$\$/g, (match, formula) => {
-    try {
-      return katex.renderToString(formula, { throwOnError: false });
-    } catch (e) {
-      return `<span class="katex-error">${formula}</span>`;
+document.addEventListener('DOMContentLoaded', () => {
+    // --- Lib Checks & Config ---
+    if (typeof gsap === 'undefined' || typeof io === 'undefined' || typeof Peer === 'undefined' || typeof tsParticles === 'undefined') {
+        console.error("Essential libraries (GSAP, Socket.IO, PeerJS, tsParticles) not loaded!");
+        // Optionally display an error message to the user
+        document.body.innerHTML = '<p style="color: red; padding: 20px; text-align: center;">Lỗi tải tài nguyên cần thiết. Không thể bắt đầu stream.</p>';
+        return;
     }
-  });
-  
-  const contentSpan = document.createElement("span");
-  contentSpan.innerHTML = `<strong>${data.message.username}:</strong> ${contentHtml}`;
-  
-  // Tạo nút Pin nếu người dùng hiện tại là host
-  if (user.username === roomOwner) { // biến user và roomOwner được định nghĩa từ EJS
-    const pinBtn = document.createElement("button");
-    pinBtn.classList.add("pin-btn");
-    pinBtn.innerHTML = '<i class="fas fa-thumbtack"></i>';
-    pinBtn.title = "Pin comment";
-    pinBtn.addEventListener("click", () => {
-      // Gửi sự kiện pin comment tới server
-      socket.emit("pinComment", { roomId, message: data.message });
-    });
-    li.appendChild(pinBtn);
-  }
-  
-  // Tạo timestamp hiển thị khi hover
-  const timestampSpan = document.createElement("span");
-  timestampSpan.classList.add("msg-timestamp");
-  const dateObj = new Date(data.message.timestamp);
-  timestampSpan.textContent = dateObj.toLocaleTimeString();
-  
-  li.appendChild(iconSpan);
-  li.appendChild(contentSpan);
-  li.appendChild(timestampSpan);
-  
-  chatMessages.appendChild(li);
-  
-  scrollChatToBottom();
-});
-socket.on("commentPinned", data => {
-  const pinnedDiv = document.getElementById("pinnedComment");
-  
-  // Xóa cũ
-  pinnedDiv.innerHTML = "";
-  pinnedDiv.classList.remove("fade-in");
-  
-  // Kiểm tra nếu message rỗng => unpin
-  if (!data.message || !data.message.content) {
-    return; // Không còn comment ghim
-  }
+    gsap.registerPlugin(ScrollTrigger); // If needed elsewhere, though likely not on this page
+    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  // Tạo div pinned-box
-  const pinnedBox = document.createElement("div");
-  pinnedBox.classList.add("pinned-box");
+    // --- Element Refs ---
+    const elements = {
+        header: document.querySelector('.streamer-main-header'),
+        sidebar: document.querySelector('.streamer-sidebar'),
+        chatArea: document.querySelector('.streamer-chat-area'),
+        viewerCount: document.getElementById('viewerCountV2'),
+        streamDuration: document.getElementById('streamDuration'),
+        controlPanel: document.getElementById('controlPanelV2'),
+        togglePanelBtn: document.getElementById('togglePanelBtnV2'),
+        panelContent: document.querySelector('.panel-content-collapsible'),
+        previewContainer: document.getElementById('streamPreviewContainer'),
+        previewVideo: document.getElementById('streamPreviewVideo'),
+        noStreamOverlay: document.querySelector('.no-stream-overlay'),
+        streamStatusIndicator: document.getElementById('streamStatusIndicator'),
+        shareScreenBtn: document.getElementById('shareScreenBtnV2'),
+        liveCamBtn: document.getElementById('liveCamBtnV2'),
+        toggleMicBtn: document.getElementById('toggleMicBtnV2'),
+        endStreamBtn: document.getElementById('endStreamBtnV2'),
+        viewersListBtn: document.getElementById('viewersListBtnV2'),
+        bannedListBtn: document.getElementById('bannedListBtnV2'),
+        pipChatBtn: document.getElementById('pipChatBtnV2'),
+        pinnedCommentContainer: document.getElementById('pinnedCommentV2'),
+        chatMessagesList: document.getElementById('chatMessagesV2'),
+        chatInputArea: document.getElementById('chatInputAreaV2'),
+        sendChatBtn: document.getElementById('sendChatBtnV2'),
+        chatPreview: document.getElementById('chatPreviewV2'),
+        viewersModal: document.getElementById('viewersModalV2'),
+        viewersModalList: document.getElementById('viewersListV2'),
+        viewersSearchInput: document.getElementById('viewersSearchV2'),
+        closeViewersModalBtn: document.querySelector('#viewersModalV2 .modal-close-btn'),
+        bannedModal: document.getElementById('bannedModalV2'),
+        bannedModalList: document.getElementById('bannedListV2'),
+        closeBannedModalBtn: document.querySelector('#bannedModalV2 .modal-close-btn'),
+        // Add PiP elements if re-implementing PiP canvas
+    };
 
-  // Icon ghim
-  const pinIcon = document.createElement("span");
-  pinIcon.classList.add("pin-icon");
-  pinIcon.innerHTML = '<i class="fas fa-thumbt"></i>';
+    // --- State Variables ---
+    let localStream = null;
+    let currentMode = null; // 'screenShare', 'liveCam', null
+    let peerInstance = null;
+    let currentCalls = {}; // Store PeerJS calls { viewerId: call }
+    let pendingViewers = [];
+    let allJoinedViewers = new Set();
+    let isMicEnabled = true; // Assume mic is initially intended to be on
+    let isPanelCollapsed = false;
+    let streamStartTime = streamerConfig.roomCreatedAt; // Use creation time as start
+    let durationInterval = null;
 
-  // Container nội dung
-  const pinnedContent = document.createElement("div");
-  pinnedContent.classList.add("pinned-content");
+    // --- Initialize ---
+    initAnimations();
+    initPeer();
+    initSocket();
+    initUIEventListeners();
+    initBackgroundParticles(); // Initialize background particles
+    updateStreamDuration(); // Initial call
+    durationInterval = setInterval(updateStreamDuration, 1000);
+    checkMediaPermissions(); // Check mic/cam permissions early
 
-  // Username
-  const userSpan = document.createElement("span");
-  userSpan.classList.add("pinned-user");
-  userSpan.textContent = data.message.username;
 
-  // Nội dung text (đã parse Markdown + KaTeX nếu muốn)
-  let contentHtml = marked.parse(data.message.content || "");
-  contentHtml = contentHtml.replace(/\$\$(.+?)\$\$/g, (match, formula) => {
-    try {
-      return katex.renderToString(formula, { throwOnError: false });
-    } catch (e) {
-      return `<span class="katex-error">${formula}</span>`;
+    // ==================================
+    // INITIALIZATION & ANIMATIONS
+    // ==================================
+    function initAnimations() {
+        if (prefersReducedMotion) {
+            gsap.set('[data-animate]', { autoAlpha: 1 }); // Show all instantly
+            return;
+        }
+        const tl = gsap.timeline({ delay: 0.2 });
+        tl.from(elements.header, { duration: 0.8, y: -100, autoAlpha: 0, ease: 'power3.out' })
+          .from(elements.sidebar, { duration: 0.9, x: -100, autoAlpha: 0, ease: 'power3.out' }, "-=0.5")
+          .from(elements.chatArea, { duration: 0.9, x: 100, autoAlpha: 0, ease: 'power3.out' }, "<") // Start same time as sidebar
+          .from('.control-btn, .panel-header h3', { duration: 0.5, y: 15, autoAlpha: 0, stagger: 0.05, ease: 'power2.out'}, "-=0.4")
+          .from('.chat-container-v2 > *', { duration: 0.6, y: 20, autoAlpha: 0, stagger: 0.1, ease: 'power2.out'}, "-=0.5");
     }
-  });
-  const textSpan = document.createElement("span");
-  textSpan.classList.add("pinned-text");
-  textSpan.innerHTML = contentHtml;
 
-  // Timestamp
-  const timestampSpan = document.createElement("span");
-  timestampSpan.classList.add("pinned-timestamp");
-  timestampSpan.textContent = new Date(data.message.timestamp).toLocaleTimeString();
-
-  // Tùy chọn: nút unpin nếu user là host
-  if (user.username === roomOwner) {
-    const unpinBtn = document.createElement("button");
-    unpinBtn.classList.add("unpin-btn");
-    //unpinBtn.innerHTML = '<i class="fas fa-undo-alt"></i>';
-    unpinBtn.title = "Unpin comment";
-    unpinBtn.addEventListener("click", () => {
-      socket.emit("unpinComment", { roomId });
-    });
-    pinnedBox.appendChild(unpinBtn);
-  }
-
-  // Gắn các phần tử
-  pinnedContent.appendChild(userSpan);
-  pinnedContent.appendChild(textSpan);
-
-  pinnedBox.appendChild(pinIcon);
-  pinnedBox.appendChild(pinnedContent);
-  pinnedBox.appendChild(timestampSpan);
-
-  pinnedDiv.appendChild(pinnedBox);
-  
-  // Thêm animation fade-in
-  pinnedDiv.classList.add("fade-in");
-});
-function unpinComment() {
-  socket.emit("unpinComment", { roomId });
-  document.getElementById("pinnedComment").innerHTML = "";
-}
-
-socket.on("updateViewers", count => {
-  viewerCount.textContent = count;
-});
-
-socket.on("viewerLeft", msg => {
-  // Ví dụ: hiển thị thông báo trong chat hoặc overlay
-  const li = document.createElement("li");
-  li.classList.add(`message-system`);
-  li.style.fontStyle = "italic";
-  li.style.color = "#ccc";
-  li.textContent = msg;
-  chatMessages.appendChild(li);
-});
-socket.on("viewerBanned", msg => {
-  // Hiển thị thông báo trên chat cho host
-  const li = document.createElement("li");
-  li.classList.add(`message-system`);
-  li.style.fontStyle = "italic";
-  li.style.color = "#ff4d4d";
-  li.textContent = msg;
-  chatMessages.appendChild(li);
-});
-
-// Nếu còn sử dụng input cũ (dự phòng)
-if(sendBtn && messageInput){
-  sendBtn.addEventListener("click", () => {
-    const message = messageInput.value.trim();
-    if (!message) return;
-    socket.emit("chatMessage", { roomId, username, message: message });
-    messageInput.value = "";
-  });
-  messageInput.addEventListener("keypress", function(e) {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      sendBtn.click();
+    function initBackgroundParticles() {
+        if (prefersReducedMotion) return;
+        const targetEl = document.getElementById('tsparticles-bg');
+        if (!targetEl) return;
+        tsParticles.load("tsparticles-bg", {
+            fpsLimit: 60, particles: { number: { value: 40, density: { enable: true, value_area: 800 } }, color: { value: ["#FFFFFF", "#7873F5", "#FF6EC4"] }, shape: { type: "circle" }, opacity: { value: { min: 0.1, max: 0.3 }, random: true, anim: { enable: true, speed: 0.3, sync: false } }, size: { value: { min: 1, max: 2.5 }, random: true }, links: { enable: false }, move: { enable: true, speed: 0.4, direction: "none", random: true, straight: false, outModes: { default: "out" } } }, interactivity: { enabled: false }, background: { color: "transparent" }
+        }).catch(error => console.error("tsParticles background error:", error));
     }
-  });
-}
 
-// --- Enhanced Chat Input ---
-// Sử dụng textarea và preview
-const chatInputArea = document.getElementById("chatInputArea");
-const sendChatBtn = document.getElementById("sendChatBtn");
-const chatPreview = document.getElementById("chatPreview");
-
-chatInputArea.addEventListener("input", () => {
-  const rawText = chatInputArea.value || "";
-  let html = marked.parse(rawText);
-  html = html.replace(/\$\$(.+?)\$\$/g, (match, formula) => {
-    try {
-      return katex.renderToString(formula, { throwOnError: false });
-    } catch (e) {
-      return `<span class="katex-error">${formula}</span>`;
+    function playButtonFeedback(button) {
+        if (!button || prefersReducedMotion) return;
+        gsap.timeline()
+            .to(button, { scale: 0.9, duration: 0.1, ease: 'power1.in' })
+            .to(button, { scale: 1, duration: 0.3, ease: 'elastic.out(1, 0.5)' });
+        // Add particle burst centered on button
+         if (typeof tsParticles !== 'undefined') {
+              tsParticles.load({
+                  element: button, // Target the button itself temporarily
+                  preset: "confetti", // Use a built-in preset
+                  // Override preset options if needed
+                  particles: { number:{ value: 15 }, size: {value: {min: 1, max: 4}}, move: {gravity:{enable:true, acceleration:15}}},
+                  emitters: { position:{x:50, y:50}, size:{width:10, height:10}, rate:{quantity:10, delay:0}, life:{duration:0.2, count: 1}}
+              }).then(container => setTimeout(() => container?.destroy(), 500)); // Destroy after short burst
+         }
     }
-  });
-  chatPreview.innerHTML = html;
-});
 
-sendChatBtn.addEventListener("click", () => {
-  const messageContent = chatInputArea.value.trim();
-  if (!messageContent) return;
+    // ==================================
+    // PEERJS & STREAMING LOGIC
+    // ==================================
+    function initPeer() {
+        peerInstance = new Peer(streamerConfig.roomId, streamerConfig.peerConfig);
+        peerInstance.on('open', id => {
+            console.log('Streamer PeerJS connected with ID:', id);
+            socket.emit("streamerReady", { roomId: streamerConfig.roomId, peerId: id });
+        });
+        peerInstance.on('error', err => {
+            console.error('PeerJS Error:', err);
+            showAlert(`Lỗi kết nối Peer: ${err.type}. Thử tải lại trang.`, 'error');
+            // Handle specific errors (e.g., network, unavailable-id)
+        });
+        peerInstance.on('disconnected', () => {
+             console.warn('PeerJS disconnected. Attempting reconnect...');
+             // PeerJS attempts auto-reconnect with default config
+             // showAlert("Mất kết nối Peer, đang thử kết nối lại...", "warning");
+         });
+          peerInstance.on('close', () => {
+             console.log('PeerJS connection closed.');
+             // Clean up? Maybe not needed if page will close/redirect.
+         });
+        // Handle incoming calls (shouldn't happen for streamer, but good practice)
+        peerInstance.on('call', call => {
+             console.warn('Incoming call received by streamer, automatically rejecting.');
+             call.close();
+         });
+    }
 
-  // Xác định loại message: chủ phòng => "host", nếu là PRO và không phải host thì "pro"
-  let messageType = "host";
-  if (user.isPro && username !== roomOwner) {
-    messageType = "pro";
-  }
-  const messageObj = {
-    username: username,
-    content: messageContent,
-    messageType: messageType,
-    timestamp: new Date().toISOString()
-  };
-  socket.emit("chatMessage", { roomId, message: messageObj });
-  chatInputArea.value = "";
-  chatPreview.innerHTML = "";
-});
+    function callViewer(viewerId) {
+        if (!localStream || !peerInstance || !viewerId) {
+            console.warn(`Cannot call viewer ${viewerId}. Stream or PeerJS not ready.`);
+            if (!pendingViewers.includes(viewerId)) pendingViewers.push(viewerId); // Add to pending if not already called
+            return;
+        }
+        // Close existing call if any (e.g., on stream change)
+         if (currentCalls[viewerId]) {
+             console.log(`Closing existing call for ${viewerId}`);
+             currentCalls[viewerId].close();
+             delete currentCalls[viewerId]; // Remove reference
+         }
 
-// --- Control Panel & Modal Confirm ---
-const togglePanelBtn = document.getElementById("togglePanelBtn");
-const controlPanel = document.getElementById("controlPanel");
-togglePanelBtn.addEventListener("click", () => {
-  controlPanel.classList.toggle("collapsed");
-  togglePanelBtn.innerHTML = controlPanel.classList.contains("collapsed")
-    ? '<i class="fas fa-chevron-down"></i>'
-    : '<i class="fas fa-chevron-up"></i>';
-});
+        console.log(`Calling viewer: ${viewerId}`);
+        try {
+            const call = peerInstance.call(viewerId, localStream);
+            if (!call) { throw new Error("Peer.call returned undefined"); }
+            currentCalls[viewerId] = call;
 
-function showCustomConfirm(message, onConfirm, onCancel) {
-  let confirmModal = document.getElementById("customConfirmModal");
-  if (!confirmModal) {
-    confirmModal = document.createElement("div");
-    confirmModal.id = "customConfirmModal";
-    confirmModal.className = "custom-confirm-modal";
-    confirmModal.innerHTML = `
-      <div class="confirm-overlay">
-        <div class="confirm-box">
-          <p class="confirm-message">${message}</p>
-          <div class="confirm-buttons">
-            <button class="confirm-btn btn-yes">Có</button>
-            <button class="confirm-btn btn-no">Không</button>
-          </div>
-        </div>
-      </div>
-    `;
-    document.body.appendChild(confirmModal);
-    confirmModal.querySelector(".btn-yes").addEventListener("click", () => {
-      if (onConfirm) onConfirm();
-      closeCustomConfirm();
-    });
-    confirmModal.querySelector(".btn-no").addEventListener("click", () => {
-      if (onCancel) onCancel();
-      closeCustomConfirm();
-    });
-  }
-  confirmModal.querySelector(".confirm-message").textContent = message;
-  confirmModal.classList.add("active");
-}
+            call.on('error', err => {
+                console.error(`Call error with ${viewerId}:`, err);
+                delete currentCalls[viewerId];
+                // Maybe try calling again after a delay?
+            });
+            call.on('close', () => {
+                console.log(`Call closed with ${viewerId}`);
+                delete currentCalls[viewerId];
+            });
+             call.on('stream', remoteStream => {
+                 // Streamer generally doesn't *receive* streams, but handle if needed
+                 console.log(`Received stream from viewer ${viewerId}? (Unexpected)`);
+             });
 
-function closeCustomConfirm() {
-  const confirmModal = document.getElementById("customConfirmModal");
-  if (confirmModal) {
-    confirmModal.classList.remove("active");
-  }
-}
+        } catch (error) {
+            console.error(`Failed to initiate call to ${viewerId}:`, error);
+            delete currentCalls[viewerId];
+        }
+    }
 
-document.getElementById("endStreamBtn").addEventListener("click", () => {
-  showCustomConfirm("Bạn có chắc muốn kết thúc live stream không?", () => {
-    socket.emit("endRoom", { roomId });
-    window.location.href = "https://hoctap-9a3.glitch.me/live";
-  }, () => {
-    console.log("Kết thúc live stream đã bị hủy");
-  });
-});
+    function stopLocalStream() {
+        if (localStream) {
+            localStream.getTracks().forEach(track => {
+                track.stop();
+                track.dispatchEvent(new Event('ended')); // Manually trigger ended event
+            });
+            console.log("Local stream stopped.");
+        }
+        localStream = null;
+        currentMode = null;
+        updateUIStreamStopped();
+    }
 
-// --- Phần PeerJS & Streaming ---
-const peer = new Peer(roomId, {
-  host: 'live-hoctap-9a3.glitch.me',
-  port: 443,
-  path: '/peerjs/myapp',
-  secure: true,
-  config: {
-    iceServers: [
-      { urls: 'stun:stun.l.google.com:19302' },
-      {
-        urls: 'turn:relay1.expressturn.com:3478',
-        username: 'efENPNJI04ST2ENN3C',
-        credential: 'udPrjk4AqDfSh8SY'
+    function updateUIStreamStarted(mode) {
+         elements.previewContainer.classList.add('streaming');
+         elements.streamStatusIndicator.textContent = mode === 'liveCam' ? 'LIVE CAM' : 'SHARING SCREEN';
+         elements.streamStatusIndicator.className = 'stream-status-indicator active';
+         if (elements.noStreamOverlay) elements.noStreamOverlay.style.display = 'none';
+
+         // Update button states
+         if(elements.shareScreenBtn) elements.shareScreenBtn.classList.toggle('active', mode === 'screenShare');
+         if(elements.liveCamBtn) elements.liveCamBtn.classList.toggle('active', mode === 'liveCam');
+         if(elements.liveCamBtn) elements.liveCamBtn.innerHTML = mode === 'liveCam' ? '<i class="fas fa-stop-circle"></i><span class="btn-label">Dừng Cam</span>' : '<i class="fas fa-camera-retro"></i><span class="btn-label">Camera</span>';
+         if(elements.shareScreenBtn && mode === 'liveCam') elements.shareScreenBtn.disabled = true; else if(elements.shareScreenBtn) elements.shareScreenBtn.disabled = false;
+         if(elements.liveCamBtn && mode === 'screenShare') elements.liveCamBtn.disabled = true; else if(elements.liveCamBtn) elements.liveCamBtn.disabled = false;
+
+         checkMicAvailability(); // Re-check mic status after getting stream
+    }
+
+     function updateUIStreamStopped() {
+         elements.previewContainer.classList.remove('streaming');
+         elements.streamStatusIndicator.textContent = 'OFF AIR';
+         elements.streamStatusIndicator.className = 'stream-status-indicator';
+         if (elements.previewVideo) elements.previewVideo.srcObject = null;
+         if (elements.noStreamOverlay) elements.noStreamOverlay.style.display = 'flex'; // Show placeholder
+
+          // Reset button states
+         if(elements.shareScreenBtn) { elements.shareScreenBtn.classList.remove('active'); elements.shareScreenBtn.disabled = false; }
+         if(elements.liveCamBtn) { elements.liveCamBtn.classList.remove('active'); elements.liveCamBtn.disabled = false; elements.liveCamBtn.innerHTML = '<i class="fas fa-camera-retro"></i><span class="btn-label">Camera</span>'; }
+         if(elements.toggleMicBtn) { elements.toggleMicBtn.innerHTML = '<i class="fas fa-microphone"></i><span class="btn-label">Mic On</span>'; elements.toggleMicBtn.classList.add('active'); isMicEnabled=true; } // Reset mic button too
+         checkMediaPermissions(); // Re-check permissions
+     }
+
+    async function startScreenShare() {
+        if (currentMode === 'screenShare') return; // Already sharing
+        stopLocalStream(); // Stop previous stream first
+        console.log("Starting screen share...");
+        try {
+            const displayStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+            let audioStream = new MediaStream(); // Start with empty audio stream
+
+             // Try getting microphone stream
+             try {
+                 const micStream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true });
+                 micStream.getAudioTracks().forEach(track => audioStream.addTrack(track));
+                 isMicEnabled = true; // Assume mic is enabled initially
+             } catch (micErr) {
+                 console.warn("Could not get microphone stream:", micErr);
+                 isMicEnabled = false; // Mark mic as unavailable/disabled
+             }
+
+             // Add screen audio if available and distinct from mic
+             if(displayStream.getAudioTracks().length > 0){
+                  // Simple check: If mic failed OR mic exists but screen audio seems different
+                  if(!isMicEnabled || (isMicEnabled && displayStream.getAudioTracks()[0].id !== audioStream.getAudioTracks()[0]?.id)){
+                       displayStream.getAudioTracks().forEach(track => audioStream.addTrack(track));
+                  }
+             }
+
+            // Combine video and audio tracks
+            localStream = new MediaStream([...displayStream.getVideoTracks(), ...audioStream.getAudioTracks()]);
+            elements.previewVideo.srcObject = localStream;
+            currentMode = 'screenShare';
+            updateUIStreamStarted(currentMode);
+
+             // End stream if user stops sharing via browser UI
+            localStream.getVideoTracks()[0].addEventListener('ended', () => {
+                console.log("Screen share ended by user.");
+                stopLocalStream();
+                socket.emit("streamEnded", { roomId: streamerConfig.roomId }); // Notify server
+            });
+
+            // Call pending and all current viewers
+             callPendingViewers();
+             allJoinedViewers.forEach(viewerId => callViewer(viewerId));
+
+        } catch (err) {
+            console.error("Error starting screen share:", err);
+            showAlert("Không thể bắt đầu chia sẻ màn hình. Lỗi: " + err.message, "error");
+            stopLocalStream(); // Ensure cleanup
+        }
+    }
+
+    async function startLiveCam() {
+         if (currentMode === 'liveCam') { // If already live cam, stop it
+             stopLocalStream();
+             socket.emit("streamEnded", { roomId: streamerConfig.roomId });
+             return;
+          }
+         stopLocalStream(); // Stop previous stream
+         console.log("Starting live cam...");
+         try {
+             const camStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+             localStream = camStream;
+             currentMode = 'liveCam';
+             elements.previewVideo.srcObject = localStream;
+             updateUIStreamStarted(currentMode);
+
+             localStream.getVideoTracks()[0].addEventListener('ended', () => {
+                 console.log("Live cam ended (e.g., unplugged).");
+                 stopLocalStream();
+                 socket.emit("streamEnded", { roomId: streamerConfig.roomId });
+             });
+
+             callPendingViewers();
+             allJoinedViewers.forEach(viewerId => callViewer(viewerId));
+
+         } catch (err) {
+             console.error("Error starting live cam:", err);
+             showAlert("Không thể bật camera/mic. Vui lòng kiểm tra quyền. Lỗi: " + err.message, "error");
+             stopLocalStream();
+         }
+    }
+
+    function toggleMicrophone() {
+        if (!localStream || localStream.getAudioTracks().length === 0) {
+            console.warn("Cannot toggle mic: No local stream or audio track.");
+            // Update button state if somehow out of sync
+            elements.toggleMicBtn.classList.remove('active');
+            elements.toggleMicBtn.innerHTML = '<i class="fas fa-microphone-slash"></i><span class="btn-label">No Mic</span>';
+            elements.toggleMicBtn.disabled = true;
+            isMicEnabled = false;
+            return;
+        }
+
+        isMicEnabled = !isMicEnabled; // Toggle state
+        localStream.getAudioTracks().forEach(track => {
+            track.enabled = isMicEnabled;
+        });
+
+        console.log(`Microphone toggled: ${isMicEnabled ? 'ON' : 'OFF'}`);
+        // Update button UI
+         elements.toggleMicBtn.classList.toggle('active', isMicEnabled);
+         elements.toggleMicBtn.innerHTML = isMicEnabled
+             ? '<i class="fas fa-microphone"></i><span class="btn-label">Mic On</span>'
+             : '<i class="fas fa-microphone-slash"></i><span class="btn-label">Mic Off</span>';
+
+          // Play feedback sound? (Optional, requires audio handling)
+     }
+
+     async function checkMediaPermissions() {
+        try {
+            const devices = await navigator.mediaDevices.enumerateDevices();
+            const hasMic = devices.some(device => device.kind === "audioinput");
+            const hasCam = devices.some(device => device.kind === "videoinput");
+
+            if(elements.toggleMicBtn) {
+                 elements.toggleMicBtn.disabled = !hasMic;
+                 if (!hasMic) elements.toggleMicBtn.innerHTML = '<i class="fas fa-microphone-slash"></i><span class="btn-label">No Mic</span>';
+            }
+            if(elements.liveCamBtn) {
+                 elements.liveCamBtn.disabled = !hasCam;
+                 if (!hasCam) elements.liveCamBtn.innerHTML = '<i class="fas fa-camera-retro"></i><span class="btn-label">No Cam</span>';
+            }
+            if(elements.shareScreenBtn && typeof navigator.mediaDevices.getDisplayMedia === 'undefined'){
+                 elements.shareScreenBtn.disabled = true;
+                 elements.shareScreenBtn.innerHTML = '<i class="fas fa-desktop"></i><span class="btn-label">Not Supported</span>';
+            }
+
+        } catch (err) {
+            console.error("Error checking media permissions:", err);
+             // Disable buttons if enumeration fails
+             if(elements.toggleMicBtn) elements.toggleMicBtn.disabled = true;
+             if(elements.liveCamBtn) elements.liveCamBtn.disabled = true;
+        }
+     }
+
+    function callPendingViewers() {
+         console.log(`Calling ${pendingViewers.length} pending viewers...`);
+         while (pendingViewers.length > 0) {
+             const viewerId = pendingViewers.shift(); // Remove from pending
+             callViewer(viewerId);
+         }
+     }
+
+
+    // ==================================
+    // SOCKET.IO EVENT HANDLERS
+    // ==================================
+    function initSocket() {
+        socket.on("connect_error", (err) => {
+             console.error("Socket Connection Error:", err.message);
+             showAlert(`Lỗi kết nối server: ${err.message}`, "error", 10000);
+         });
+         socket.on("connect", () => {
+             console.log("Socket connected:", socket.id);
+              // Re-join room on reconnect
+             socket.emit("joinRoom", { roomId: streamerConfig.roomId, username: streamerConfig.username });
+             if (peerInstance && peerInstance.id) {
+                socket.emit("streamerReady", { roomId: streamerConfig.roomId, peerId: peerInstance.id });
+             }
+         });
+         socket.on("disconnect", (reason) => {
+             console.warn("Socket disconnected:", reason);
+             showAlert("Mất kết nối tới server chat.", "warning");
+         });
+
+        socket.on("userJoined", msg => { addChatMessage(msg, 'system'); });
+        socket.on("viewerLeft", msg => { addChatMessage(msg, 'system', 'left'); });
+        socket.on("newMessage", data => {
+             addChatMessage(data.message.content, data.message.messageType || 'guest', data.message.username, new Date(data.message.timestamp), data.message); // Pass full message object for pinning
+        });
+        socket.on("updateViewers", count => { elements.viewerCount.textContent = count; });
+        socket.on("commentPinned", data => displayPinnedComment(data.message));
+        socket.on("commentUnpinned", () => displayPinnedComment(null)); // Clear pinned comment
+        socket.on("newViewer", ({ viewerId }) => {
+             console.log("Socket received new viewer:", viewerId);
+             allJoinedViewers.add(viewerId);
+             callViewer(viewerId); // Attempt to call immediately
+         });
+         socket.on("viewerDisconnected", ({ viewerId }) => {
+              console.log("Viewer disconnected:", viewerId);
+              allJoinedViewers.delete(viewerId);
+              if (currentCalls[viewerId]) {
+                  currentCalls[viewerId].close();
+                  delete currentCalls[viewerId];
+              }
+          });
+          socket.on("updateViewersList", data => renderListModal(elements.viewersModalList, data.viewers, false));
+          socket.on("updateBannedList", data => renderListModal(elements.bannedModalList, data.banned, true));
+          socket.on("forceEndStream", message => {
+              alert(message || "Stream đã bị kết thúc bởi quản trị viên.");
+              stopLocalStream();
+              socket.disconnect();
+              window.location.href = "/live"; // Redirect
+          });
+          socket.on("viewerBanned", msg => addChatMessage(msg, 'system', 'ban'));
+
+    }
+
+    // ==================================
+    // UI EVENT LISTENERS
+    // ==================================
+    function initUIEventListeners() {
+        // --- Control Panel Toggle ---
+        elements.togglePanelBtn?.addEventListener("click", () => {
+            isPanelCollapsed = !isPanelCollapsed;
+            const icon = elements.togglePanelBtn.querySelector('i');
+            if (!elements.panelContent) return;
+
+            if (!prefersReducedMotion) {
+                gsap.to(elements.panelContent, {
+                    height: isPanelCollapsed ? 0 : 'auto',
+                    autoAlpha: isPanelCollapsed ? 0 : 1, // Use autoAlpha for fade
+                    paddingTop: isPanelCollapsed ? 0 : 20, // Animate padding
+                    paddingBottom: isPanelCollapsed ? 0 : 0,
+                    marginTop: isPanelCollapsed ? 0 : 20,
+                    duration: 0.4,
+                    ease: 'power2.inOut',
+                    onStart: () => { // Rotate icon during animation
+                        gsap.to(icon, { rotation: isPanelCollapsed ? 180 : 0, duration: 0.4, ease: 'power2.inOut' });
+                    }
+                });
+            } else {
+                 elements.panelContent.style.display = isPanelCollapsed ? 'none' : 'block';
+                 if(icon) icon.style.transform = isPanelCollapsed ? 'rotate(180deg)' : 'rotate(0deg)';
+            }
+             elements.controlPanel.classList.toggle("collapsed", isPanelCollapsed);
+        });
+
+        // --- Stream Control Buttons ---
+        elements.shareScreenBtn?.addEventListener('click', () => { playButtonFeedback(elements.shareScreenBtn); startScreenShare(); });
+        elements.liveCamBtn?.addEventListener('click', () => { playButtonFeedback(elements.liveCamBtn); startLiveCam(); });
+        elements.toggleMicBtn?.addEventListener('click', () => { playButtonFeedback(elements.toggleMicBtn); toggleMicrophone(); });
+        elements.endStreamBtn?.addEventListener('click', () => {
+            playButtonFeedback(elements.endStreamBtn);
+            showCustomConfirm("Xác nhận kết thúc buổi live stream này?", () => {
+                stopLocalStream(); // Stop stream locally first
+                socket.emit("endRoom", { roomId: streamerConfig.roomId }); // Notify server
+                window.location.href = "/live"; // Redirect after confirmation
+            });
+        });
+
+        // --- Modal Buttons ---
+        elements.viewersListBtn?.addEventListener('click', () => {
+            playButtonFeedback(elements.viewersListBtn);
+             socket.emit("getViewersList", { roomId: streamerConfig.roomId }); // Request fresh list
+             openModal(elements.viewersModal);
+         });
+        elements.bannedListBtn?.addEventListener('click', () => {
+            playButtonFeedback(elements.bannedListBtn);
+             socket.emit("getBannedList", { roomId: streamerConfig.roomId }); // Request fresh list
+             openModal(elements.bannedModal);
+         });
+        elements.closeViewersModalBtn?.addEventListener('click', () => closeModal(elements.viewersModal));
+        elements.closeBannedModalBtn?.addEventListener('click', () => closeModal(elements.bannedModal));
+        // Close modal on backdrop click
+         document.querySelectorAll('.modal-backdrop').forEach(backdrop => {
+             backdrop.addEventListener('click', () => closeModal(backdrop.closest('.modal-v2')));
+         });
+
+         // --- Chat Input ---
+         elements.sendChatBtn?.addEventListener('click', sendChatMessage);
+         elements.chatInputArea?.addEventListener('keydown', (e) => {
+             if (e.key === 'Enter' && !e.shiftKey) { // Send on Enter, allow newline with Shift+Enter
+                 e.preventDefault();
+                 sendChatMessage();
+             }
+         });
+          // Auto-resize textarea
+          elements.chatInputArea?.addEventListener('input', function() {
+              this.style.height = 'auto'; // Reset height
+              this.style.height = (this.scrollHeight) + 'px'; // Set to scroll height
+              // Update preview
+               const rawText = this.value || "";
+               if (elements.chatPreview && typeof marked !== 'undefined') {
+                   let html = marked.parse(rawText);
+                   // Add KaTeX processing if needed
+                   elements.chatPreview.innerHTML = html;
+               }
+          });
+
+
+          // --- Search Filter ---
+          elements.viewersSearchInput?.addEventListener('input', function() {
+              const query = this.value.toLowerCase();
+              const listItems = elements.viewersModalList?.querySelectorAll('li');
+              listItems?.forEach(li => {
+                  const username = li.querySelector('.list-username')?.textContent.toLowerCase() || '';
+                  li.style.display = username.includes(query) ? '' : 'none';
+              });
+          });
+
+        // --- PiP Button ---
+         if (elements.pipChatBtn && typeof document.createElement('canvas').captureStream === 'function' && typeof HTMLVideoElement.prototype.requestPictureInPicture === 'function') {
+            // elements.pipChatBtn.addEventListener('click', togglePiPChat); // Enable if PiP is fully implemented
+            elements.pipChatBtn.style.display = 'none'; // Hide PiP button for now as canvas logic is removed
+         } else if (elements.pipChatBtn) {
+             elements.pipChatBtn.style.display = 'none'; // Hide if not supported
+         }
+
+         // --- Drop Zone / File Input (For Upload - Placeholder) ---
+         // Add event listeners if implementing file upload via chat later
+    }
+
+
+    // ==================================
+    // CHAT & UI FUNCTIONS
+    // ==================================
+    function scrollChatToBottom() {
+        const wrapper = elements.chatMessagesList?.parentNode; // Get the scrollable wrapper
+        if (wrapper) {
+            // Use GSAP for smooth scroll? Optional.
+            // gsap.to(wrapper, { duration: 0.3, scrollTop: wrapper.scrollHeight, ease: 'power1.out' });
+             wrapper.scrollTop = wrapper.scrollHeight; // Instant scroll
+        }
+    }
+
+    function addChatMessage(content, type = 'guest', username = 'System', timestamp = new Date(), originalMessage = null) {
+        const li = document.createElement("li");
+        li.classList.add('chat-message-item', `message-${type}`); // Add base class + type class
+
+        // 1. Icon
+        const iconSpan = document.createElement("span");
+        iconSpan.className = "msg-icon";
+        // Determine icon character based on type
+        let iconChar = "\uf2bd"; // Guest default
+        if (type === 'host') iconChar = "\uf005"; // Star for host
+        else if (type === 'pro') iconChar = "\uf521"; // Crown for pro (or check-circle?)
+        else if (type === 'system') iconChar = "\uf05a"; // Info circle
+        else if (type === 'left') iconChar = "\uf08b"; // Sign out
+        else if (type === 'ban') iconChar = "\uf05e"; // Ban
+        iconSpan.innerHTML = `<i class="fas ${iconChar}"></i>`; // Use FontAwesome classes
+        li.appendChild(iconSpan);
+
+        // 2. Content Container
+        const contentContainer = document.createElement("div");
+        contentContainer.className = "msg-content-container";
+
+        // 3. Header (Username + Timestamp)
+        const msgHeader = document.createElement("div");
+        msgHeader.className = "msg-header";
+        const userSpan = document.createElement("span");
+        userSpan.className = "msg-username";
+        userSpan.textContent = username;
+        msgHeader.appendChild(userSpan);
+        const timeSpan = document.createElement("span");
+        timeSpan.className = "msg-timestamp";
+        timeSpan.textContent = new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        msgHeader.appendChild(timeSpan);
+        contentContainer.appendChild(msgHeader);
+
+        // 4. Message Body (Parse Markdown/KaTeX)
+        const bodySpan = document.createElement("span");
+        bodySpan.className = "msg-body prose-styling"; // Apply prose styling
+        let finalHtml = content || '';
+        if (type !== 'system' && typeof marked !== 'undefined') { // Don't parse system messages as MD
+            try {
+                finalHtml = marked.parse(content || '');
+                 // Render KaTeX after markdown parsing
+                 // Temporary div to render math
+                 const tempDiv = document.createElement('div');
+                 tempDiv.innerHTML = finalHtml;
+                 if(typeof renderMathInElement === 'function'){
+                     renderMathInElement(tempDiv, { delimiters: [{left:"$$",right:"$$",display:!0},{left:"$",right:"$",display:!1},{left:"\\(",right:"\\)",display:!1},{left:"\\[",right:"\\]",display:!0}], throwOnError: false });
+                 }
+                 finalHtml = tempDiv.innerHTML;
+
+            } catch (e) { console.error("Marked/Katex Error in chat:", e); finalHtml = content; } // Fallback
+        }
+        bodySpan.innerHTML = finalHtml;
+        contentContainer.appendChild(bodySpan);
+        li.appendChild(contentContainer);
+
+        // 5. Action Buttons (Pin/Ban - Only Host sees)
+        if (streamerConfig.username === streamerConfig.roomOwner && type !== 'system') {
+            const actionsDiv = document.createElement('div');
+            actionsDiv.className = 'msg-actions';
+
+            // Pin Button
+            const pinBtn = document.createElement("button");
+            pinBtn.className = "action-btn pin-btn";
+            pinBtn.innerHTML = '<i class="fas fa-thumbtack"></i>';
+            pinBtn.title = "Ghim tin nhắn này";
+            pinBtn.onclick = () => {
+                playButtonFeedback(pinBtn);
+                socket.emit("pinComment", { roomId: streamerConfig.roomId, message: originalMessage });
+            };
+            actionsDiv.appendChild(pinBtn);
+
+             // Ban Button (Don't allow banning self)
+             if(username !== streamerConfig.username) {
+                 const banBtn = document.createElement("button");
+                 banBtn.className = "action-btn ban-user-btn";
+                 banBtn.innerHTML = '<i class="fas fa-user-slash"></i>';
+                 banBtn.title = `Chặn ${username}`;
+                 banBtn.onclick = () => {
+                      playButtonFeedback(banBtn);
+                      showCustomConfirm(`Bạn có chắc muốn chặn ${username} khỏi phòng?`, () => {
+                         socket.emit("banViewer", { roomId: streamerConfig.roomId, viewerUsername: username });
+                      });
+                 };
+                 actionsDiv.appendChild(banBtn);
+             }
+            li.appendChild(actionsDiv);
+        }
+
+        // Animation
+        if (!prefersReducedMotion) {
+            gsap.from(li, { duration: 0.5, autoAlpha: 0, y: 15, ease: 'power2.out' });
+        } else {
+             gsap.set(li, { autoAlpha: 1 });
+        }
+
+        elements.chatMessagesList.appendChild(li);
+        scrollChatToBottom();
+    }
+
+     function displayPinnedComment(message) {
+        elements.pinnedCommentContainer.innerHTML = ""; // Clear previous
+         gsap.to(elements.pinnedCommentContainer, { duration: 0.3, height: message ? 'auto' : 0, autoAlpha: message ? 1 : 0, ease: 'power1.inOut'});
+
+
+        if (!message || !message.content) {
+            return; // No message to pin
+        }
+
+        const pinnedBox = document.createElement("div");
+        pinnedBox.className = "pinned-box";
+
+        const pinIcon = document.createElement("span"); pinIcon.className = "pin-icon"; pinIcon.innerHTML = '<i class="fas fa-thumbtack"></i>';
+        const pinnedContent = document.createElement("div"); pinnedContent.className = "pinned-content";
+        const userSpan = document.createElement("span"); userSpan.className = "pinned-user"; userSpan.textContent = message.username;
+        const textSpan = document.createElement("span"); textSpan.className = "pinned-text prose-styling";
+        const timestampSpan = document.createElement("span"); timestampSpan.className = "pinned-timestamp"; timestampSpan.textContent = new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+        let contentHtml = message.content || '';
+         if (typeof marked !== 'undefined') {
+            try {
+                contentHtml = marked.parse(contentHtml);
+                 const tempDiv = document.createElement('div'); tempDiv.innerHTML = contentHtml;
+                 if(typeof renderMathInElement === 'function') renderMathInElement(tempDiv, { delimiters: [{left:"$$",right:"$$",display:!0},{left:"$",right:"$",display:!1},{left:"\\(",right:"\\)",display:!1},{left:"\\[",right:"\\]",display:!0}], throwOnError: false });
+                 contentHtml = tempDiv.innerHTML;
+            } catch (e) { console.error("Marked/Katex Error in pinned:", e); }
+        }
+        textSpan.innerHTML = contentHtml;
+
+        pinnedContent.appendChild(userSpan);
+        pinnedContent.appendChild(textSpan);
+        pinnedBox.appendChild(pinIcon);
+        pinnedBox.appendChild(pinnedContent);
+        pinnedBox.appendChild(timestampSpan);
+
+        // Unpin Button for host
+        if (streamerConfig.username === streamerConfig.roomOwner) {
+            const unpinBtn = document.createElement("button");
+            unpinBtn.className = "unpin-btn"; unpinBtn.title = "Bỏ ghim";
+            unpinBtn.innerHTML = `<i class="fas fa-times"></i>`; // Simple X icon
+            unpinBtn.onclick = () => {
+                playButtonFeedback(unpinBtn);
+                socket.emit("unpinComment", { roomId: streamerConfig.roomId });
+            };
+            pinnedBox.appendChild(unpinBtn);
+        }
+
+        elements.pinnedCommentContainer.appendChild(pinnedBox);
+         if (!prefersReducedMotion) {
+            gsap.from(pinnedBox, { duration: 0.5, y: -10, autoAlpha: 0, ease: 'power2.out'});
+         }
+    }
+
+    function sendChatMessage(){
+         const messageContent = elements.chatInputArea.value.trim();
+         if (!messageContent) return;
+
+         let messageType = "host"; // Default for streamer
+          // No need to check PRO status for host message type
+         const messageObj = {
+             username: streamerConfig.username, content: messageContent,
+             messageType: messageType, timestamp: new Date().toISOString()
+         };
+         socket.emit("chatMessage", { roomId: streamerConfig.roomId, message: messageObj });
+         elements.chatInputArea.value = "";
+         elements.chatPreview.innerHTML = "";
+         // Reset textarea height after sending
+          elements.chatInputArea.style.height = 'auto';
+     }
+
+
+    // ==================================
+    // MODAL FUNCTIONS
+    // ==================================
+     function openModal(modalElement) {
+         if (!modalElement) return;
+         if (!prefersReducedMotion) {
+             gsap.timeline()
+                 .set(modalElement, { display: 'flex' })
+                 .to(modalElement, { duration: 0.4, autoAlpha: 1, ease: 'power2.out' })
+                 .from(modalElement.querySelector('.modal-content'), { duration: 0.5, y: -30, scale: 0.95, ease: 'back.out(1.4)' }, "-=0.2");
+         } else {
+             gsap.set(modalElement, { display: 'flex', autoAlpha: 1 });
+         }
+         document.body.style.overflow = 'hidden'; // Prevent background scroll
+     }
+
+     function closeModal(modalElement) {
+         if (!modalElement) return;
+          if (!prefersReducedMotion) {
+             gsap.timeline({ onComplete: () => { modalElement.style.display = 'none'; document.body.style.overflow = ''; } })
+                 .to(modalElement.querySelector('.modal-content'), { duration: 0.3, scale: 0.9, ease: 'power1.in' })
+                 .to(modalElement, { duration: 0.4, autoAlpha: 0, ease: 'power1.in' }, "-=0.2");
+         } else {
+             gsap.set(modalElement, { display: 'none', autoAlpha: 0 });
+             document.body.style.overflow = '';
+         }
+     }
+
+     function renderListModal(listElement, items, isBannedList) {
+         if (!listElement) return;
+         listElement.innerHTML = ''; // Clear previous items
+         if (!items || items.length === 0) {
+             listElement.innerHTML = `<li>${isBannedList ? 'Không có ai bị chặn.' : 'Chưa có người xem nào khác.'}</li>`;
+             return;
+         }
+
+         items.forEach(username => {
+             const li = document.createElement('li');
+             li.className = 'user-list-item';
+
+             // Add Avatar (optional, requires fetching avatar URLs)
+             // const avatar = document.createElement('img');
+             // avatar.src = '/path/to/default/avatar.png'; // Fetch real avatar later
+             // avatar.className = 'list-avatar';
+             // li.appendChild(avatar);
+
+             const nameSpan = document.createElement('span');
+             nameSpan.className = 'list-username';
+             nameSpan.textContent = username;
+             li.appendChild(nameSpan);
+
+             const actionWrapper = document.createElement('div');
+             actionWrapper.className = 'list-actions';
+
+             if (isBannedList) {
+                 const unbanBtn = document.createElement('button');
+                 unbanBtn.className = 'action-btn unban-btn';
+                 unbanBtn.innerHTML = '<i class="fas fa-undo"></i> Bỏ chặn';
+                 unbanBtn.onclick = () => {
+                      playButtonFeedback(unbanBtn);
+                      showCustomConfirm(`Xác nhận bỏ chặn ${username}?`, () => {
+                         socket.emit("unbanViewer", { roomId: streamerConfig.roomId, viewerUsername: username });
+                         // List will be updated via socket event
+                      });
+                 };
+                 actionWrapper.appendChild(unbanBtn);
+             } else if (username !== streamerConfig.username) { // Don't show ban button for self
+                 const banBtn = document.createElement('button');
+                 banBtn.className = 'action-btn ban-btn';
+                 banBtn.innerHTML = '<i class="fas fa-user-slash"></i> Chặn';
+                 banBtn.onclick = () => {
+                      playButtonFeedback(banBtn);
+                       showCustomConfirm(`Xác nhận chặn ${username} khỏi phòng?`, () => {
+                         socket.emit("banViewer", { roomId: streamerConfig.roomId, viewerUsername: username });
+                         // List will be updated via socket event
+                      });
+                 };
+                 actionWrapper.appendChild(banBtn);
+             }
+             li.appendChild(actionWrapper);
+             listElement.appendChild(li);
+         });
+
+          // Animate list items entrance (if modal just opened)
+          if(!prefersReducedMotion && listElement.closest('.modal-v2')?.style.display === 'flex') {
+             gsap.from(listElement.children, {duration: 0.4, autoAlpha: 0, y: 10, stagger: 0.05, ease: 'power1.out'});
+          }
+     }
+
+     // Use Custom Confirm if available from confirm.js or alerts.js
+      function showCustomConfirm(message, onConfirm, onCancel) {
+          if (typeof showAdvCustomConfirm === 'function') { // Check for advanced confirm first
+              showAdvCustomConfirm(message, onConfirm, onCancel);
+          } else if (typeof window.showCustomConfirm === 'function') { // Check for basic custom confirm
+              window.showCustomConfirm(message).then(confirmed => {
+                  if(confirmed && onConfirm) onConfirm();
+                  else if (!confirmed && onCancel) onCancel();
+              });
+          } else { // Fallback to window.confirm
+              if (window.confirm(message)) { if(onConfirm) onConfirm(); }
+              else { if(onCancel) onCancel(); }
+          }
       }
-    ]
-  }
-});
 
-peer.on('open', id => {
-  console.log('PeerJS streamer open with ID:', id);
-});
 
-// Khi có viewer mới từ Socket.IO
-socket.on("newViewer", ({ viewerId }) => {
-  console.log("New viewer with ID: " + viewerId);
-  allViewers.add(viewerId);
-  if (!localStream) {
-    console.warn("Local stream chưa sẵn sàng, thêm viewer vào pending.");
-    pendingViewers.push(viewerId);
-  } else {
-    callViewer(viewerId);
-  }
-});
-
-// Hàm gọi đến viewer
-function callViewer(viewerId) {
-  if (currentCall[viewerId]) {
-    currentCall[viewerId].close();
-  }
-  console.log("Gọi đến viewer: " + viewerId);
-  const call = peer.call(viewerId, localStream);
-  currentCall[viewerId] = call;
-  call.on('error', err => console.error('Call error:', err));
-  call.on('close', () => {
-    console.log("Call đóng với viewer: " + viewerId);
-    delete currentCall[viewerId];
-  });
-}
-
-// --- Toggle Mic ---
-async function checkMicAvailability() {
-  try {
-    const devices = await navigator.mediaDevices.enumerateDevices();
-    const audioInputs = devices.filter(device => device.kind === "audioinput");
-    const toggleMicBtn = document.getElementById("toggleMicBtn");
-    if (audioInputs.length === 0) {
-      toggleMicBtn.disabled = true;
-      toggleMicBtn.innerHTML = '<i class="fas fa-microphone-slash"></i> No Mic';
-      console.log("Không có mic được phát hiện.");
-    } else {
-      toggleMicBtn.disabled = false;
-    }
-  } catch (err) {
-    console.error("Lỗi khi kiểm tra mic:", err);
-  }
-}
-async function checkCameraAvailabilityAndRequestPermission() {
-  try {
-    const devices = await navigator.mediaDevices.enumerateDevices();
-    const videoInputs = devices.filter(device => device.kind === "videoinput");
-    const liveCamBtn = document.getElementById("liveCamBtn");
-    if (videoInputs.length === 0) {
-      liveCamBtn.disabled = true;
-      liveCamBtn.innerHTML = '<i class="fas fa-camera"></i> No Camera';
-      console.log("Không có camera được phát hiện.");
-      return;
-    }
-    // Thử yêu cầu truy cập camera để kích hoạt quyền (nếu chưa được cấp)
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-      // Nếu thành công, ngay lập tức dừng tất cả các track để giải phóng camera
-      stream.getTracks().forEach(track => track.stop());
-      liveCamBtn.disabled = false;
-      liveCamBtn.innerHTML = '<i class="fas fa-camera"></i> Live Cam';
-    } catch (err) {
-      console.error("Chưa được cấp quyền camera:", err);
-      // Nếu chưa được cấp quyền, thông báo cho người dùng
-      liveCamBtn.disabled = true;
-      liveCamBtn.innerHTML = '<i class="fas fa-camera"></i> Grant Camera Permission';
-      alert("Vui lòng cấp quyền truy cập camera để sử dụng Live Cam.");
-    }
-  } catch (err) {
-    console.error("Lỗi khi kiểm tra camera:", err);
-  }
-}
-checkCameraAvailabilityAndRequestPermission();
-checkMicAvailability();
-
-document.getElementById("shareScreenBtn").addEventListener("click", async () => {
-  try {
-    // Nếu có stream cũ, tắt nó đi
-    if (localStream) {
-      localStream.getTracks().forEach(t => t.stop());
-      for (const viewerId in currentCall) {
-        currentCall[viewerId].close();
-      }
-      // Xóa currentCall để làm mới
-      currentCall = {};
-    }
-    // Lấy stream chia sẻ màn hình với video và audio
-    const displayStream = await navigator.mediaDevices.getDisplayMedia({
-      video: true,
-      audio: true
-    });
-
-    // Lấy stream từ mic (audio) riêng
-    let micStream = null;
-    try {
-      micStream = await navigator.mediaDevices.getUserMedia({
-        video: false,
-        audio: true
-      });
-    } catch (micErr) {
-      console.warn("Không lấy được mic: ", micErr);
-      micStream = null;
+    // ==================================
+    // UTILITY & MISC
+    // ==================================
+    function updateStreamDuration() {
+        const now = new Date();
+        const diff = now - streamStartTime;
+        if (diff < 0) return; // Avoid issues if clock is wrong
+        const hours = Math.floor(diff / 3600000);
+        const minutes = Math.floor((diff % 3600000) / 60000);
+        const seconds = Math.floor((diff % 60000) / 1000);
+        elements.streamDuration.textContent =
+            `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
     }
 
-    let mixedAudioStream = null;
-    // Nếu cả display và mic đều có audio, trộn chúng lại
-    if (displayStream.getAudioTracks().length > 0 && micStream && micStream.getAudioTracks().length > 0) {
-      const audioContext = new AudioContext();
-      const destination = audioContext.createMediaStreamDestination();
 
-      const displayAudioSource = audioContext.createMediaStreamSource(new MediaStream(displayStream.getAudioTracks()));
-      displayAudioSource.connect(destination);
+    // --- Final Setup ---
+    // Apply initial UI states based on variables if needed (e.g., mic button)
+     checkMediaPermissions(); // Set initial button states based on available devices
 
-      const micAudioSource = audioContext.createMediaStreamSource(new MediaStream(micStream.getAudioTracks()));
-      micAudioSource.connect(destination);
-
-      mixedAudioStream = destination.stream;
-    } else if (displayStream.getAudioTracks().length > 0) {
-      mixedAudioStream = new MediaStream(displayStream.getAudioTracks());
-    } else if (micStream && micStream.getAudioTracks().length > 0) {
-      mixedAudioStream = new MediaStream(micStream.getAudioTracks());
-    }
-
-    if (!mixedAudioStream) {
-      const toggleMicBtn = document.getElementById("toggleMicBtn");
-      if (toggleMicBtn) {
-        toggleMicBtn.innerHTML = '<i class="fas fa-microphone-slash"></i> No Mic';
-        toggleMicBtn.disabled = true;
-      }
-      localStream = new MediaStream([...displayStream.getVideoTracks()]);
-    } else {
-      localStream = new MediaStream([
-        ...displayStream.getVideoTracks(),
-        ...mixedAudioStream.getAudioTracks()
-      ]);
-    }
-
-    const screenVideo = document.getElementById("screenShareVideo");
-    screenVideo.srcObject = localStream;
-
-    const toggleMicBtn = document.getElementById("toggleMicBtn");
-    if (toggleMicBtn) {
-      if (micStream && micStream.getAudioTracks().length > 0) {
-        toggleMicBtn.innerHTML = '<i class="fas fa-microphone"></i> Mic On';
-        toggleMicBtn.disabled = false;
-      } else {
-        toggleMicBtn.innerHTML = '<i class="fas fa-microphone-slash"></i> No Mic';
-        toggleMicBtn.disabled = true;
-      }
-    }
-    
-    localStream.getVideoTracks()[0].addEventListener("ended", () => {
-      console.log("User stopped screen sharing");
-      screenVideo.srcObject = null;
-      localStream = null;
-      socket.emit("screenShareEnded", { roomId });
-      for (const viewerId in currentCall) {
-        currentCall[viewerId].close();
-      }
-    });
-    
-    // Sau khi tạo localStream mới, gọi lại tất cả các viewer trong allViewers
-    allViewers.forEach(viewerId => {
-      callViewer(viewerId);
-    });
-    
-    currentMode = "screenShare";
-  } catch (err) {
-    console.error("Error during screen sharing with mic support:", err);
-    alert("Không thể chia sẻ màn hình và mic. Vui lòng kiểm tra quyền hoặc thử trình duyệt khác.");
-  }
-});
-
-// --- Chế độ Live Cam ---
-document.getElementById("liveCamBtn").addEventListener("click", async () => {
-  // Nếu đang ở chế độ live cam, nhấn lại sẽ dừng live cam
-  if (currentMode === "liveCam" && localStream) {
-    console.log("Stopping live cam...");
-    localStream.getTracks().forEach(track => track.stop());
-    const screenVideo = document.getElementById("screenShareVideo");
-    screenVideo.srcObject = null;
-    localStream = null;
-    currentMode = null;
-    socket.emit("screenShareEnded", { roomId });
-    for (const viewerId in currentCall) {
-      currentCall[viewerId].close();
-    }
-    const liveCamBtn = document.getElementById("liveCamBtn");
-    liveCamBtn.innerHTML = '<i class="fas fa-camera"></i> Live Cam';
-    return;
-  }
-  
-  try {
-    if (localStream) {
-      localStream.getTracks().forEach(t => t.stop());
-      for (const viewerId in currentCall) {
-        currentCall[viewerId].close();
-      }
-      currentCall = {};
-    }
-    let camStream;
-    try {
-      camStream = await navigator.mediaDevices.getUserMedia({
-        video: true,
-        audio: true
-      });
-      console.log("Live Cam: Đã lấy được video và mic.");
-    } catch (err) {
-      console.warn("Không lấy được audio cho Live Cam, fallback sang video only.", err);
-      camStream = await navigator.mediaDevices.getUserMedia({
-        video: true,
-        audio: false
-      });
-      const toggleMicBtn = document.getElementById("toggleMicBtn");
-      if (toggleMicBtn) {
-        toggleMicBtn.innerHTML = '<i class="fas fa-microphone-slash"></i> No Mic';
-        toggleMicBtn.disabled = true;
-      }
-    }
-    
-    localStream = camStream;
-    currentMode = "liveCam";
-    
-    const screenVideo = document.getElementById("screenShareVideo");
-    screenVideo.srcObject = localStream;
-    
-    localStream.getVideoTracks()[0].addEventListener("ended", () => {
-      console.log("User stopped live cam");
-      screenVideo.srcObject = null;
-      localStream = null;
-      currentMode = null;
-      socket.emit("screenShareEnded", { roomId });
-      for (const viewerId in currentCall) {
-        currentCall[viewerId].close();
-      }
-      const liveCamBtn = document.getElementById("liveCamBtn");
-      liveCamBtn.innerHTML = '<i class="fas fa-camera"></i> Live Cam';
-    });
-    
-    allViewers.forEach(viewerId => {
-      callViewer(viewerId);
-    });
-    
-    const liveCamBtn = document.getElementById("liveCamBtn");
-    liveCamBtn.innerHTML = '<i class="fas fa-stop"></i> Dừng Live Cam';
-  } catch (err) {
-    console.error("Error during live cam:", err);
-    alert("Không thể bật Live Cam. Vui lòng kiểm tra quyền hoặc thử trình duyệt khác.");
-  }
-});
-
-document.getElementById("toggleMicBtn").addEventListener("click", () => {
-  if (!localStream) {
-    alert("Chưa có stream, vui lòng chia sẻ màn hình hoặc live cam trước.");
-    return;
-  }
-  const audioTracks = localStream.getAudioTracks();
-  if (audioTracks.length === 0) {
-    alert("Bạn không có mic!");
-    const toggleMicBtn = document.getElementById("toggleMicBtn");
-    toggleMicBtn.innerHTML = '<i class="fas fa-microphone-slash"></i> No Mic';
-    toggleMicBtn.disabled = true;
-    return;
-  }
-  audioTracks.forEach(track => {
-    track.enabled = !track.enabled;
-    console.log(`Mic ${track.enabled ? "On" : "Off"}`);
-  });
-  const toggleMicBtn = document.getElementById("toggleMicBtn");
-  if (audioTracks[0].enabled) {
-    toggleMicBtn.innerHTML = '<i class="fas fa-microphone"></i> Mic On';
-  } else {
-    toggleMicBtn.innerHTML = '<i class="fas fa-microphone-slash"></i> Mic Off';
-  }
-});
-
-// Gửi event hostJoined (có thể dùng khi host vào phòng)
-socket.emit("hostJoined", { roomId });
-
-// Mở modal danh sách viewers
-document.getElementById("viewersListBtn").addEventListener("click", () => {
-  socket.emit("getViewersList", { roomId });
-  document.getElementById("viewersModal").classList.add("active");
-});
-
-// Đóng modal
-document.getElementById("closeViewersModal").addEventListener("click", () => {
-  document.getElementById("viewersModal").classList.remove("active");
-});
-
-// Lắng nghe sự kiện cập nhật danh sách viewers
-socket.on("updateViewersList", data => {
-  const viewersListEl = document.getElementById("viewersList");
-  viewersListEl.innerHTML = "";
-  data.viewers.forEach(username => {
-    const li = document.createElement("li");
-    // Tạo span chứa tên viewer
-    const nameSpan = document.createElement("span");
-    nameSpan.textContent = username;
-    
-    // Tạo nút ban cho viewer (chỉ host sẽ thấy nút này)
-    const banBtn = document.createElement("button");
-    banBtn.classList.add("ban-btn");
-    banBtn.textContent = "Ban";
-    banBtn.addEventListener("click", () => {
-      // Xác nhận ban
-      if (confirm(`Bạn có chắc chắn muốn ban viewer "${username}" không?`)) {
-        socket.emit("banViewer", { roomId, viewerUsername: username });
-      }
-    });
-    
-    li.appendChild(nameSpan);
-    li.appendChild(banBtn);
-    viewersListEl.appendChild(li);
-  });
-  // Lưu danh sách viewers vào biến toàn cục (nếu cần cho tìm kiếm)
-  window.currentViewersList = data.viewers;
-});
-
-// Tìm kiếm trong danh sách viewers
-document.getElementById("viewersSearch").addEventListener("input", function() {
-  const query = this.value.toLowerCase();
-  const liElements = document.querySelectorAll("#viewersList li");
-  liElements.forEach(li => {
-    if (li.textContent.toLowerCase().includes(query)) {
-      li.style.display = "";
-    } else {
-      li.style.display = "none";
-    }
-  });
-});
-
-// Mở modal banned khi click nút
-document.getElementById("bannedListBtn").addEventListener("click", () => {
-  // Yêu cầu lấy danh sách banned từ server nếu có (ở đây ta sử dụng dữ liệu có trong room từ server, giả sử host có thể cập nhật thông qua socket)
-  // Hoặc nếu bạn lưu danh sách banned cục bộ, bạn có thể hiển thị trực tiếp
-  // Ví dụ: giả sử server phát event "updateBannedList" khi banned/unban
-  socket.emit("getBannedList", { roomId });
-  
-  // Hiển thị modal
-  document.getElementById("bannedModal").classList.add("active");
-});
-
-// Đóng modal banned
-document.getElementById("closeBannedModal").addEventListener("click", () => {
-  document.getElementById("bannedModal").classList.remove("active");
-});
-
-// Lắng nghe event cập nhật danh sách banned
-socket.on("updateBannedList", data => {
-  // data.banned is an array of viewer usernames banned in this room
-  const bannedListEl = document.getElementById("bannedList");
-  bannedListEl.innerHTML = "";
-  data.banned.forEach(viewerUsername => {
-    const li = document.createElement("li");
-    li.textContent = viewerUsername;
-    // Thêm nút unban cho mỗi viewer
-    const unbanBtn = document.createElement("button");
-    unbanBtn.textContent = "Unban";
-    unbanBtn.addEventListener("click", () => {
-      socket.emit("unbanViewer", { roomId, viewerUsername });
-    });
-    li.appendChild(unbanBtn);
-    bannedListEl.appendChild(li);
-  });
-});
-
-// Lấy canvas
-const pipCanvas = document.getElementById("pipChatCanvas");
-const pipCtx = pipCanvas.getContext("2d");
-
-// Tạo video ẩn
-const pipVideo = document.createElement("video");
-pipVideo.style.display = "none";
-document.body.appendChild(pipVideo);
-
-// Tạo stream từ canvas (15 fps)
-const pipStream = pipCanvas.captureStream(15);
-pipVideo.srcObject = pipStream;
-
-// Hàm vẽ rect bo góc (sử dụng cho bubble)
-function drawRoundedRect(ctx, x, y, w, h, r) {
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.lineTo(x + w - r, y);
-  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-  ctx.lineTo(x + w, y + h - r);
-  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-  ctx.lineTo(x + r, y + h);
-  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-  ctx.lineTo(x, y + r);
-  ctx.quadraticCurveTo(x, y, x + r, y);
-  ctx.closePath();
-}
-
-// Hàm cập nhật canvas PiP chat
-function updatePiPChat() {
-  // Xoá toàn bộ canvas
-  pipCtx.clearRect(0, 0, pipCanvas.width, pipCanvas.height);
-  
-  // Vẽ nền gradient ngang
-  const grad = pipCtx.createLinearGradient(0, 0, pipCanvas.width, 0);
-  grad.addColorStop(0, "#141e30");
-  grad.addColorStop(1, "#243b55");
-  pipCtx.fillStyle = grad;
-  pipCtx.fillRect(0, 0, pipCanvas.width, pipCanvas.height);
-
-  // Lấy danh sách tin nhắn từ DOM
-  const liList = document.querySelectorAll("#chatMessages li");
-  const lineHeight = 50; // khoảng cách mỗi tin nhắn
-  const totalHeight = liList.length * lineHeight;
-  // Nếu tổng chiều cao > canvas, tính offset sao cho dòng cuối nằm ở dưới
-  const startY = totalHeight > pipCanvas.height ? pipCanvas.height - totalHeight + 20 : 20;
-  let y = startY;
-
-  liList.forEach(li => {
-    // Xác định kiểu message dựa trên class
-    let bgColor = "rgba(255,255,255,0.1)";
-    let iconColor = "#ccc";
-    let iconChar = "\uf2bd"; // default user icon (FontAwesome code)
-    
-    if (li.classList.contains("message-host")) {
-      bgColor = "rgba(0,255,234,0.15)";
-      iconColor = "#00ffea";
-      // Nếu không có icon FontAwesome, có thể dùng emoji:
-      iconChar = "🏠︎"; // biểu tượng chủ phòng
-    } else if (li.classList.contains("message-pro")) {
-      bgColor = "rgba(255,215,0,0.15)";
-      iconColor = "#ffd700";
-      iconChar = "\uf005"; // fa-star
-    } else if (li.classList.contains("message-system")) {
-      bgColor = "rgba(190,190,190,0.15)";
-      iconColor = "#ff0000";
-      iconChar = "🛈"; // biểu tượng hệ thống
-    }
-    // Lấy text từ li (giả sử hiển thị đầy đủ tin nhắn, bao gồm username và nội dung)
-    const text = li.textContent.trim();
-
-    // Vẽ background bubble với bo góc
-    pipCtx.fillStyle = bgColor;
-    drawRoundedRect(pipCtx, 10, y - 10, pipCanvas.width - 20, 40, 8);
-    pipCtx.fill();
-
-    // Vẽ icon
-    pipCtx.save();
-    pipCtx.font = "20px 'Font Awesome 6 Free'";
-    pipCtx.fillStyle = iconColor;
-    pipCtx.textBaseline = "top";
-    pipCtx.fillText(iconChar, 20, y - 5);
-    pipCtx.restore();
-
-    // Vẽ nội dung tin nhắn (username + message)
-    pipCtx.save();
-    pipCtx.font = "14px 'Poppins', sans-serif";
-    pipCtx.fillStyle = "#fff";
-    pipCtx.textBaseline = "top";
-    pipCtx.fillText(text, 50, y);
-    pipCtx.restore();
-
-    // (Optionally) Thêm hiệu ứng animation cho tin nhắn
-    // Ví dụ, có thể thêm một shadow mờ nhẹ:
-    pipCtx.shadowColor = "rgba(0,0,0,0.5)";
-    pipCtx.shadowBlur = 3;
-
-    y += lineHeight;
-  });
-}
-
-// Cập nhật canvas PiP chat mỗi 200ms
-setInterval(updatePiPChat, 200);
-
-// Đảm bảo canvas luôn "cuộn xuống" cuối: do tính toán startY dựa trên tổng chiều cao
-
-// Nút kích hoạt PiP chat
-document.getElementById("pipChatBtn").addEventListener("click", async () => {
-  try {
-    await pipVideo.play();
-    await pipVideo.requestPictureInPicture();
-    console.log("PiP chat activated!");
-  } catch (err) {
-    console.error("Error enabling PiP chat:", err);
-    alert("Không thể bật PiP chat, vui lòng thử lại.");
-  }
-});
+}); // End DOMContentLoaded

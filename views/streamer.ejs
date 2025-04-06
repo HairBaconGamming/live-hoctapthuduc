@@ -1,122 +1,178 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
-  <meta charset="UTF-8">
-  <title>Quản lí live - <%= room.title %></title>
-  <link rel="stylesheet" href="/css/streamer.css">
-  <link rel="icon" type="image/png" href="https://cdn.glitch.global/71030012-56ea-4d26-a426-e0099201df1c/823029_library_512x512.png?v=1741523759119">
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-  <!-- Load Marked để xử lý Markdown -->
-  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-  <!-- Load KaTeX để render công thức toán học -->
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.15.3/dist/katex.min.css">
-  <script src="https://cdn.jsdelivr.net/npm/katex@0.15.3/dist/katex.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
+    <meta charset="UTF-8">
+    <title>Quản lý Live Stream - <%= room.title %></title>
+    <%# Use the new CSS file name %>
+    <link rel="stylesheet" href="/css/streamer-masterpiece.css">
+    <link rel="icon" type="image/png" href="https://cdn.glitch.global/71030012-56ea-4d26-a426-e0099201df1c/823029_library_512x512.png?v=1741523759119">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"> <%# Use Inter font %>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"> <%# Update FA if needed %>
+    <!-- Marked & KaTeX (Keep if used in chat) -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js" defer></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.js" defer></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js" defer></script>
 </head>
-<body>
-  <input type="hidden" id="username" value="<%= user.username %>">
-  <div class="live-header">
-    <div class="live-left">
-      <h1 class="live-title">
-        <i class="fas fa-video"></i>
-        Live Stream: <span class="stream-title"><%= room.title %></span>
-      </h1>
-    </div>
-    <div class="live-right">
-      <p class="viewer-info">
-        <span class="viewer-icon">👀</span> Người xem: 
-        <span id="viewerCount" class="viewer-count">0</span> | 
-        Thời gian mở: <span id="openTime">00:00:00</span>
-      </p>
-    </div>
-  </div>
-  <div class="container">
-    <!-- Control Panel -->
-    <div class="control-panel" id="controlPanel">
-      <button id="togglePanelBtn" class="panel-toggle-btn">
-        <i class="fas fa-chevron-up"></i>
-      </button>
-      <div id="screenShareContainer">
-        <h3>Screen Share Preview</h3>
-        <video id="screenShareVideo" autoplay muted playsinline></video>
-      </div>
-      <div class="panel-content">
-        <button id="endStreamBtn"><i class="fas fa-power-off"></i> Kết thúc live</button>
-        <button id="shareScreenBtn"><i class="fas fa-desktop"></i> Chia sẻ màn hình</button>
-        <button id="liveCamBtn"><i class="fas fa-camera"></i> Live Cam</button>
-        <button id="toggleMicBtn"><i class="fas fa-microphone"></i> Mic On</button>
-      </div>
-      <div class="panel-content">
-        <button id="bannedListBtn"><i class="fas fa-ban"></i> Danh sách Ban</button>
-        <button id="viewersListBtn"><i class="fas fa-users"></i> Danh sách Viewers</button>
-      </div>
-    </div>
-    <!-- Chat Box -->
-    <div id="pinnedComment" class="pinned-comment"></div>
-    <div id="chatBox">
-      <h3>💬 Chat trực tiếp với người xem</h3>
-      <ul id="chatMessages"></ul>
-      <button id="pipChatBtn">
-        <i class="fas fa-window-restore"></i>
-      </button>
-      <!-- Enhanced Chat Input -->
-      <div class="chat-input-container">
-        <textarea id="chatInputArea" placeholder="Nhập tin nhắn... (Hỗ trợ Markdown và KaTeX)"></textarea>
-        <button id="sendChatBtn">Gửi</button>
-      </div>
-      <!-- Chat Preview -->
-      <div id="chatPreview" class="chat-preview"></div>
-    </div>
-  </div>
-  <canvas id="pipChatCanvas" width="400" height="600" style="display: none;"></canvas>
-  <div id="bannedModal" class="banned-modal">
-    <div class="banned-modal-overlay">
-      <div class="banned-modal-box">
-        <h3>Danh sách Viewer Bị Ban</h3>
-        <ul id="bannedList"></ul>
-        <button id="closeBannedModal">Đóng</button>
-      </div>
-    </div>
-  </div>
-  <!-- Modal Viewers List -->
-  <div id="viewersModal" class="viewers-modal">
-    <div class="viewers-modal-overlay">
-      <div class="viewers-modal-box">
-        <h3>Danh sách Viewers</h3>
-        <input type="text" id="viewersSearch" placeholder="Tìm kiếm viewer..." />
-        <ul id="viewersList"></ul>
-        <button id="closeViewersModal">Đóng</button>
-      </div>
-    </div>
-  </div>
-  <script src="/socket.io/socket.io.js"></script>
-  <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
-  <!-- Các biến từ EJS -->
-  <script>
-    const roomId = "<%= room.id %>";
-    const username = document.getElementById("username").value || "<%= user.username %>";
-    const roomCreatedAt = new Date("<%= room.createdAt %>");
-    // Giả sử room.owner chứa username của host
-    const roomOwner = "<%= room.owner %>";
-    // Đối tượng user có thuộc tính isPro
-    const user = {
-      username: "<%= user.username %>",
-      isPro: <%= user.isPro ? "true" : "false" %>
-    };
+<body class="streamer-body"> <%# Add body class %>
+    <input type="hidden" id="streamerUsername" value="<%= user.username %>"> <%# Changed ID %>
 
-    function updateOpenTime() {
-      const now = new Date();
-      const diff = now - roomCreatedAt;
-      const hours = Math.floor(diff / (1000 * 60 * 60));
-      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-      const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-      document.getElementById("openTime").textContent =
-        `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-    }
-    setInterval(updateOpenTime, 1000);
-    updateOpenTime();
-  </script>
-  <script src="/js/streamer.js"></script>
+    <!-- Background Particles -->
+    <div id="streamer-particles-bg"></div>
+
+    <!-- Streamer Header -->
+    <header class="streamer-main-header" data-animate="header-slide-down">
+         <div class="header-left">
+            <i class="fas fa-satellite-dish stream-icon-indicator"></i>
+            <h1>Quản lý: <span class="stream-title-highlight"><%= room.title %></span></h1>
+         </div>
+         <div class="header-right">
+             <div class="info-widget viewers">
+                 <i class="fas fa-eye"></i>
+                 <span id="viewerCountV2" class="count-value">0</span>
+                 <span class="widget-label">Người xem</span>
+             </div>
+              <div class="info-widget time">
+                 <i class="far fa-clock"></i>
+                 <span id="streamDuration" class="time-value">00:00:00</span>
+                 <span class="widget-label">Thời gian</span>
+             </div>
+             <%# Add more widgets like bitrate, status etc. if available %>
+         </div>
+    </header>
+
+    <div class="streamer-main-layout">
+
+        <!-- Left Column: Controls & Preview -->
+        <aside class="streamer-sidebar" data-animate="sidebar-slide-in">
+             <div class="control-panel-v2" id="controlPanelV2">
+                 <div class="panel-header">
+                     <h3><i class="fas fa-sliders-h"></i> Bảng Điều Khiển</h3>
+                     <button id="togglePanelBtnV2" class="panel-toggle-btn-v2" aria-label="Thu gọn/Mở rộng">
+                         <i class="fas fa-chevron-up"></i>
+                     </button>
+                 </div>
+                 <div class="panel-content-collapsible">
+                    <div class="stream-preview-container" id="streamPreviewContainer">
+                         <h4><i class="fas fa-tv"></i> Xem trước Stream</h4>
+                         <div class="video-wrapper">
+                             <video id="streamPreviewVideo" autoplay muted playsinline></video>
+                             <div class="no-stream-overlay">Chưa có tín hiệu...</div>
+                             <div class="stream-status-indicator" id="streamStatusIndicator">OFF AIR</div>
+                         </div>
+                    </div>
+                     <div class="control-section primary-controls">
+                          <button id="shareScreenBtnV2" class="control-btn screen-share" data-tooltip="Chia sẻ Màn hình">
+                              <i class="fas fa-desktop"></i> <span class="btn-label">Màn hình</span>
+                          </button>
+                          <button id="liveCamBtnV2" class="control-btn live-cam" data-tooltip="Live Camera">
+                              <i class="fas fa-camera-retro"></i> <span class="btn-label">Camera</span>
+                          </button>
+                          <button id="toggleMicBtnV2" class="control-btn mic active" data-tooltip="Tắt/Mở Mic"> <%# Start active assume mic on %>
+                              <i class="fas fa-microphone"></i> <span class="btn-label">Mic On</span>
+                          </button>
+                           <button id="endStreamBtnV2" class="control-btn end-stream" data-tooltip="Kết thúc Stream">
+                              <i class="fas fa-power-off"></i> <span class="btn-label">Kết thúc</span>
+                          </button>
+                     </div>
+                      <div class="control-section secondary-controls">
+                           <button id="viewersListBtnV2" class="control-btn viewers-list" data-tooltip="Danh sách người xem">
+                               <i class="fas fa-users"></i> <span class="btn-label">Người xem</span>
+                           </button>
+                           <button id="bannedListBtnV2" class="control-btn banned-list" data-tooltip="Danh sách bị chặn">
+                                <i class="fas fa-user-slash"></i> <span class="btn-label">Bị chặn</span>
+                           </button>
+                            <button id="pipChatBtnV2" class="control-btn pip-chat" data-tooltip="Chat thu nhỏ (PiP)">
+                                <i class="fas fa-window-restore"></i> <span class="btn-label">PiP Chat</span>
+                           </button>
+                           <%# Add more controls like settings? %>
+                      </div>
+                 </div>
+             </div>
+        </aside>
+
+        <!-- Right Column: Chat -->
+        <main class="streamer-chat-area" data-animate="chat-fade-in">
+            <div class="chat-container-v2">
+                <div id="pinnedCommentV2" class="pinned-comment-v2">
+                     <%# Pinned comment loaded by JS %>
+                </div>
+                <div class="chat-messages-wrapper">
+                     <ul id="chatMessagesV2" class="chat-messages-list">
+                         <%# Messages loaded by JS %>
+                          <li class="message-system initial-message"><span>Chào mừng đến với buổi live!</span></li>
+                     </ul>
+                </div>
+                <div class="chat-input-area-v2">
+                    <div class="input-wrapper">
+                        <textarea id="chatInputAreaV2" placeholder="Gửi tin nhắn tới mọi người..." rows="1"></textarea>
+                         <div id="chatPreviewV2" class="chat-preview-v2"></div> <%# Preview above input? %>
+                    </div>
+                    <button id="sendChatBtnV2" class="send-btn-v2" aria-label="Gửi tin nhắn">
+                        <i class="fas fa-paper-plane"></i>
+                    </button>
+                </div>
+            </div>
+        </main>
+
+    </div> <!-- End .streamer-main-layout -->
+
+    <!-- Modals -->
+    <div id="bannedModalV2" class="modal-v2 banned-modal-v2">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content">
+            <button class="modal-close-btn" aria-label="Đóng">×</button>
+            <h3><i class="fas fa-user-slash"></i> Danh sách Đã Chặn</h3>
+            <div class="modal-body">
+                <ul id="bannedListV2" class="user-list"></ul>
+            </div>
+        </div>
+    </div>
+
+     <div id="viewersModalV2" class="modal-v2 viewers-modal-v2">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content">
+            <button class="modal-close-btn" aria-label="Đóng">×</button>
+            <h3><i class="fas fa-users"></i> Danh sách Người Xem</h3>
+            <div class="modal-header">
+                 <input type="text" id="viewersSearchV2" placeholder="Tìm kiếm người xem..." class="modal-search-input" />
+            </div>
+            <div class="modal-body">
+                <ul id="viewersListV2" class="user-list"></ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hidden Canvas for PiP -->
+    <!-- <canvas id="pipChatCanvasV2" width="400" height="600" style="position: fixed; left: -9999px; top: -9999px;"></canvas> -->
+    <%# Consider removing PiP Canvas if too complex or not essential for masterpiece focus %>
+
+    <!-- Custom Confirm Modal Structure (Re-use from alerts.js/confirm.js if defined there) -->
+    <!-- Or define here if not global -->
+     <!-- <div id="customConfirmModal" class="custom-confirm-modal"> ... </div> -->
+
+
+    <!-- Pass EJS variables to JS -->
+    <script>
+        const streamerConfig = {
+            roomId: "<%= room.id %>",
+            username: document.getElementById("streamerUsername").value || "<%= user.username %>",
+            roomCreatedAt: new Date("<%= room.createdAt %>"),
+            roomOwner: "<%= room.owner %>", // Assuming owner username is passed
+            userIsPro: <%= user.isPro ? "true" : "false" %>,
+            peerConfig: { // Pass PeerJS config securely if possible, or use defaults
+                host: 'live-hoctap-9a3.glitch.me',
+                port: 443,
+                path: '/peerjs/myapp',
+                secure: true,
+                // Avoid exposing sensitive credentials directly in client-side JS
+                // Best practice: Fetch TURN credentials from your server API if needed
+                 config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] }
+            }
+        };
+    </script>
+    <!-- Main Streamer JS -->
+    <script src="/js/streamer-masterpiece.js"></script> <%# New JS file name %>
+
 </body>
 </html>
