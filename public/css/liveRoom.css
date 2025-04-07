@@ -208,6 +208,7 @@ html, body.live-room-body {
     background: rgba(var(--bg-dark-rgb), 0.9); /* More opaque */
     backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
     opacity: 0; /* Start transparent for GSAP */
+    pointer-events: none;
 }
 .live-status-overlay.active { display: flex; /* JS controls display */ }
 .overlay-content { text-align: center; color: var(--text-light); padding: 20px; }
