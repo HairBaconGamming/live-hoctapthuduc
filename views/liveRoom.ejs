@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no"> <%# Added user-scalable=no for mobile focus %>
     <title><%= room.title %> - Live Stream</title>
     <link rel="stylesheet" href="/css/liveRoom.css"> <%# Assume styles are here %>
+      <link rel="stylesheet" href="/styles.css"> <%# Assume styles are here %>
     <link rel="icon" type="image/png" href="https://cdn.glitch.global/71030012-56ea-4d26-a426-e0099201df1c/823029_library_512x512.png?v=1741523759119">
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -92,7 +93,7 @@
     </div> <!-- End .live-room-main-content -->
 
     <!-- Status Overlays -->
-     <div id="waitingOverlayLive" class="live-status-overlay waiting-overlay active"> <%# Start active %>
+     <div id="waitingOverlayLive" class="live-status-overlay waiting-overlay"> <%# Start active %>
          <div class="overlay-content">
              <div class="overlay-spinner"><div></div><div></div><div></div></div> <%# Corrected spinner structure %>
              <h2>Đang chờ Host bắt đầu...</h2>
@@ -112,7 +113,7 @@
      </div>
 
      <!-- Play Button Overlay (Show initially, hide on interaction) -->
-     <div id="playOverlayLive" class="live-status-overlay play-overlay active">
+     <div id="playOverlayLive" class="live-status-overlay play-overlay">
          <div class="overlay-content">
               <button id="playButtonLive" class="play-action-btn" aria-label="Bắt đầu xem">
                   <i class="fas fa-play"></i>
@@ -144,6 +145,7 @@
 
      <!-- Custom JS -->
      <script src="/js/alerts.js"></script> <%# If using showAlert %>
+     <script src="/js/confirm.js"></script> <%# If using showAlert %>
      <%# <script src="/js/confirm.js"></script> <- Probably not needed %>
      <script src="/js/liveRoom.js"></script> <%# Assumes viewer logic is here %>
 

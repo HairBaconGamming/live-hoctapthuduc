@@ -208,8 +208,9 @@ html, body.live-room-body {
     background: rgba(var(--bg-dark-rgb), 0.9); /* More opaque */
     backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
     opacity: 0; /* Start transparent for GSAP */
+    pointer-events: none;
 }
-.live-status-overlay.active { display: flex; /* JS controls display */ }
+.live-status-overlay.active { display: flex; pointer-events: auto;/* JS controls display */ }
 .overlay-content { text-align: center; color: var(--text-light); padding: 20px; }
 .overlay-content h2 { font-size: 1.8rem; margin-bottom: 15px; font-weight: 600; }
 .overlay-content p { font-size: 1rem; color: var(--text-medium); margin-bottom: 25px; max-width: 400px; margin-left: auto; margin-right: auto; }
@@ -226,7 +227,7 @@ html, body.live-room-body {
 .ended-overlay .overlay-action-btn { padding: 12px 30px; font-size: 1rem; gap: 8px; }
 
 /* Play Overlay & Button */
-.play-overlay { background: rgba(0,0,0,0.75); cursor: pointer; pointer-events: none; }
+.play-overlay { background: rgba(0,0,0,0.75); cursor: pointer; }
 .play-action-btn {
     background: rgba(var(--primary-color-rgb), 0.6); border: 2px solid rgba(var(--primary-color-rgb), 0.8);
     color: white; width: 85px; height: 85px; border-radius: 50%; font-size: 2.2rem;

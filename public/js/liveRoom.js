@@ -383,7 +383,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!overlayElement || gsap.getProperty(overlayElement, "autoAlpha") === 0) return; // Don't hide if already hidden
         console.log(`Hiding overlay: ${overlayElement.id}`);
          if (!prefersReducedMotion) {
-            gsap.timeline({ onComplete: () => gsap.set(overlayElement, { display: 'none' }) })
+            gsap.timeline({ onComplete: () => {gsap.set(overlayElement, { display: 'none' }); overlayElement.classList.remove("active");} })
                 .to(overlayElement.querySelector('.overlay-content'), { duration: 0.3, scale: 0.9, autoAlpha: 0, ease: 'power1.in' })
                 .to(overlayElement, { duration: 0.4, autoAlpha: 0 }, "-=0.2");
          } else {
@@ -416,7 +416,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // ==================================
     function initUIEventListeners() {
         elements.exitButton?.addEventListener('click', () => {
-             showCustomConfirm("Bạn có chắc muốn rời khỏi phòng live?", () => {
+             showArtisticConfirm("Bạn có chắc muốn rời khỏi phòng live?", () => {
                  if(socket) socket.disconnect();
                  if(viewerPeer) viewerPeer.destroy(); // Clean up peer connection
                  window.location.href = '/live'; // Redirect
