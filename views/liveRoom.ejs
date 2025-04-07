@@ -2,19 +2,20 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
-    <title><%= room.title %> - Live Stream</title> <%# Changed title slightly %>
-    <link rel="stylesheet" href="/css/liveRoom.css"> <%# New CSS file %>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no"> <%# Added user-scalable=no for mobile focus %>
+    <title><%= room.title %> - Live Stream</title>
+    <link rel="stylesheet" href="/css/liveRoom.css"> <%# Assume styles are here %>
     <link rel="icon" type="image/png" href="https://cdn.glitch.global/71030012-56ea-4d26-a426-e0099201df1c/823029_library_512x512.png?v=1741523759119">
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"> <%# Use Inter font %>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <%# Marked & KaTeX NEED to be loaded BEFORE liveRoom.js if used in chat rendering %>
+    <%# Marked & KaTeX - Load if needed for chat rendering (defer is okay) %>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js" defer></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.css">
     <script src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.js" defer></script>
-    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/contrib/auto-render.min.js" defer></script> <%# Auto-render for KaTeX %>
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/contrib/auto-render.min.js" defer></script>
 </head>
-<body class="live-room-body"> <%# Unique body class %>
-    <input type="hidden" id="viewerUsername" value="<%= user.username %>"> <%# Changed ID %>
+<body class="live-room-body">
+    <input type="hidden" id="viewerUsername" value="<%= user.username %>">
 
     <!-- Background Effects -->
     <div class="live-room-background">
@@ -49,17 +50,17 @@
         <!-- Video Area -->
         <section class="live-video-area" data-animate="video-fade-in">
             <div class="video-player-wrapper">
-                <video id="liveVideoFeed" class="live-video-element" autoplay playsinline></video> <%# Changed ID %>
+                <video id="liveVideoFeed" class="live-video-element" autoplay playsinline muted></video> <%# Added muted for better autoplay %>
                  <%# Placeholder shown when no stream %>
-                 <div id="streamPlaceholder" class="stream-video-placeholder active">
+                 <div id="streamPlaceholder" class="stream-video-placeholder active"> <%# Start active %>
                      <div class="placeholder-content">
                          <i class="fas fa-spinner fa-spin placeholder-icon"></i>
                          <p>Đang chờ tín hiệu từ Host...</p>
                          <span>(<%= room.title %>)</span>
                      </div>
                  </div>
-                 <%# Optional: Add stream status indicator (LIVE/OFFLINE) %>
-                 <div class="stream-live-indicator" id="liveIndicator">LIVE</div>
+                 <%# Live status indicator %>
+                 <div class="stream-live-indicator" id="liveIndicator">LIVE</div> <%# JS controls 'active' class %>
             </div>
         </section>
 
@@ -68,19 +69,19 @@
             <div class="live-chat-container">
                 <header class="chat-area-header">
                     <h3><i class="far fa-comments"></i> Chat Trực Tiếp</h3>
-                    <%# Optional: Add button to toggle chat visibility? %>
                 </header>
                  <div id="pinnedCommentLive" class="pinned-comment-live">
                      <%# Pinned comment injected by JS %>
                  </div>
-                 <div class="chat-messages-container"> <%# Scrollable container %>
-                    <ul class="chat-messages-list-v2" id="chatMessagesLive"></ul> <%# Changed ID %>
+                 <div class="chat-messages-container">
+                    <ul class="chat-messages-list-v2" id="chatMessagesLive"></ul>
                  </div>
                 <footer class="chat-input-footer">
-                     <div id="chatPreviewLive" class="chat-preview-live"></div> <%# Preview above input %>
+                     <div id="chatPreviewLive" class="chat-preview-live"></div>
                      <div class="chat-input-wrapper">
-                        <textarea id="chatInputAreaLive" placeholder="Nhập tin nhắn..." rows="1"></textarea> <%# Changed ID %>
-                        <button id="sendChatBtnLive" class="send-chat-btn-v2" aria-label="Gửi"> <%# Changed ID %>
+                        <%# Use contenteditable div for more flexibility? Or stick with textarea %>
+                        <textarea id="chatInputAreaLive" placeholder="Nhập tin nhắn (Ctrl+Enter để gửi)" rows="1"></textarea>
+                        <button id="sendChatBtnLive" class="send-chat-btn-v2" aria-label="Gửi">
                             <i class="fas fa-paper-plane"></i>
                         </button>
                      </div>
@@ -90,10 +91,10 @@
 
     </div> <!-- End .live-room-main-content -->
 
-    <!-- Overlays -->
+    <!-- Status Overlays -->
      <div id="waitingOverlayLive" class="live-status-overlay waiting-overlay active"> <%# Start active %>
          <div class="overlay-content">
-             <div class="overlay-spinner"><div></div><div></div><div></div></div>
+             <div class="overlay-spinner"><div></div><div></div><div></div></div> <%# Corrected spinner structure %>
              <h2>Đang chờ Host bắt đầu...</h2>
              <p>Buổi live "<%= room.title %>" sẽ sớm bắt đầu.</p>
          </div>
@@ -110,47 +111,41 @@
          </div>
      </div>
 
-     <!-- Play Button Overlay (If needed for autoplay issues) -->
-     <div id="playOverlayLive" class="live-status-overlay play-overlay">
+     <!-- Play Button Overlay (Show initially, hide on interaction) -->
+     <div id="playOverlayLive" class="live-status-overlay play-overlay active">
          <div class="overlay-content">
               <button id="playButtonLive" class="play-action-btn" aria-label="Bắt đầu xem">
                   <i class="fas fa-play"></i>
               </button>
-              <p>Nhấn để bắt đầu xem</p>
+              <p>Nhấn để tham gia và xem</p>
          </div>
      </div>
 
-
-    <!-- PeerJS & Socket.IO -->
+    <!-- JS Libraries -->
     <script src="/socket.io/socket.io.js"></script>
     <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js"></script> <%# May not be needed here %>
+    <script src="https://cdn.jsdelivr.net/npm/tsparticles@2.9.3/tsparticles.bundle.min.js"></script>
 
     <!-- EJS Variables to JS -->
     <script>
         const liveRoomConfig = {
             roomId: "<%= room.id %>",
-            username: "<%= user.username %>", // Current viewer username
-            roomOwner: "<%= room.owner %>",   // Host username
+            username: "<%= user.username %>",
+            roomOwner: "<%= room.owner %>",
             userIsPro: <%= user.isPro ? "true" : "false" %>,
-            peerConfig: { // Use same config as streamer for consistency
+            peerConfig: {
                 host: 'live-hoctap-9a3.glitch.me', port: 443, path: '/peerjs/myapp', secure: true,
-                 config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] } // Simple STUN
+                config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] }
             }
         };
     </script>
-       
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js"></script>
-    <script src="/socket.io/socket.io.js"></script> <%# Socket.IO client %>
-    <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script> <%# PeerJS %>
-    <script src="https://cdn.jsdelivr.net/npm/tsparticles@2.9.3/tsparticles.bundle.min.js"></script> <%# tsParticles %>
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script> <%# Marked (if needed client-side) %>
 
-     <!-- Include necessary shared JS (alerts, confirm if needed) -->
-     <script src="/js/alerts.js"></script>
-       <script src="/js/confirm.js"></script>
-     <!-- Include the specific JS for the viewer -->
-    <script src="/js/liveRoom.js"></script> <%# New JS file name %>
+     <!-- Custom JS -->
+     <script src="/js/alerts.js"></script> <%# If using showAlert %>
+     <%# <script src="/js/confirm.js"></script> <- Probably not needed %>
+     <script src="/js/liveRoom.js"></script> <%# Assumes viewer logic is here %>
 
 </body>
 </html>
