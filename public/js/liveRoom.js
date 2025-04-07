@@ -121,7 +121,7 @@ document.addEventListener('DOMContentLoaded', () => {
          socket.on("commentPinned", data => displayPinnedComment(data.message));
          socket.on("commentUnpinned", () => displayPinnedComment(null));
          socket.on("hostJoined", () => hideOverlay(elements.waitingOverlay)); // Hide waiting when host joins/rejoins
-         socket.on("streamEnded", () => showOverlay(elements.endedOverlay)); // Show ended overlay
+         socket.on("roomEnded", () => showOverlay(elements.endedOverlay)); // Show ended overlay
          socket.on("waiting", () => showOverlay(elements.waitingOverlay)); // Show waiting overlay if host disconnects
          socket.on("banned", msg => { alert(msg || "Bạn đã bị chặn khỏi phòng này."); window.location.href = "/live"; });
          socket.on("screenShareEnded", () => handleStreamEnd()); // Handle host stopping stream
