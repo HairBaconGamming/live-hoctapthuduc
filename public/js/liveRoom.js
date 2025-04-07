@@ -414,13 +414,25 @@ document.addEventListener('DOMContentLoaded', () => {
     // ==================================
     // UI EVENT LISTENERS SETUP
     // ==================================
+    async function askExit() {
+        const confirmed = await showArtisticConfirm(
+            "Bạn có chắc muốn rời khỏi phòng live?", // Message
+            "Tôi Chắc Chắn",      // Confirm Text
+            "Để Sau",        // Cancel Text
+            "fas fa-exclamation-triangle" // Icon (optional, default is question mark)
+        );
+
+        if (confirmed) {
+            if(socket) socket.disconnect();
+            if(viewerPeer) viewerPeer.destroy(); // Clean up peer connection
+            window.location.href = 'https://hoctap-9a3.glitch.me/live'; // Redirect
+        } else {
+            console.log("User cancelled deletion.");
+        }
+    }
     function initUIEventListeners() {
         elements.exitButton?.addEventListener('click', () => {
-             showArtisticConfirm("Bạn có chắc muốn rời khỏi phòng live?", () => {
-                 if(socket) socket.disconnect();
-                 if(viewerPeer) viewerPeer.destroy(); // Clean up peer connection
-                 window.location.href = '/live'; // Redirect
-             });
+            askExit()
         });
 
         elements.sendChatBtn?.addEventListener('click', sendChatMessage);

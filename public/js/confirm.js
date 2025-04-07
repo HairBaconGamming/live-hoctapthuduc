@@ -145,22 +145,44 @@ function showArtisticConfirm(
 
         // --- Entrance Animation ---
         if (!prefersReducedMotion) {
-            gsap.timeline()
-                .set(modal, { display: 'flex' }) // Set display flex before animating
-                .fromTo(backdrop, { autoAlpha: 0 }, { duration: 0.5, autoAlpha: 1, ease: 'none' })
-                .fromTo(box,
-                    { scale: 0.7, y: 60, autoAlpha: 0, rotationX: -30 },
-                    { duration: 0.7, scale: 1, y: 0, autoAlpha: 1, rotationX: 0, ease: 'back.out(1.5)' }, // Adjusted ease
-                    "-=0.3"
-                )
-                .from(content.children, { // Animate direct children of content
-                    duration: 0.5, autoAlpha: 0, y: 15, stagger: 0.08, ease: 'power2.out'
-                }, "-=0.4"); // Overlap more
+            // Use a timeline to ensure proper execution order
+            const openTl = gsap.timeline({
+                 onStart: () => console.log("Entrance timeline START"),
+                 onComplete: () => console.log("Entrance timeline COMPLETE. Modal alpha:", gsap.getProperty(modal, "autoAlpha"))
+            });
 
-        } else {
+            // 1. Set display: flex - crucial to happen BEFORE animating alpha/transform
+            openTl.set(modal, { display: 'flex', autoAlpha: 0 }); // Ensure alpha starts at 0 FOR THE ANIMATION
+            console.log("Set display:flex");
+
+            // 2. Animate backdrop
+            openTl.to(backdrop, { duration: 0.5, autoAlpha: 1, ease: 'none' });
+             console.log("Animating backdrop...");
+
+            // 3. Animate box entrance
+            openTl.fromTo(box,
+                 { scale: 0.7, y: 60, autoAlpha: 0, rotationX: -30 },
+                 { duration: 0.7, scale: 1, y: 0, autoAlpha: 1, rotationX: 0, ease: 'back.out(1.5)' },
+                 "-=0.3" // Overlap slightly
+             );
+             console.log("Animating box...");
+
+            // 4. Stagger content inside box
+             if (content && content.children.length > 0) {
+                 openTl.from(content.children, {
+                     duration: 0.5, autoAlpha: 0, y: 15, stagger: 0.08, ease: 'power2.out'
+                 }, "-=0.4"); // Overlap box animation
+                 console.log("Animating content stagger...");
+             } else {
+                  console.warn("Modal content children not found for stagger animation.");
+             }
+
+
+        } else { // Reduced motion
+             console.log("Setting instant visibility (reduced motion).");
              gsap.set(modal, { display: 'flex', autoAlpha: 1 });
              gsap.set(box, { scale: 1, y: 0, autoAlpha: 1, rotationX: 0 });
-             gsap.set(content.children, {autoAlpha: 1, y: 0}); // Ensure content visible
+             if (content) gsap.set(content.children, {autoAlpha: 1, y: 0});
         }
 
         // Focus the preferred button (usually confirm) after a short delay for animation
