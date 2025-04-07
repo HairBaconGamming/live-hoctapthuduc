@@ -54,7 +54,7 @@ function showArtisticConfirm(
                     </div>
                     <p id="artisticConfirmMessage" class="confirm-message">${message}</p>
                     <div class="confirm-action-buttons">
-                        <button class="artistic-confirm-btn btn-cancel" data-modal-focus> <%# Data attribute for focus trap %>
+                        <button class="artistic-confirm-btn btn-cancel" data-modal-focus> 
                              <span class="btn-text">${cancelText}</span>
                              <span class="btn-border-anim"></span>
                         </button>
@@ -152,7 +152,7 @@ function showArtisticConfirm(
             });
 
             // 1. Set display: flex - crucial to happen BEFORE animating alpha/transform
-            openTl.set(modal, { display: 'flex', autoAlpha: 0 }); // Ensure alpha starts at 0 FOR THE ANIMATION
+            openTl.set(modal, { display: 'flex', autoAlpha: 1 }); // Ensure alpha starts at 0 FOR THE ANIMATION
             console.log("Set display:flex");
 
             // 2. Animate backdrop
