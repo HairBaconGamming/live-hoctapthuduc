@@ -108,7 +108,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
              socket.emit("getInitialData", { roomId: liveRoomConfig.roomId }); // Ask for current state
         });
-        socket.on("disconnect", (reason) => console.warn("Viewer socket disconnected:", reason));
+        socket.on("disconnect", (reason) => {console.warn("Viewer socket disconnected:", reason); alert("Bạn bị mất kết nối với lỗi không xác định."); location.href = "https://hoctap-9a3.glitch.me/live"});
         socket.on("connect_error", (err) => console.error("Viewer Socket Error:", err.message));
 
         // --- Handle events ---
@@ -277,8 +277,8 @@ document.addEventListener('DOMContentLoaded', () => {
         li.appendChild(contentContainer);
 
         // Animation
-        if (!prefersReducedMotion) { gsap.from(li, { duration: 0.5, autoAlpha: 0, y: 15, ease: 'power2.out' }); }
-        else { gsap.set(li, { autoAlpha: 1 }); }
+        //if (!prefersReducedMotion) { gsap.from(li, { duration: 0.5, autoAlpha: 1, y: 15, ease: 'power2.out' }); }
+        //else { gsap.set(li, { autoAlpha: 1 }); }
 
         elements.chatMessagesList?.appendChild(li);
         scrollChatToBottom(); // Scroll after adding
@@ -373,7 +373,7 @@ document.addEventListener('DOMContentLoaded', () => {
             gsap.timeline()
                 .set(overlayElement, { display: 'flex' })
                 .to(overlayElement, { duration: 0.5, autoAlpha: 1, ease: 'power2.out' })
-                .from(overlayElement.querySelector('.overlay-content'), { duration: 0.6, scale: 0.9, autoAlpha: 0, ease: 'back.out(1.7)' }, "-=0.3");
+                .from(overlayElement.querySelector('.overlay-content'), { duration: 0.6, scale: 0.9, autoAlpha: 1, ease: 'back.out(1.7)' }, "-=0.3");
          } else {
               gsap.set(overlayElement, { display: 'flex', autoAlpha: 1 });
          }
