@@ -486,36 +486,55 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-function drawOnViewerWhiteboard(x0, y0, x1, y1, color, lineWidth, emitEvent = true, isRedrawing = false, isEraser = false, drawnBy = 'streamer') {
-        if (!wbCtxViewer || !isWhiteboardLocallyVisible) return; // Check if locally visible
+    function drawOnViewerWhiteboard(x0, y0, x1, y1, color, lineWidth, emitEvent = true, isRedrawing = false, isEraser = false, drawnBy = 'streamer') {
+        if (!wbCtxViewer || !isWhiteboardLocallyVisible) { // Phải kiểm tra isWhiteboardLocallyVisible
+             // console.warn("Attempted to draw on viewer whiteboard while not locally visible or no context.");
+             return;
+        }
 
         const actualColor = isEraser ? WB_VIEWER_ERASER_COLOR : color;
-        const actualLineWidth = isEraser ? lineWidth + 10 : lineWidth;
+        const actualLineWidth = isEraser ? (lineWidth < 10 ? lineWidth + 10 : lineWidth * 1.5) : lineWidth; // Tẩy to hơn một chút
 
         wbCtxViewer.beginPath();
         wbCtxViewer.moveTo(x0, y0);
         wbCtxViewer.lineTo(x1, y1);
         wbCtxViewer.strokeStyle = actualColor;
         wbCtxViewer.lineWidth = actualLineWidth;
+        // Chế độ globalCompositeOperation quan trọng cho tẩy
         wbCtxViewer.globalCompositeOperation = isEraser ? 'destination-out' : 'source-over';
         wbCtxViewer.stroke();
         wbCtxViewer.closePath();
-        wbCtxViewer.globalCompositeOperation = 'source-over';
+        wbCtxViewer.globalCompositeOperation = 'source-over'; // Reset về mặc định sau khi vẽ/tẩy
 
         if (!isRedrawing) { 
-            wbViewerDrawingHistoryForRedraw.push({ type: 'draw', x0, y0, x1, y1, color: actualColor, lineWidth: actualLineWidth, isEraser, drawnBy });
-             if (wbViewerDrawingHistoryForRedraw.length > 300) wbViewerDrawingHistoryForRedraw.splice(0, wbViewerDrawingHistoryForRedraw.length - 300);
+            // Chỉ thêm vào history nếu là hành động vẽ mới (không phải từ server đang vẽ lại)
+            // hoặc nếu là hành động của chính viewer này (emitEvent=true)
+            // Server sẽ gửi toàn bộ history khi viewer yêu cầu wb:initState
+            // Viewer chỉ nên push vào history những gì *chính nó* vẽ.
+            // Các nét vẽ từ người khác (streamer, viewer khác) sẽ được drawOnViewerWhiteboard trực tiếp
+            // và được lưu vào wbViewerDrawingHistoryForRedraw bởi wb:initState hoặc khi vẽ lại.
+            // Nếu emitEvent là true, nghĩa là viewer này tự vẽ
+            if (emitEvent) {
+                wbViewerDrawingHistoryForRedraw.push({ type: 'draw', x0, y0, x1, y1, color: actualColor, lineWidth: actualLineWidth, isEraser, drawnBy });
+                 if (wbViewerDrawingHistoryForRedraw.length > 300) wbViewerDrawingHistoryForRedraw.splice(0, wbViewerDrawingHistoryForRedraw.length - 300);
+            }
+        } else {
+             // Khi isRedrawing = true, nghĩa là đang vẽ lại từ history đã có (ví dụ sau resize)
+             // không cần push lại vào history.
         }
+
 
         if (emitEvent && viewerCanDrawOnWhiteboard && socket && socket.connected) {
             socket.emit('wb:draw', { 
                 roomId: liveRoomConfig.roomId,
                 username: liveRoomConfig.username, 
-                drawData: { x0, y0, x1, y1, color: actualColor, lineWidth: actualLineWidth, isEraser }
+                drawData: { x0, y0, x1, y1, color: actualColor, // Gửi màu thực tế đã dùng
+                               lineWidth: actualLineWidth, // Gửi độ dày thực tế
+                               isEraser } // Gửi trạng thái tẩy
             });
         }
     }
-    
+  
     function getMousePosViewer(canvas, evt) { // Same as streamer's getMousePos
         const rect = canvas.getBoundingClientRect();
         let clientX, clientY;

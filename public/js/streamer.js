@@ -75,7 +75,7 @@ document.addEventListener("DOMContentLoaded", () => {
     wbLineWidthRange: document.getElementById("wbLineWidthRangeV2"),
     wbLineWidthValueDisplay: document.getElementById("wbLineWidthValueV2"),
     wbEraserModeBtn: document.getElementById("wbEraserModeBtnV2"),
-    pipChatVideoPlayer: document.getElementById('pipChatVideoPlayer'),
+    pipChatVideoPlayer: document.getElementById("pipChatVideoPlayer"),
   };
 
   // --- State Variables ---
@@ -108,13 +108,13 @@ document.addEventListener("DOMContentLoaded", () => {
   let pipChatStream = null;
   let pipChatUpdateRequestId = null; // For requestAnimationFrame
   let isPipChatActive = false;
-  const PIP_CANVAS_WIDTH = 400; // Điều chỉnh kích thước canvas PiP
+  const PIP_CANVAS_WIDTH = 400;
   const PIP_CANVAS_HEIGHT = 600;
   const PIP_FONT_SIZE_USER = 14;
   const PIP_FONT_SIZE_MSG = 13;
   const PIP_LINE_HEIGHT = 18;
   const PIP_PADDING = 10;
-  const PIP_MSG_MAX_LINES = 3; // Số dòng tối đa cho mỗi tin nhắn trước khi cắt bớt
+  const PIP_MSG_MAX_LINES = 3;
 
   // --- DECLARE SOCKET VARIABLE AT HIGHER SCOPE ---
   let socket = null;
@@ -753,143 +753,167 @@ document.addEventListener("DOMContentLoaded", () => {
   // PICTURE-IN-PICTURE CHAT LOGIC
   // ==================================
   function initPipChatCanvas() {
-    if (!elements.pipChatBtn) return; // Nút không tồn tại thì không cần canvas
+    if (!elements.pipChatBtn) return;
 
-    pipChatCanvas = document.createElement("canvas");
+    // Tạo canvas nếu chưa có
+    if (!pipChatCanvas) {
+      pipChatCanvas = document.createElement("canvas");
+    }
     pipChatCanvas.width = PIP_CANVAS_WIDTH;
     pipChatCanvas.height = PIP_CANVAS_HEIGHT;
+    // pipChatCanvas.style.display = 'none'; // Không cần hiển thị canvas này trực tiếp
+    // document.body.appendChild(pipChatCanvas); // Không cần append vào body nếu chỉ dùng để captureStream
+
     pipChatCtx = pipChatCanvas.getContext("2d");
 
     if (!pipChatCtx) {
       console.error("Failed to create 2D context for PiP chat canvas.");
-      elements.pipChatBtn.disabled = true;
-      elements.pipChatBtn.title = "Không thể tạo canvas cho PiP Chat.";
+      if (elements.pipChatBtn) {
+        elements.pipChatBtn.disabled = true;
+        elements.pipChatBtn.title = "Không thể tạo canvas cho PiP Chat.";
+        elements.pipChatBtn.style.display = "none"; // Ẩn nếu không thể dùng
+      }
       return;
     }
-    console.log("PiP Chat Canvas initialized.");
+    console.log("PiP Chat Canvas initialized and context obtained.");
   }
 
   function drawPipChatFrame() {
-    if (!pipChatCtx || !pipChatCanvas || !elements.chatMessagesList) {
-      cancelAnimationFrame(pipChatUpdateRequestId);
+    if (
+      !isPipChatActive ||
+      !pipChatCtx ||
+      !pipChatCanvas ||
+      !elements.chatMessagesList
+    ) {
+      if (pipChatUpdateRequestId) {
+        cancelAnimationFrame(pipChatUpdateRequestId);
+        pipChatUpdateRequestId = null;
+      }
       return;
     }
 
     // 1. Clear canvas
-    pipChatCtx.fillStyle = "rgba(15, 15, 30, 0.85)"; // Nền tương tự chat area
+    pipChatCtx.fillStyle = "rgba(15, 15, 30, 0.92)"; // Màu nền đậm hơn một chút, độ mờ cao hơn
     pipChatCtx.fillRect(0, 0, pipChatCanvas.width, pipChatCanvas.height);
 
-    // 2. Get chat messages (chỉ lấy vài tin nhắn cuối cùng)
-    const messages = Array.from(elements.chatMessagesList.children).slice(-15); // Lấy 15 tin nhắn cuối
-    let currentY = PIP_CANVAS_HEIGHT - PIP_PADDING; // Bắt đầu vẽ từ dưới lên
+    // 2. Get chat messages
+    const messagesToDisplay = Array.from(
+      elements.chatMessagesList.children
+    ).slice(-10); // Lấy 10 tin nhắn cuối
 
-    pipChatCtx.font = `${PIP_FONT_SIZE_MSG}px ${
-      getComputedStyle(document.body).fontFamily || "Inter, sans-serif"
-    }`;
+    let currentY = pipChatCanvas.height - PIP_PADDING;
+
     pipChatCtx.textBaseline = "bottom";
 
-    for (let i = messages.length - 1; i >= 0; i--) {
-      if (currentY < PIP_PADDING + PIP_LINE_HEIGHT) break; // Không đủ không gian để vẽ
+    for (let i = messagesToDisplay.length - 1; i >= 0; i--) {
+      if (currentY < PIP_PADDING + PIP_LINE_HEIGHT) break;
 
-      const msgItem = messages[i];
+      const msgItem = messagesToDisplay[i];
       const usernameEl = msgItem.querySelector(".msg-username");
       const bodyEl = msgItem.querySelector(".msg-body");
       const timestampEl = msgItem.querySelector(".msg-timestamp");
 
-      const username = usernameEl ? usernameEl.textContent : "System";
-      let textContent = bodyEl ? bodyEl.innerText || bodyEl.textContent : ""; // Lấy text, bỏ qua HTML
-      const timestamp = timestampEl ? timestampEl.textContent : "";
-      const messageType = msgItem.className.includes("message-host")
-        ? "host"
-        : msgItem.className.includes("message-pro")
-        ? "pro"
-        : msgItem.className.includes("message-system")
-        ? "system"
-        : "guest";
+      const username = usernameEl ? usernameEl.textContent.trim() : "System";
+      let textContent = bodyEl
+        ? (bodyEl.innerText || bodyEl.textContent).trim()
+        : "";
+      const timestamp = timestampEl ? timestampEl.textContent.trim() : "";
 
-      // Xử lý xuống dòng và cắt bớt tin nhắn nếu quá dài
-      pipChatCtx.font = `${PIP_FONT_SIZE_MSG}px ${
-        getComputedStyle(document.body).fontFamily || "Inter, sans-serif"
-      }`;
+      let userColor = "#a0a0c0"; // Guest default
+      if (msgItem.classList.contains("message-host")) userColor = "#8a7ffb";
+      // var(--primary-color)
+      else if (msgItem.classList.contains("message-pro")) userColor = "#ffde7d";
+      // var(--accent-color)
+      else if (msgItem.classList.contains("message-system"))
+        userColor = "#8899bb";
+
+      // --- Vẽ nội dung tin nhắn ---
+      pipChatCtx.font = `${PIP_FONT_SIZE_MSG}px Inter, sans-serif`; // Sử dụng font cụ thể
+      pipChatCtx.fillStyle = "#e8eaf6"; // var(--text-light)
+
+      const availableWidthForMsg = pipChatCanvas.width - 2 * PIP_PADDING;
       const lines = [];
+      let currentProcessingLine = "";
       const words = textContent.split(" ");
-      let currentLine = "";
+
       for (const word of words) {
-        const testLine = currentLine + word + " ";
-        const metrics = pipChatCtx.measureText(testLine);
+        const testLine =
+          currentProcessingLine + (currentProcessingLine ? " " : "") + word;
         if (
-          metrics.width > PIP_CANVAS_WIDTH - 2 * PIP_PADDING &&
-          currentLine !== ""
+          pipChatCtx.measureText(testLine).width > availableWidthForMsg &&
+          currentProcessingLine
         ) {
-          lines.push(currentLine.trim());
-          currentLine = word + " ";
+          lines.push(currentProcessingLine);
+          currentProcessingLine = word;
         } else {
-          currentLine = testLine;
+          currentProcessingLine = testLine;
         }
       }
-      lines.push(currentLine.trim());
+      if (currentProcessingLine) lines.push(currentProcessingLine);
 
-      let linesToDraw = lines;
+      let linesToRender = lines;
       if (lines.length > PIP_MSG_MAX_LINES) {
-        linesToDraw = lines.slice(0, PIP_MSG_MAX_LINES - 1);
-        linesToDraw.push(lines[PIP_MSG_MAX_LINES - 1].substring(0, 20) + "..."); // Cắt bớt dòng cuối
+        linesToRender = lines.slice(0, PIP_MSG_MAX_LINES - 1);
+        let lastVisibleLine = lines[PIP_MSG_MAX_LINES - 1];
+        while (
+          pipChatCtx.measureText(lastVisibleLine + "...").width >
+            availableWidthForMsg &&
+          lastVisibleLine.length > 0
+        ) {
+          lastVisibleLine = lastVisibleLine.slice(0, -1);
+        }
+        linesToRender.push(
+          lastVisibleLine +
+            (lines[PIP_MSG_MAX_LINES - 1].length > lastVisibleLine.length ||
+            lines.length > PIP_MSG_MAX_LINES
+              ? "..."
+              : "")
+        );
       }
 
-      // Vẽ các dòng tin nhắn (từ dưới lên cho mỗi tin nhắn)
-      for (let j = linesToDraw.length - 1; j >= 0; j--) {
+      for (let j = linesToRender.length - 1; j >= 0; j--) {
         if (currentY < PIP_PADDING + PIP_LINE_HEIGHT) break;
-        pipChatCtx.fillStyle = "#e0e0e0"; // Màu chữ tin nhắn
-        pipChatCtx.fillText(linesToDraw[j], PIP_PADDING, currentY);
+        pipChatCtx.fillText(linesToRender[j], PIP_PADDING, currentY);
         currentY -= PIP_LINE_HEIGHT;
       }
 
-      // Vẽ username và timestamp
-      if (currentY < PIP_PADDING + PIP_LINE_HEIGHT) break;
-      pipChatCtx.font = `bold ${PIP_FONT_SIZE_USER}px ${
-        getComputedStyle(document.body).fontFamily || "Inter, sans-serif"
-      }`;
-      let userColor = "#a0a0c0"; // Guest
-      if (messageType === "host") userColor = "var(--primary-color)";
-      // #8a7ffb
-      else if (messageType === "pro") userColor = "var(--accent-color)";
-      // #ffde7d
-      else if (messageType === "system") userColor = "#8899bb";
-
+      // --- Vẽ username và timestamp ---
+      if (currentY < PIP_PADDING + PIP_LINE_HEIGHT) break; // Check again before drawing username
+      pipChatCtx.font = `bold ${PIP_FONT_SIZE_USER}px Inter, sans-serif`;
       pipChatCtx.fillStyle = userColor;
-      const userText = `${username} (${timestamp}):`;
-      const userTextWidth = pipChatCtx.measureText(userText).width;
+      const userText = `${username} ${timestamp ? `(${timestamp})` : ""}:`;
       pipChatCtx.fillText(userText, PIP_PADDING, currentY);
-      currentY -= PIP_LINE_HEIGHT + 2; // Thêm khoảng cách nhỏ giữa các tin nhắn
+      currentY -= PIP_LINE_HEIGHT + 4; // Thêm khoảng cách (padding) giữa các tin nhắn
     }
 
-    // Yêu cầu vẽ lại frame tiếp theo nếu PiP đang active
-    if (isPipChatActive) {
-      pipChatUpdateRequestId = requestAnimationFrame(drawPipChatFrame);
-    }
+    pipChatUpdateRequestId = requestAnimationFrame(drawPipChatFrame);
   }
 
   async function togglePipChat() {
-    if (!elements.pipChatBtn || !elements.pipChatVideoPlayer || !pipChatCanvas)
+    if (
+      !elements.pipChatBtn ||
+      !elements.pipChatVideoPlayer ||
+      !pipChatCanvas ||
+      !pipChatCtx
+    ) {
+      console.error("PiP Chat prerequisites not met.");
+      if (elements.pipChatBtn) elements.pipChatBtn.disabled = true;
       return;
+    }
 
-    if (document.pictureInPictureElement) {
-      // Đang ở chế độ PiP, thoát ra
+    if (document.pictureInPictureElement === elements.pipChatVideoPlayer) {
       try {
         await document.exitPictureInPicture();
-        // isPipChatActive = false; // Sẽ được set trong event listener 'leavepictureinpicture'
+        // Event listener 'leavepictureinpicture' sẽ xử lý isPipChatActive = false;
       } catch (error) {
         console.error("Lỗi khi thoát PiP Chat:", error);
-        // Có thể không cần dừng stream ở đây nếu người dùng có thể vào lại
       }
     } else {
-      // Không ở chế độ PiP, vào PiP
-      if (
-        !pipChatStream ||
-        pipChatStream.getVideoTracks().length === 0 ||
-        !pipChatStream.active
-      ) {
+      if (!pipChatStream || !pipChatStream.active) {
+        // Chỉ tạo stream mới nếu chưa có hoặc stream cũ không active
         try {
-          pipChatStream = pipChatCanvas.captureStream(30); // 30 FPS
+          pipChatStream = pipChatCanvas.captureStream(25); // 25 FPS, có thể điều chỉnh
+          console.log("PiP Chat stream captured from canvas.");
         } catch (e) {
           console.error("Lỗi captureStream từ canvas:", e);
           alert(
@@ -899,39 +923,60 @@ document.addEventListener("DOMContentLoaded", () => {
         }
       }
 
-      if (!pipChatStream) {
-        console.error("Không thể tạo stream cho PiP Chat.");
+      if (!pipChatStream || pipChatStream.getVideoTracks().length === 0) {
+        console.error(
+          "Không thể tạo stream hoặc stream không có video track cho PiP Chat."
+        );
+        if (pipChatStream) {
+          // Nếu stream có nhưng không có track, dừng nó
+          pipChatStream.getTracks().forEach((track) => track.stop());
+          pipChatStream = null;
+        }
         return;
       }
 
       elements.pipChatVideoPlayer.srcObject = pipChatStream;
       try {
-        await elements.pipChatVideoPlayer.play(); // Cần play video trước khi request PiP
+        // Đảm bảo video player sẵn sàng
+        if (elements.pipChatVideoPlayer.paused) {
+          await elements.pipChatVideoPlayer.play();
+        }
         await elements.pipChatVideoPlayer.requestPictureInPicture();
-        // isPipChatActive = true; // Sẽ được set trong event listener 'enterpictureinpicture'
+        // Event listener 'enterpictureinpicture' sẽ xử lý isPipChatActive = true và bắt đầu vẽ
       } catch (error) {
         console.error("Lỗi khi vào PiP Chat:", error);
+        let userMessage = "Không thể vào chế độ PiP cho chat.";
         if (error.name === "NotAllowedError") {
-          alert(
-            "Yêu cầu vào PiP bị từ chối. Hãy thử tương tác với trang rồi thử lại."
-          );
+          userMessage =
+            "Yêu cầu vào PiP bị từ chối. Hãy thử tương tác với trang rồi thử lại.";
         } else if (error.name === "SecurityError") {
-          alert(
-            "Không thể vào PiP do giới hạn bảo mật (ví dụ: không trong iframe cho phép)."
-          );
-        } else {
-          alert("Không thể vào chế độ PiP cho chat.");
+          userMessage =
+            "Không thể vào PiP do giới hạn bảo mật (ví dụ: không trong iframe cho phép).";
+        } else if (
+          error.name === "InvalidStateError" &&
+          elements.pipChatVideoPlayer.readyState < 3
+        ) {
+          // HAVE_FUTURE_DATA or HAVE_ENOUGH_DATA
+          userMessage =
+            "Video cho PiP chưa sẵn sàng. Vui lòng thử lại sau giây lát.";
         }
-        // Dừng stream nếu không vào PiP được
+        alert(userMessage);
+
+        // Dọn dẹp nếu không thành công
         if (pipChatStream) {
           pipChatStream.getTracks().forEach((track) => track.stop());
           pipChatStream = null;
         }
         isPipChatActive = false;
-        cancelAnimationFrame(pipChatUpdateRequestId);
-        elements.pipChatBtn.classList.remove("active");
-        elements.pipChatBtn.innerHTML =
-          '<i class="fas fa-window-restore"></i><span class="btn-label">PiP Chat</span>';
+        if (pipChatUpdateRequestId) {
+          cancelAnimationFrame(pipChatUpdateRequestId);
+          pipChatUpdateRequestId = null;
+        }
+        if (elements.pipChatBtn) {
+          elements.pipChatBtn.classList.remove("active");
+          elements.pipChatBtn.innerHTML =
+            '<i class="fas fa-window-restore"></i><span class="btn-label">PiP Chat</span>';
+        }
       }
     }
   }
@@ -1246,131 +1291,83 @@ document.addEventListener("DOMContentLoaded", () => {
       w.scrollTop = w.scrollHeight;
     }
   }
-  function addChatMessage(
-    content,
-    type = "guest",
-    username = "System",
-    timestamp = new Date(),
-    originalMessage = null
-  ) {
-    const li = document.createElement("li");
-    li.className = `chat-message-item message-${type}`;
-    const iconSpan = document.createElement("span");
-    iconSpan.className = "msg-icon";
-    let iconClass = "fa-user";
-    if (type === "host") iconClass = "fa-star";
-    else if (type === "pro") iconClass = "fa-crown";
-    else if (type === "system") iconClass = "fa-info-circle";
-    else if (type === "left") iconClass = "fa-sign-out-alt";
-    else if (type === "ban") iconClass = "fa-user-slash";
-    iconSpan.innerHTML = `<i class="fas ${iconClass}"></i>`;
-    li.appendChild(iconSpan);
-    const cont = document.createElement("div");
-    cont.className = "msg-content-container";
-    const head = document.createElement("div");
-    head.className = "msg-header";
-    const userS = document.createElement("span");
-    userS.className = "msg-username";
-    userS.textContent = username;
-    head.appendChild(userS);
-    const timeS = document.createElement("span");
-    timeS.className = "msg-timestamp";
-    timeS.textContent = new Date(timestamp).toLocaleTimeString([], {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-    head.appendChild(timeS);
-    cont.appendChild(head);
-    const bodyS = document.createElement("span");
-    bodyS.className = "msg-body prose-styling";
-    let finalHtml = content || "";
-    if (type !== "system" && typeof marked !== "undefined") {
-      try {
-        finalHtml = marked.parse(content || "");
-        const t = document.createElement("div");
-        t.innerHTML = finalHtml;
-        if (typeof renderMathInElement === "function")
-          renderMathInElement(t, {
-            delimiters: [
-              { left: "$$", right: "$$", display: !0 },
-              { left: "$", right: "$", display: !1 },
-              { left: "\\(", right: "\\)", display: !1 },
-              { left: "\\[", right: "\\]", display: !0 },
-            ],
-            throwOnError: !1,
-          });
-        finalHtml = t.innerHTML;
-      } catch (e) {
-        console.error("Marked/Katex Err:", e);
-        finalHtml = content;
-      }
-    }
-    bodyS.innerHTML = finalHtml;
-    cont.appendChild(bodyS);
-    li.appendChild(cont);
-    if (
-      streamerConfig.username === streamerConfig.roomOwner &&
-      type !== "system" &&
-      originalMessage
-    ) {
-      const acts = document.createElement("div");
-      acts.className = "msg-actions";
-      const pinBtn = document.createElement("button");
-      pinBtn.className = "action-btn pin-btn";
-      pinBtn.innerHTML = '<i class="fas fa-thumbtack"></i>';
-      pinBtn.title = "Ghim";
-      pinBtn.onclick = () => {
-        if (!socket) return;
-        playButtonFeedback(pinBtn);
-        socket.emit("pinComment", {
-          roomId: streamerConfig.roomId,
-          message: originalMessage,
-        });
-      };
-      acts.appendChild(pinBtn);
-      if (username !== streamerConfig.username) {
-        const banBtn = document.createElement("button");
-        banBtn.className = "action-btn ban-user-btn";
-        banBtn.innerHTML = '<i class="fas fa-user-slash"></i>';
-        banBtn.title = `Chặn ${username}`;
-        banBtn.onclick = async () => {
-          if (!socket) return;
-          playButtonFeedback(banBtn);
-          const confirmed = await showStreamerConfirmation(
-            `Chặn ${username}?`,
-            "Chặn",
-            "Hủy",
-            "fas fa-user-slash"
-          );
-          if (confirmed)
-            socket.emit("banViewer", {
-              roomId: streamerConfig.roomId,
-              viewerUsername: username,
-            });
-        };
-        acts.appendChild(banBtn);
-      }
-      li.appendChild(acts);
-    }
-    if (!prefersReducedMotion) {
-      gsap.from(li, { duration: 0.5, autoAlpha: 0, y: 15, ease: "power2.out" });
-    } else {
-      gsap.set(li, { autoAlpha: 1 });
-    }
-    elements.chatMessagesList.appendChild(li);
-    scrollChatToBottom();
+    function addChatMessage(content, type = 'guest', username = 'System', timestamp = new Date(), originalMessage = null) { 
+        const li = document.createElement("li"); 
+        li.className = `chat-message-item message-${type}`; 
+        const iconSpan = document.createElement("span"); 
+        iconSpan.className = "msg-icon"; 
+        let iconClass = "fa-user"; 
+        if(type === 'host') iconClass = "fa-star"; 
+        else if(type === 'pro') iconClass = "fa-crown"; 
+        else if(type === 'system') iconClass = "fa-info-circle"; 
+        else if(type === 'left') iconClass = "fa-sign-out-alt"; 
+        else if(type === 'ban') iconClass = "fa-user-slash"; 
+        iconSpan.innerHTML = `<i class="fas ${iconClass}"></i>`; 
+        li.appendChild(iconSpan); 
+        const cont = document.createElement("div"); 
+        cont.className = "msg-content-container"; 
+        const head = document.createElement("div"); 
+        head.className = "msg-header"; 
+        const userS = document.createElement("span"); 
+        userS.className = "msg-username"; 
+        userS.textContent = username; 
+        head.appendChild(userS); 
+        const timeS = document.createElement("span"); 
+        timeS.className = "msg-timestamp"; 
+        timeS.textContent = new Date(timestamp).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' }); 
+        head.appendChild(timeS); 
+        cont.appendChild(head); 
+        const bodyS = document.createElement("span"); 
+        bodyS.className = "msg-body prose-styling"; 
+        let finalHtml = content || ''; 
+        if (type !== 'system' && typeof marked !== 'undefined') { 
+            try { 
+                finalHtml = marked.parse(content || ''); 
+                const t=document.createElement('div');
+                t.innerHTML=finalHtml;
+                if(typeof renderMathInElement==='function')renderMathInElement(t,{delimiters:[{left:"$$",right:"$$",display:!0},{left:"$",right:"$",display:!1},{left:"\\(",right:"\\)",display:!1},{left:"\\[",right:"\\]",display:!0}],throwOnError:!1});
+                finalHtml=t.innerHTML;
+            } catch(e){
+                console.error("Marked/Katex Err:", e); 
+                finalHtml = content;
+            } 
+        } 
+        bodyS.innerHTML = finalHtml; 
+        cont.appendChild(bodyS); 
+        li.appendChild(cont); 
+        if (streamerConfig.username === streamerConfig.roomOwner && type !== 'system' && originalMessage) { 
+            const acts = document.createElement('div'); 
+            acts.className='msg-actions'; 
+            const pinBtn = document.createElement("button"); 
+            pinBtn.className="action-btn pin-btn"; 
+            pinBtn.innerHTML = '<i class="fas fa-thumbtack"></i>'; 
+            pinBtn.title="Ghim"; 
+            pinBtn.onclick=()=>{if(!socket)return;playButtonFeedback(pinBtn);socket.emit("pinComment",{roomId:streamerConfig.roomId,message:originalMessage});}; 
+            acts.appendChild(pinBtn); 
+            if(username!==streamerConfig.username){ 
+                const banBtn=document.createElement("button"); 
+                banBtn.className="action-btn ban-user-btn"; 
+                banBtn.innerHTML='<i class="fas fa-user-slash"></i>'; 
+                banBtn.title=`Chặn ${username}`; 
+                banBtn.onclick= async ()=>{if(!socket)return;playButtonFeedback(banBtn); const confirmed = await showStreamerConfirmation(`Chặn ${username}?`, "Chặn", "Hủy", "fas fa-user-slash"); if(confirmed) socket.emit("banViewer",{roomId:streamerConfig.roomId,viewerUsername:username});}; 
+                acts.appendChild(banBtn); 
+            } 
+            li.appendChild(acts); 
+        } 
+        if (!prefersReducedMotion) { 
+            gsap.from(li, { duration: 0.5, autoAlpha: 0, y: 15, ease: 'power2.out' }); 
+        } else { 
+            gsap.set(li, { autoAlpha: 1 }); 
+        } 
+        elements.chatMessagesList.appendChild(li); 
+        scrollChatToBottom(); 
 
-    // Nếu PiP Chat đang hoạt động, yêu cầu vẽ lại frame (không cần ngay lập tức, drawPipChatFrame sẽ tự chạy)
-    // Tuy nhiên, để đảm bảo nó cập nhật ngay, có thể gọi drawPipChatFrame trực tiếp
-    // nhưng cần cẩn thận để không tạo quá nhiều yêu cầu vẽ.
-    // requestAnimationFrame trong drawPipChatFrame đã tối ưu việc này.
-    // Chỉ cần đảm bảo vòng lặp đang chạy.
-    if (isPipChatActive && !pipChatUpdateRequestId) {
-      // Nếu vòng lặp chưa chạy, khởi động lại
-      //  console.log("New message, ensuring PiP frame update loop is active.");
-      //  drawPipChatFrame(); // Không cần gọi trực tiếp, vòng lặp sẽ tự cập nhật
+        // Vòng lặp drawPipChatFrame sẽ tự động vẽ lại nếu isPipChatActive là true.
+        // Không cần gọi drawPipChatFrame() trực tiếp từ đây nữa,
+        // vì nó có thể dẫn đến nhiều yêu cầu vẽ chồng chéo nếu tin nhắn đến quá nhanh.
+        // requestAnimationFrame đã xử lý việc này.
     }
-  }
+  
   function displayPinnedComment(message) {
     const wasVisible =
       elements.pinnedCommentContainer.style.height !== "0px" &&
@@ -2107,16 +2104,20 @@ document.addEventListener("DOMContentLoaded", () => {
           togglePipChat();
         });
 
-        // Listen to PiP events on the video element
+        // Bên trong initUIEventListeners(), trong phần if (isPiPSupportedByBrowser)
         elements.pipChatVideoPlayer.addEventListener(
           "enterpictureinpicture",
           () => {
             console.log("Đã vào chế độ PiP Chat.");
             isPipChatActive = true;
-            elements.pipChatBtn.classList.add("active");
-            elements.pipChatBtn.innerHTML =
-              '<i class="fas fa-window-minimize"></i><span class="btn-label">Thoát PiP</span>';
-            drawPipChatFrame(); // Bắt đầu vòng lặp vẽ
+            if (elements.pipChatBtn) {
+              elements.pipChatBtn.classList.add("active");
+              elements.pipChatBtn.innerHTML =
+                '<i class="fas fa-window-minimize"></i><span class="btn-label">Thoát PiP</span>';
+            }
+            if (pipChatUpdateRequestId)
+              cancelAnimationFrame(pipChatUpdateRequestId); // Hủy frame cũ nếu có
+            drawPipChatFrame();
           }
         );
 
@@ -2125,11 +2126,15 @@ document.addEventListener("DOMContentLoaded", () => {
           () => {
             console.log("Đã thoát chế độ PiP Chat.");
             isPipChatActive = false;
-            cancelAnimationFrame(pipChatUpdateRequestId); // Dừng vòng lặp vẽ
-            elements.pipChatBtn.classList.remove("active");
-            elements.pipChatBtn.innerHTML =
-              '<i class="fas fa-window-restore"></i><span class="btn-label">PiP Chat</span>';
-            // Dừng stream khi thoát PiP để tiết kiệm tài nguyên
+            if (pipChatUpdateRequestId) {
+              cancelAnimationFrame(pipChatUpdateRequestId);
+              pipChatUpdateRequestId = null;
+            }
+            if (elements.pipChatBtn) {
+              elements.pipChatBtn.classList.remove("active");
+              elements.pipChatBtn.innerHTML =
+                '<i class="fas fa-window-restore"></i><span class="btn-label">PiP Chat</span>';
+            }
             if (pipChatStream) {
               pipChatStream.getTracks().forEach((track) => track.stop());
               pipChatStream = null;
