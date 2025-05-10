@@ -186,6 +186,12 @@ io.on("connection", (socket) => {
         room.isLive = true;
         io.to(roomId).emit("hostJoined");
         console.log(`Host ${username} joined room ${roomId}`);
+        
+        // If whiteboard was previously active in this room session, inform the rejoining host
+        if (room.isWhiteboardActive) {
+            socket.emit('wb:toggleVisibility', { isVisible: true });
+            // Host should then emit its wb:requestInitialState to get data if it doesn't have it locally
+        }
       } else {
         room.viewers++;
         // Thêm viewer vào danh sách nếu chưa có
@@ -200,6 +206,15 @@ io.on("connection", (socket) => {
         // Gửi pinned comment nếu có
         if (room.pinnedComment) {
           socket.emit("commentPinned", { message: room.pinnedComment });
+        }
+        if (room.isWhiteboardActive) { // If whiteboard is active when viewer joins
+            socket.emit('wb:toggleVisibility', { isVisible: true });
+            // Viewer will then emit 'wb:requestInitialState'
+        }
+        // Update viewer's permission state
+        const viewerInfo = room.viewersList.find(v => v.username === username);
+        if (viewerInfo) {
+            socket.emit('wb:permissionUpdate', { viewerUsername: username, canDraw: viewerInfo.canDraw });
         }
         // Cập nhật danh sách viewers cho host (nếu có)
         io.to(room.hostSocketId).emit("updateViewersList", {
@@ -350,23 +365,14 @@ io.on("connection", (socket) => {
   });
 
   // Handle request for initial state from a newly joined client (streamer or viewer)
-  socket.on("wb:requestInitialState", ({ roomId }) => {
-    const room = liveRooms.find((r) => r.id === roomId);
-    if (room && room.hostSocketId && room.hostSocketId !== socket.id) {
-      // Request from a viewer/another client, ask the current host for state
-      console.log(
-        `Relaying wb:requestInitialState from ${socket.id} to host ${room.hostSocketId} in room ${roomId}`
-      );
-      io.to(room.hostSocketId).emit("wb:viewerRequestState", {
-        viewerSocketId: socket.id,
-      });
-    } else if (room && room.hostSocketId === socket.id) {
-      // Request from the host itself (e.g., after a refresh), maybe they have local history
-      // Or, if we stored history on server, send it. For now, host manages its own state.
-      // This case might indicate the host refreshed and lost its local state.
-      // They would then need to receive it if another "authoritative" source existed or redraw.
-    }
-  });
+    socket.on('wb:requestInitialState', ({ roomId }) => {
+        const room = liveRooms.find(r => r.id === roomId);
+        if (room && room.hostSocketId) {
+            // Always relay request to the current host for state
+            console.log(`Relaying wb:requestInitialState from ${socket.id} to host ${room.hostSocketId} in room ${roomId}`);
+            io.to(room.hostSocketId).emit('wb:viewerRequestState', { viewerSocketId: socket.id });
+        }
+    });
 
   // Streamer sends its current state to a specific viewer who requested it
   socket.on("wb:syncStateToViewer", ({ targetViewerId, history, dataUrl }) => {
@@ -442,6 +448,38 @@ io.on("connection", (socket) => {
     }
   );
 
+  socket.on("wb:toggleGlobalVisibility", ({ roomId, isVisible }) => {
+    const room = liveRooms.find((r) => r.id === roomId);
+    if (room && socket.username === room.owner) {
+      // Only host can do this
+      room.isWhiteboardActive = isVisible; // Store state on room object
+      console.log(
+        `Whiteboard visibility for room ${roomId} set to ${isVisible} by host.`
+      );
+      // Notify all clients in the room (streamer and viewers)
+      io.to(roomId).emit("wb:toggleVisibility", { isVisible });
+
+      // If whiteboard is being shown for the first time or after being hidden,
+      // host might need to send its current state.
+      // This can be handled by the streamer client sending 'wb:syncStateToViewer' to all,
+      // or viewers individually emitting 'wb:requestInitialState'.
+      // For simplicity, let's assume if streamer toggles on, they will also send current state
+      // if they have drawing. Or, viewers will request it.
+      if (isVisible) {
+        // This will trigger the streamer to send its state to any viewer that requests it.
+        // Or streamer can proactively send to all viewers.
+        // For now, rely on viewers' 'wb:requestInitialState' when they see it become visible.
+      }
+    }
+  });
+
+  socket.on('wb:draw', ({ roomId, username, drawData }) => { // Added username
+      // Broadcast to all other clients in the room
+      // If username is not present, it means it's from the streamer
+      const drawingUsername = username || socket.username; // Fallback to socket.username if not provided (e.g. old streamer client)
+      socket.to(roomId).emit('wb:draw', { username: drawingUsername, drawData });
+  });
+  
   socket.on("disconnect", () => {
     console.log("👋 Client disconnected", socket.id);
   });

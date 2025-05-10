@@ -91,6 +91,22 @@
         </aside>
 
     </div> <!-- End .live-room-main-content -->
+          
+    <!-- Whiteboard Container for Viewer -->
+    <div id="whiteboardContainerOverlayViewer" class="whiteboard-container-overlay viewer-wb" style="display: none; opacity: 0;">
+        <div id="whiteboardToolbarViewer" class="whiteboard-toolbar" style="display: none;"> <!-- Initially hidden, shown if permission granted -->
+            <span style="font-weight: bold; color: var(--text-light); margin-right:15px;">Bảng Vẽ</span>
+            <label for="wbColorPickerViewer" class="wb-label">Màu:</label>
+            <input type="color" id="wbColorPickerViewer" title="Chọn màu" value="#FF6EC4"> <!-- Viewer default color pink -->
+            <label for="wbLineWidthRangeViewer" class="wb-label">Nét:</label>
+            <input type="range" id="wbLineWidthRangeViewer" min="1" max="30" value="3" title="Độ dày nét vẽ">
+            <span id="wbLineWidthValueDisplayViewer" style="min-width:20px; text-align:right;">3</span>
+            <button id="wbEraserModeBtnViewer" class="wb-tool-btn control-btn" data-tooltip="Tẩy"><i class="fas fa-eraser"></i></button>
+            <!-- Viewers usually don't have a global clear button -->
+            <button id="closeWhiteboardBtnViewer" class="wb-tool-btn control-btn" data-tooltip="Đóng bảng trắng (tạm ẩn)"><i class="fas fa-eye-slash"></i></button>
+        </div>
+        <canvas id="whiteboardCanvasViewer"></canvas>
+    </div>
 
     <!-- Status Overlays -->
      <div id="waitingOverlayLive" class="live-status-overlay waiting-overlay"> <%# Start active %>

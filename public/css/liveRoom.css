@@ -267,3 +267,104 @@ html, body.live-room-body {
     .overlay-content p { font-size: 0.9rem; }
     .play-action-btn { width: 70px; height: 70px; font-size: 1.8rem; }
 }
+
+/* --- Viewer Whiteboard Styles --- */
+.whiteboard-container-overlay.viewer-wb { /* Specific to viewer if needed */
+    position: fixed;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background-color: rgba(var(--bg-dark-rgb), 0.85); /* Slightly less opaque than streamer */
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    z-index: 999; /* Below streamer's WB if both were somehow on same page, but high enough */
+    display: none; 
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 10px;
+}
+
+#whiteboardCanvasViewer {
+    background-color: #202333; /* Viewer canvas can have a slightly different shade */
+    border: 1px solid var(--border-highlight);
+    border-radius: var(--border-radius-base);
+    cursor: default; /* Default, changes to crosshair if canDraw */
+    touch-action: none;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+}
+#whiteboardCanvasViewer.can-draw {
+    cursor: crosshair;
+}
+#whiteboardCanvasViewer.eraser-mode {
+    cursor: cell; /* Or a custom eraser cursor */
+}
+
+
+#whiteboardToolbarViewer {
+    display: flex; /* JS will toggle to 'flex' if viewerCanDraw */
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    background-color: rgba(var(--bg-panel-rgb, 28, 28, 50), 0.85); /* Viewer toolbar slightly different */
+    border-radius: var(--border-radius-base) var(--border-radius-base) 0 0;
+    border: 1px solid var(--border-color);
+    border-bottom: none;
+    box-sizing: border-box;
+    margin-bottom: 0;
+    flex-wrap: wrap;
+}
+
+#whiteboardToolbarViewer .wb-label {
+    color: var(--text-medium);
+    font-size: 0.85em;
+}
+
+#whiteboardToolbarViewer input[type="color"] {
+    width: 32px;
+    height: 26px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    cursor: pointer;
+    padding: 2px;
+    background-color: transparent;
+}
+#whiteboardToolbarViewer input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+#whiteboardToolbarViewer input[type="color"]::-webkit-color-swatch { border: none; border-radius: 3px;}
+#whiteboardToolbarViewer input[type="color"]::-moz-color-swatch { border: none; border-radius: 3px;}
+
+
+#whiteboardToolbarViewer input[type="range"] {
+    cursor: pointer;
+    width: 80px;
+}
+#whiteboardToolbarViewer #wbLineWidthValueDisplayViewer {
+    color: var(--text-light);
+    font-weight: 500;
+}
+
+#whiteboardToolbarViewer .wb-tool-btn {
+    padding: 5px 8px !important;
+    background-color: rgba(var(--secondary-color-rgb), 0.1) !important; /* Viewer tools different accent */
+    border: 1px solid rgba(var(--secondary-color-rgb), 0.4) !important;
+}
+#whiteboardToolbarViewer .wb-tool-btn:hover {
+     background-color: rgba(var(--secondary-color-rgb), 0.2) !important;
+}
+#whiteboardToolbarViewer .wb-tool-btn i {
+    font-size: 0.9rem !important;
+    margin-bottom: 0 !important;
+    color: var(--text-medium) !important;
+}
+#whiteboardToolbarViewer .wb-tool-btn:hover i {
+    color: var(--secondary-color) !important;
+}
+#whiteboardToolbarViewer .wb-tool-btn.active {
+    background-color: rgba(var(--accent-color-rgb), 0.25) !important; /* Active viewer tool different again */
+    border-color: var(--accent-color) !important;
+}
+#whiteboardToolbarViewer .wb-tool-btn.active i {
+    color: var(--accent-color) !important;
+}
+
+/* Specific for viewer close/hide button - might be an eye-slash */
+#whiteboardToolbarViewer #closeWhiteboardBtnViewer i { color: var(--text-medium) !important; }
+#whiteboardToolbarViewer #closeWhiteboardBtnViewer:hover i { color: var(--text-light) !important; }

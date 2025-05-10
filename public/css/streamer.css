@@ -447,3 +447,19 @@
 .whiteboard-toolbar .wb-tool-btn.active i {
     color: var(--secondary-color) !important;
 }
+
+/* In public/css/streamer.css */
+.control-btn-disabled-visual {
+    opacity: 0.5 !important;
+    cursor: not-allowed !important;
+    background: rgba(var(--bg-dark-rgb), 0.4) !important;
+    border-color: var(--border-color) !important;
+}
+.control-btn-disabled-visual i {
+    color: var(--text-medium) !important;
+    opacity: 0.6 !important;
+}
+.control-btn-disabled-visual:hover {
+    transform: none !important;
+    box-shadow: none !important;
+}

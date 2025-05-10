@@ -326,6 +326,18 @@ document.addEventListener("DOMContentLoaded", () => {
         socket.emit("getViewersList", { roomId: streamerConfig.roomId });
       }
     });
+    socket.on("wb:toggleVisibility", ({ isVisible }) => {
+      // This event is mainly for viewers, but streamer might receive it
+      // if server broadcasts to whole room including sender.
+      // Streamer's local state `isWhiteboardActive` should already be set
+      // by its own action that triggered this server event.
+      // However, this ensures consistency if streamer reconnects or similar.
+      if (isVisible) {
+        if (!isWhiteboardActive) showWhiteboard(); // Show if not already locally active
+      } else {
+        if (isWhiteboardActive) hideWhiteboard(); // Hide if locally active
+      }
+    });
   } // End initSocket
 
   // ==================================
@@ -458,11 +470,14 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function showWhiteboard() {
+    // Called by wb:toggleVisibility from server
     if (!elements.whiteboardOverlay || isWhiteboardActive) return;
     isWhiteboardActive = true;
     elements.whiteboardOverlay.style.opacity = 0;
     elements.whiteboardOverlay.style.display = "flex";
+
     resizeWhiteboardCanvas();
+
     if (!prefersReducedMotion) {
       gsap.to(elements.whiteboardOverlay, {
         duration: 0.5,
@@ -472,20 +487,23 @@ document.addEventListener("DOMContentLoaded", () => {
     } else {
       gsap.set(elements.whiteboardOverlay, { autoAlpha: 1 });
     }
-    elements.toggleWhiteboardBtn?.classList.add("active");
+    elements.toggleWhiteboardBtn?.classList.add("active"); // Reflect state on button
     window.addEventListener("resize", resizeWhiteboardCanvas);
-    console.log("Whiteboard shown");
+    console.log("Streamer Whiteboard shown by server event");
   }
 
   function hideWhiteboard() {
+    // Called by wb:toggleVisibility from server
     if (!elements.whiteboardOverlay || !isWhiteboardActive) return;
+
     const onHideComplete = () => {
       isWhiteboardActive = false;
       elements.whiteboardOverlay.style.display = "none";
-      elements.toggleWhiteboardBtn?.classList.remove("active");
+      elements.toggleWhiteboardBtn?.classList.remove("active"); // Reflect state on button
       window.removeEventListener("resize", resizeWhiteboardCanvas);
-      console.log("Whiteboard hidden");
+      console.log("Streamer Whiteboard hidden by server event");
     };
+
     if (!prefersReducedMotion) {
       gsap.to(elements.whiteboardOverlay, {
         duration: 0.4,
@@ -1628,24 +1646,29 @@ document.addEventListener("DOMContentLoaded", () => {
   // UI EVENT LISTENERS SETUP
   // ==================================
   function initUIEventListeners() {
+    // --- Control Panel Toggle ---
     elements.togglePanelBtn?.addEventListener("click", () => {
-      isPanelCollapsed = elements.controlPanel.classList.toggle("collapsed");
+      isPanelCollapsed = elements.controlPanel.classList.toggle("collapsed"); // Toggle class first
       const icon = elements.togglePanelBtn.querySelector("i");
       if (!elements.panelContent) return;
+
+      // Animate icon rotation
       gsap.to(icon, {
         rotation: isPanelCollapsed ? 180 : 0,
         duration: 0.4,
         ease: "power2.inOut",
       });
+
       if (!prefersReducedMotion) {
         if (isPanelCollapsed) {
+          // --- Collapse Animation ---
           gsap.to(elements.controlButtons, {
-            duration: 0.25,
+            duration: 0.25, // Faster fade out
             autoAlpha: 0,
-            y: 10,
+            y: 10, // Move down slightly
             stagger: 0.04,
             ease: "power1.in",
-            overwrite: true,
+            overwrite: true, // Ensure it stops any 'from' animation
           });
           gsap.to(elements.panelContent, {
             duration: 0.4,
@@ -1655,14 +1678,15 @@ document.addEventListener("DOMContentLoaded", () => {
             marginTop: 0,
             autoAlpha: 0,
             ease: "power2.inOut",
-            delay: 0.1,
+            delay: 0.1, // Delay slightly after buttons start fading
           });
         } else {
+          // --- Expand Animation ---
           gsap.set(elements.panelContent, {
             display: "block",
             height: "auto",
             autoAlpha: 0,
-          });
+          }); // Start invisible for height calc
           const targetPanelStyles = {
             height: elements.panelContent.scrollHeight,
             paddingTop: 20,
@@ -1680,7 +1704,7 @@ document.addEventListener("DOMContentLoaded", () => {
               marginTop: 0,
             },
             {
-              duration: 0.5,
+              duration: 0.5, // Slightly longer expand
               ...targetPanelStyles,
               ease: "power3.out",
               onComplete: () => {
@@ -1688,7 +1712,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 if (elements.controlButtons.length > 0) {
                   gsap.fromTo(
                     elements.controlButtons,
-                    { y: 15, autoAlpha: 0 },
+                    { y: 15, autoAlpha: 0 }, // Start from slightly below
                     {
                       duration: 0.5,
                       y: 0,
@@ -1704,14 +1728,16 @@ document.addEventListener("DOMContentLoaded", () => {
           );
         }
       } else {
+        // Reduced motion toggle
         elements.panelContent.style.display = isPanelCollapsed
           ? "none"
           : "block";
         gsap.set(elements.controlButtons, {
           autoAlpha: isPanelCollapsed ? 0 : 1,
-        });
+        }); // Instantly show/hide buttons
       }
     });
+    // --- Stream Control Buttons ---
     elements.shareScreenBtn?.addEventListener("click", () => {
       playButtonFeedback(elements.shareScreenBtn);
       startScreenShare();
@@ -1742,6 +1768,7 @@ document.addEventListener("DOMContentLoaded", () => {
         window.location.href = "https://hoctap-9a3.glitch.me/live";
       }
     });
+    // --- Modal Buttons ---
     elements.viewersListBtn?.addEventListener("click", () => {
       if (!socket) return;
       playButtonFeedback(elements.viewersListBtn);
@@ -1767,6 +1794,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
       });
     });
+    // --- Chat Input ---
     elements.sendChatBtn?.addEventListener("click", sendChatMessage);
     elements.chatInputArea?.addEventListener("keydown", (e) => {
       if (e.key === "Enter" && !e.shiftKey) {
@@ -1787,6 +1815,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
       }
     });
+    // --- Search Filter ---
     elements.viewersSearchInput?.addEventListener("input", function () {
       const q = this.value.toLowerCase();
       const li = elements.viewersModalList?.querySelectorAll("li");
@@ -1796,22 +1825,35 @@ document.addEventListener("DOMContentLoaded", () => {
         l.style.display = u.includes(q) ? "" : "none";
       });
     });
-    if (elements.pipChatBtn) {
-      elements.pipChatBtn.style.display = "none";
-    }
 
     // --- Whiteboard Controls ---
     elements.toggleWhiteboardBtn?.addEventListener("click", () => {
       playButtonFeedback(elements.toggleWhiteboardBtn);
-      if (isWhiteboardActive) {
-        hideWhiteboard();
+      const newVisibility = !isWhiteboardActive;
+      if (socket && socket.connected) {
+        socket.emit("wb:toggleGlobalVisibility", {
+          roomId: streamerConfig.roomId,
+          isVisible: newVisibility,
+        });
       } else {
-        showWhiteboard();
+        if (newVisibility) {
+          showWhiteboard();
+        } else {
+          hideWhiteboard();
+        }
       }
     });
     elements.closeWhiteboardBtn?.addEventListener("click", () => {
       playButtonFeedback(elements.closeWhiteboardBtn);
-      hideWhiteboard();
+      // Streamer explicitly closing their view of whiteboard, also signals to others
+      if (socket && socket.connected) {
+        socket.emit("wb:toggleGlobalVisibility", {
+          roomId: streamerConfig.roomId,
+          isVisible: false,
+        });
+      } else {
+        hideWhiteboard();
+      }
     });
     elements.wbColorPicker?.addEventListener("input", (e) => {
       wbCurrentColor = e.target.value;
@@ -1821,22 +1863,56 @@ document.addEventListener("DOMContentLoaded", () => {
       if (elements.wbLineWidthValueDisplay)
         elements.wbLineWidthValueDisplay.textContent = wbCurrentLineWidth;
     });
-    elements.wbEraserModeBtn?.addEventListener("click", () => {
-      playButtonFeedback(elements.wbEraserModeBtn);
-      wbIsEraserMode = !wbIsEraserMode;
-      elements.wbEraserModeBtn.classList.toggle("active", wbIsEraserMode);
-      if (elements.whiteboardCanvas)
-        elements.whiteboardCanvas.style.cursor = wbIsEraserMode
-          ? "cell"
-          : "crosshair";
-      console.log(
-        wbIsEraserMode ? "Eraser mode ON" : "Eraser mode OFF, Pen mode ON"
-      );
-    });
     elements.wbClearBtn?.addEventListener("click", () => {
       playButtonFeedback(elements.wbClearBtn);
       clearWhiteboard(true);
     });
+    elements.wbEraserModeBtn?.addEventListener("click", () => {
+      playButtonFeedback(elements.wbEraserModeBtn);
+      wbIsEraserMode = !wbIsEraserMode;
+      elements.wbEraserModeBtn.classList.toggle("active", wbIsEraserMode);
+      elements.whiteboardCanvas.style.cursor = wbIsEraserMode
+        ? "cell"
+        : "crosshair";
+      if (wbIsEraserMode) {
+        console.log("Eraser mode ON");
+      } else {
+        console.log("Eraser mode OFF, Pen mode ON");
+      }
+    });
+
+    // --- PiP Button ---
+    if (elements.pipChatBtn) {
+      // Check for actual API support
+      const isPiPSupported =
+        typeof document.createElement("canvas").captureStream === "function" &&
+        typeof HTMLVideoElement.prototype.requestPictureInPicture ===
+          "function";
+
+      if (isPiPSupported) {
+        elements.pipChatBtn.style.display = "flex"; // Or 'inline-flex', 'block' etc. depending on your CSS for control-btn
+        elements.pipChatBtn.disabled = false;
+        elements.pipChatBtn.addEventListener("click", () => {
+          playButtonFeedback(elements.pipChatBtn);
+          // Implement actual PiP logic here if you decide to proceed with this feature.
+          // For now, it will just be visible.
+          alert("Tính năng Chat PiP đang được phát triển!");
+          console.log("PiP Chat button clicked. Feature under development.");
+        });
+      } else {
+        // If not supported, you might still want to hide it or show it as disabled.
+        // For "cho hiện đi", we ensure it's not display:none by default.
+        // But if it's truly unsupported, it's better to hide or disable.
+        console.warn(
+          "PiP Chat (Canvas Capture or Video PiP) is not fully supported by this browser."
+        );
+        elements.pipChatBtn.style.display = "flex"; // Show it anyway as requested.
+        elements.pipChatBtn.classList.add("control-btn-disabled-visual"); // Add a class for visual disable.
+        elements.pipChatBtn.title =
+          "PiP Chat không được trình duyệt này hỗ trợ đầy đủ.";
+        // Remove or don't add click listener if not supported.
+      }
+    }
   } // End initUIEventListeners
 
   // ==================================
