@@ -189,8 +189,8 @@ io.on("connection", (socket) => {
       } else {
         room.viewers++;
         // Thêm viewer vào danh sách nếu chưa có
-        if (!room.viewersList.includes(username)) {
-          room.viewersList.push(username);
+        if (!room.viewersList.some((v) => v.username === username)) {
+          room.viewersList.push({ username: username, canDraw: false }); // Default: cannot draw
         }
         io.to(roomId).emit("updateViewers", room.viewers);
         if (!room.isLive) {
@@ -391,7 +391,7 @@ io.on("connection", (socket) => {
           room.viewers = Math.max(0, room.viewers - 1);
           // Cập nhật danh sách viewers (nếu sử dụng viewersList)
           room.viewersList = room.viewersList.filter(
-            (u) => u !== socket.username
+            (v) => v.username !== socket.username
           );
           io.to(roomId).emit("updateViewers", room.viewers);
           io.to(roomId).emit(
@@ -400,13 +400,47 @@ io.on("connection", (socket) => {
           );
           if (room.hostSocketId) {
             io.to(room.hostSocketId).emit("updateViewersList", {
-              viewers: room.viewersList,
+              viewers: room.viewersList.map((v) => ({
+                username: v.username,
+                canDraw: v.canDraw,
+              })),
             });
           }
         }
       }
     });
   });
+
+  socket.on(
+    "wb:toggleViewerDrawPermission",
+    ({ roomId, viewerUsername, canDraw }) => {
+      const room = liveRooms.find((r) => r.id === roomId);
+      if (room && socket.username === room.owner) {
+        // Only host can change permission
+        const viewer = room.viewersList.find(
+          (v) => v.username === viewerUsername
+        );
+        if (viewer) {
+          viewer.canDraw = canDraw;
+          console.log(
+            `Permission to draw for ${viewerUsername} set to ${canDraw} in room ${roomId}`
+          );
+          // Notify all clients (especially the specific viewer and host) about the permission change
+          io.to(roomId).emit("wb:permissionUpdate", {
+            viewerUsername,
+            canDraw,
+          });
+          // Update host's viewer list display
+          io.to(room.hostSocketId).emit("updateViewersList", {
+            viewers: room.viewersList.map((v) => ({
+              username: v.username,
+              canDraw: v.canDraw,
+            })),
+          });
+        }
+      }
+    }
+  );
 
   socket.on("disconnect", () => {
     console.log("👋 Client disconnected", socket.id);

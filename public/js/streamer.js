@@ -56,6 +56,7 @@ document.addEventListener('DOMContentLoaded', () => {
         wbColorPicker: document.getElementById('wbColorPickerV2'),
         wbLineWidthRange: document.getElementById('wbLineWidthRangeV2'),
         wbLineWidthValueDisplay: document.getElementById('wbLineWidthValueV2'),
+        wbEraserModeBtn: document.getElementById('wbEraserModeBtnV2'),
     };
 
     // --- State Variables ---
@@ -63,6 +64,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentMode = null;
     let peerInstance = null;
     let currentCalls = {};
+    let viewerDrawPermissions = {}; // Stores { username: canDraw_boolean }
     let pendingViewers = [];
     let allJoinedViewers = new Set();
     let isMicEnabled = true;
@@ -78,6 +80,8 @@ document.addEventListener('DOMContentLoaded', () => {
     let wbCurrentLineWidth = 3;
     let wbDrawingHistory = []; // For potential state sync on join or undo/redo
     let wbEventThrottleTimer = null;
+    let wbIsEraserMode = false;
+    const WB_ERASER_COLOR = '#222639'; // Should match canvas background
     const WB_THROTTLE_INTERVAL = 16; // Approx 60 FPS. Adjust as needed.
 
     // --- DECLARE SOCKET VARIABLE AT HIGHER SCOPE ---
@@ -152,7 +156,7 @@ document.addEventListener('DOMContentLoaded', () => {
         socket.on('wb:draw', (data) => {
             if (data && data.drawData) {
                  // Ensure this draw call doesn't re-emit (third param false)
-                drawOnWhiteboard(data.drawData.x0, data.drawData.y0, data.drawData.x1, data.drawData.y1, data.drawData.color, data.drawData.lineWidth, false, true);
+                drawOnWhiteboard(data.drawData.x0, data.drawData.y0, data.drawData.x1, data.drawData.y1, data.drawData.color, data.drawData.lineWidth, false, true, data.drawData.isEraser || false);
             }
         });
         socket.on('wb:clear', () => {
@@ -201,6 +205,20 @@ document.addEventListener('DOMContentLoaded', () => {
                     // dataUrl: elements.whiteboardCanvas.toDataURL() // Alternative or fallback
                 });
             }
+        });
+      
+      socket.on('wb:permissionUpdate', ({ viewerUsername, canDraw }) => {
+            viewerDrawPermissions[viewerUsername] = canDraw;
+            console.log(`Client: Permission to draw for ${viewerUsername} updated to ${canDraw}`);
+            // If viewers modal is open, re-render it to reflect change
+            if (elements.viewersModal && elements.viewersModal.style.display === 'flex') {
+                // This assumes you have a way to get the current list of viewers to re-render
+                // For simplicity, you might need to re-request the list or have it cached
+                // A simple approach: if modal is open, emit getViewersList again
+                socket.emit("getViewersList", { roomId: streamerConfig.roomId });
+            }
+            // If the updated user is drawing and their permission is revoked,
+            // they should stop drawing (this logic would be on viewer client).
         });
 
     } // End initSocket
@@ -277,7 +295,7 @@ document.addEventListener('DOMContentLoaded', () => {
         whiteboardCtx.clearRect(0, 0, elements.whiteboardCanvas.width, elements.whiteboardCanvas.height);
         tempHistory.forEach(item => {
             if (item.type === 'draw') {
-                drawOnWhiteboard(item.x0, item.y0, item.x1, item.y1, item.color, item.lineWidth, false, true);
+                drawOnWhiteboard(item.x0, item.y0, item.x1, item.y1, item.color, item.lineWidth, false, true, item.isEraser || false);
             } else if (item.type === 'clear') {
                 whiteboardCtx.clearRect(0, 0, elements.whiteboardCanvas.width, elements.whiteboardCanvas.height);
                 wbDrawingHistory = []; // Clear history on clear event
@@ -333,24 +351,33 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function drawOnWhiteboard(x0, y0, x1, y1, color, lineWidth, emitEvent = true, isRedrawing = false) {
+    function drawOnWhiteboard(x0, y0, x1, y1, color, lineWidth, emitEvent = true, isRedrawing = false, isEraser = false) {
         if (!whiteboardCtx) return;
+        
+        const actualColor = isEraser ? WB_ERASER_COLOR : color;
+        // When erasing, use a slightly larger lineWidth for better coverage, unless a specific eraser width is implemented
+        const actualLineWidth = isEraser ? lineWidth + 10 : lineWidth; // Example: eraser is 10px wider
+
         whiteboardCtx.beginPath();
         whiteboardCtx.moveTo(x0, y0);
         whiteboardCtx.lineTo(x1, y1);
-        whiteboardCtx.strokeStyle = color;
-        whiteboardCtx.lineWidth = lineWidth;
+        whiteboardCtx.strokeStyle = actualColor;
+        whiteboardCtx.lineWidth = actualLineWidth;
+        whiteboardCtx.globalCompositeOperation = isEraser ? 'destination-out' : 'source-over'; // Key for eraser
         whiteboardCtx.stroke();
         whiteboardCtx.closePath();
+        whiteboardCtx.globalCompositeOperation = 'source-over'; // Reset to default drawing mode
 
-        if (!isRedrawing) { // Only add to history if it's a new draw action
-             wbDrawingHistory.push({ type: 'draw', x0, y0, x1, y1, color, lineWidth });
+        if (!isRedrawing) {
+             wbDrawingHistory.push({ type: 'draw', x0, y0, x1, y1, color: actualColor, lineWidth: actualLineWidth, isEraser });
+             if (wbDrawingHistory.length > 300) wbDrawingHistory.splice(0, wbDrawingHistory.length - 300); // Keep history manageable
+
         }
 
         if (emitEvent && socket && socket.connected) {
             socket.emit('wb:draw', {
                 roomId: streamerConfig.roomId,
-                drawData: { x0, y0, x1, y1, color, lineWidth }
+                drawData: { x0, y0, x1, y1, color: actualColor, lineWidth: actualLineWidth, isEraser }
             });
         }
     }
@@ -372,25 +399,30 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function handleWhiteboardDrawStart(event) {
-        if (!isWhiteboardActive) return;
-        event.preventDefault(); // Prevent page scroll on touch
+        if (!isWhiteboardActive || !userCanDrawOnWhiteboard()) return; // Check permission
+        event.preventDefault(); 
         isDrawingOnWhiteboard = true;
         const pos = getMousePos(elements.whiteboardCanvas, event);
         wbLastX = pos.x;
         wbLastY = pos.y;
-        // For a single dot on click/tap
-        drawOnWhiteboard(wbLastX - 0.5, wbLastY - 0.5, wbLastX, wbLastY, wbCurrentColor, wbCurrentLineWidth, true);
+        
+        const colorToUse = wbIsEraserMode ? WB_ERASER_COLOR : wbCurrentColor;
+        const lineWidthToUse = wbIsEraserMode ? wbCurrentLineWidth + 10 : wbCurrentLineWidth; // Eraser might be wider
+
+        drawOnWhiteboard(wbLastX - 0.5, wbLastY - 0.5, wbLastX, wbLastY, colorToUse, lineWidthToUse, true, false, wbIsEraserMode);
     }
 
     function handleWhiteboardDrawing(event) {
-        if (!isDrawingOnWhiteboard || !isWhiteboardActive) return;
+        if (!isDrawingOnWhiteboard || !isWhiteboardActive || !userCanDrawOnWhiteboard()) return; // Check permission
         event.preventDefault();
 
-        // Throttle drawing events
         if (wbEventThrottleTimer) return;
         wbEventThrottleTimer = setTimeout(() => {
             const pos = getMousePos(elements.whiteboardCanvas, event);
-            drawOnWhiteboard(wbLastX, wbLastY, pos.x, pos.y, wbCurrentColor, wbCurrentLineWidth, true);
+            const colorToUse = wbIsEraserMode ? WB_ERASER_COLOR : wbCurrentColor;
+            const lineWidthToUse = wbIsEraserMode ? wbCurrentLineWidth + 10 : wbCurrentLineWidth;
+
+            drawOnWhiteboard(wbLastX, wbLastY, pos.x, pos.y, colorToUse, lineWidthToUse, true, false, wbIsEraserMode);
             wbLastX = pos.x;
             wbLastY = pos.y;
             wbEventThrottleTimer = null;
@@ -414,6 +446,20 @@ document.addEventListener('DOMContentLoaded', () => {
             socket.emit('wb:clear', { roomId: streamerConfig.roomId });
         }
         console.log("Whiteboard cleared");
+    }
+  
+    function userCanDrawOnWhiteboard() {
+        // Streamer can always draw
+        if (streamerConfig.username === streamerConfig.roomOwner) {
+            return true;
+        }
+        // For viewers (if this code was on viewer side, which it's not for streamer.js)
+        // return viewerDrawPermissions[streamerConfig.username] === true; 
+        
+        // This function in streamer.js primarily serves to gate streamer's own actions if needed,
+        // but for now, streamer always has permission.
+        // The actual gating for viewers happens on the viewer's client side based on server-sent permissions.
+        return true; 
     }
 
     function initWhiteboard() {
@@ -531,37 +577,70 @@ document.addEventListener('DOMContentLoaded', () => {
             listElement.innerHTML = `<li class="user-list-item empty">${isBannedList ? 'Không có ai bị chặn.' : 'Chưa có người xem.'}</li>`;
             return;
         }
-        items.forEach(u => {
+        // Ensure items are objects if they come from the new viewersList structure
+        const viewersArray = items.map(item => (typeof item === 'string' ? { username: item, canDraw: false } : item));
+
+        viewersArray.forEach(viewer => {
+            const u = viewer.username;
+            const currentCanDraw = viewerDrawPermissions[u] || viewer.canDraw || false; // Use local cache or initial from server
+
             const li = document.createElement('li');
             li.className = 'user-list-item';
             const ns = document.createElement('span');
             ns.className = 'list-username';
             ns.textContent = u;
+            if (currentCanDraw) {
+                const drawIcon = document.createElement('i');
+                drawIcon.className = 'fas fa-paint-brush fa-xs'; // Small brush icon
+                drawIcon.title = "Đang có quyền vẽ";
+                drawIcon.style.marginLeft = '8px';
+                drawIcon.style.color = 'var(--success-color)';
+                ns.appendChild(drawIcon);
+            }
             li.appendChild(ns);
+
             const aw = document.createElement('div');
             aw.className = 'list-actions';
             if (isBannedList) {
                 const ub = document.createElement('button');
-                ub.className = 'action-btn unban-btn control-btn'; // Added control-btn for consistent styling if desired
+                ub.className = 'action-btn unban-btn control-btn';
                 ub.innerHTML = '<i class="fas fa-undo"></i> Bỏ chặn';
-                ub.onclick = async () => { // Made async
+                ub.onclick = async () => {
                     if (!socket) return;
                     playButtonFeedback(ub);
                     const confirmed = await showStreamerConfirmation(`Bỏ chặn ${u}?`, "Bỏ chặn", "Hủy", "fas fa-undo");
                     if (confirmed) socket.emit("unbanViewer", { roomId: streamerConfig.roomId, viewerUsername: u });
                 };
                 aw.appendChild(ub);
-            } else if (u !== streamerConfig.username) {
+            } else if (u !== streamerConfig.username) { // Not the streamer themselves
+                // Ban Button
                 const bb = document.createElement('button');
-                bb.className = 'action-btn ban-btn control-btn'; // Added control-btn
+                bb.className = 'action-btn ban-btn control-btn';
                 bb.innerHTML = '<i class="fas fa-user-slash"></i> Chặn';
-                bb.onclick = async () => { // Made async
+                bb.onclick = async () => {
                     if (!socket) return;
                     playButtonFeedback(bb);
                     const confirmed = await showStreamerConfirmation(`Chặn ${u}?`, "Chặn", "Hủy", "fas fa-user-slash");
                     if (confirmed) socket.emit("banViewer", { roomId: streamerConfig.roomId, viewerUsername: u });
                 };
                 aw.appendChild(bb);
+
+                // Toggle Draw Permission Button
+                const drawPermBtn = document.createElement('button');
+                drawPermBtn.className = `action-btn draw-perm-btn control-btn ${currentCanDraw ? 'active' : ''}`;
+                drawPermBtn.innerHTML = currentCanDraw ? '<i class="fas fa-paint-brush"></i> Thu hồi Vẽ' : '<i class="far fa-paint-brush"></i> Cho Vẽ';
+                drawPermBtn.title = currentCanDraw ? "Thu hồi quyền vẽ của người này" : "Cho phép người này vẽ";
+                drawPermBtn.onclick = () => {
+                    if (!socket) return;
+                    playButtonFeedback(drawPermBtn);
+                    const newPermission = !currentCanDraw;
+                    socket.emit('wb:toggleViewerDrawPermission', {
+                        roomId: streamerConfig.roomId,
+                        viewerUsername: u,
+                        canDraw: newPermission
+                    });
+                };
+                aw.appendChild(drawPermBtn);
             }
             li.appendChild(aw);
             listElement.appendChild(li);
@@ -764,6 +843,18 @@ document.addEventListener('DOMContentLoaded', () => {
         elements.wbLineWidthRange?.addEventListener('input', (e) => {
             wbCurrentLineWidth = parseInt(e.target.value, 10);
             if(elements.wbLineWidthValueDisplay) elements.wbLineWidthValueDisplay.textContent = wbCurrentLineWidth;
+        });
+        elements.wbEraserModeBtn?.addEventListener('click', () => {
+            playButtonFeedback(elements.wbEraserModeBtn);
+            wbIsEraserMode = !wbIsEraserMode;
+            elements.wbEraserModeBtn.classList.toggle('active', wbIsEraserMode);
+            elements.whiteboardCanvas.style.cursor = wbIsEraserMode ? 'cell' : 'crosshair'; // Change cursor style for eraser
+            if (wbIsEraserMode) {
+                // Optionally disable color/linewidth pickers or give visual feedback
+                console.log("Eraser mode ON");
+            } else {
+                console.log("Eraser mode OFF, Pen mode ON");
+            }
         });
         elements.wbClearBtn?.addEventListener('click', () => {
             playButtonFeedback(elements.wbClearBtn);

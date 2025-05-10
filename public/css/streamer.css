@@ -439,3 +439,11 @@
 
 /* Ensure control-btn styles don't conflict too much if reused */
 .control-btn.wb-tool-btn .btn-label { display: none; } /* Hide label for toolbar buttons */
+
+.whiteboard-toolbar .wb-tool-btn.active {
+    background-color: rgba(var(--secondary-color-rgb), 0.25) !important;
+    border-color: var(--secondary-color) !important;
+}
+.whiteboard-toolbar .wb-tool-btn.active i {
+    color: var(--secondary-color) !important;
+}
