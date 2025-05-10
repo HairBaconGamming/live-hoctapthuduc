@@ -35,7 +35,7 @@ document.addEventListener('DOMContentLoaded', () => {
         wbLineWidthRangeViewer: document.getElementById('wbLineWidthRangeViewer'),
         wbLineWidthValueDisplayViewer: document.getElementById('wbLineWidthValueDisplayViewer'),
         wbEraserModeBtnViewer: document.getElementById('wbEraserModeBtnViewer'),
-        // No clear button for viewers unless specifically allowed by streamer
+        toggleViewerWhiteboardDisplayBtn: document.getElementById('toggleViewerWhiteboardDisplayBtn'), 
     };
 
     // --- State ---
@@ -44,8 +44,9 @@ document.addEventListener('DOMContentLoaded', () => {
     let socket = null; // Initialize socket variable
     // --- Whiteboard State for Viewer ---
     let wbCtxViewer = null;
-    let isWhiteboardVisibleToViewer = false;
-    let viewerCanDrawOnWhiteboard = false; // Permission state
+    let isWhiteboardGloballyVisible = false; // True if streamer has enabled whiteboard for the room
+    let isWhiteboardLocallyVisible = false; // True if viewer has chosen to see it (and it's globally visible)
+    let viewerCanDrawOnWhiteboard = false; 
     let isDrawingOnViewerWhiteboard = false;
     let wbViewerLastX = 0;
     let wbViewerLastY = 0;
@@ -53,9 +54,9 @@ document.addEventListener('DOMContentLoaded', () => {
     let wbViewerCurrentLineWidth = 3;
     let wbViewerIsEraserMode = false;
     let wbViewerEventThrottleTimer = null;
-    const WB_VIEWER_THROTTLE_INTERVAL = 16; // Approx 60 FPS
-    const WB_VIEWER_ERASER_COLOR = '#222639'; // Should match viewer's canvas background
-    let wbViewerDrawingHistoryForRedraw = []; // Only for local redraws after resize
+    const WB_VIEWER_THROTTLE_INTERVAL = 16; 
+    const WB_VIEWER_ERASER_COLOR = '#202333'; // Matching CSS for viewer canvas
+    let wbViewerDrawingHistoryForRedraw = []; 
 
     // ==================================
     // INITIALIZATION
@@ -158,11 +159,26 @@ document.addEventListener('DOMContentLoaded', () => {
          });
 
         // --- Whiteboard Socket Events (Viewer) ---
-        socket.on('wb:toggleVisibility', ({ isVisible }) => { // New event from streamer to show/hide WB for all
+        socket.on('wb:toggleVisibility', ({ isVisible }) => { 
+            isWhiteboardGloballyVisible = isVisible; // Update global state
+            if (elements.toggleViewerWhiteboardDisplayBtn) {
+                elements.toggleViewerWhiteboardDisplayBtn.disabled = !isVisible; // Enable/disable viewer's own toggle
+            }
+
             if (isVisible) {
-                showViewerWhiteboard();
+                // Streamer wants it visible. If viewer also has it locally visible (or default to show), then show.
+                // For simplicity, let's assume if streamer turns it on, viewer might want to see it by default.
+                if (!isWhiteboardLocallyVisible) { // Or some other logic to decide if viewer wants to see it
+                     showViewerWhiteboard();
+                     // After showing, viewer might need the current state
+                     socket.emit('wb:requestInitialState', { roomId: liveRoomConfig.roomId });
+                } else {
+                    // It's already locally visible, ensure canvas is sized if it wasn't before
+                    resizeWhiteboardCanvasViewer();
+                }
             } else {
-                hideViewerWhiteboard();
+                // Streamer turned it off globally. Force hide for viewer.
+                hideViewerWhiteboard(true); // true for global hide
             }
         });
 
@@ -182,6 +198,9 @@ document.addEventListener('DOMContentLoaded', () => {
             if (viewerUsername === liveRoomConfig.username) {
                 viewerCanDrawOnWhiteboard = canDraw;
                 console.log(`My drawing permission updated to: ${viewerCanDrawOnWhiteboard}`);
+                if (viewerCanDrawOnWhiteboard) {
+                   showViewerWhiteboard();
+                } else {hideViewerWhiteboard();}
                 if (elements.whiteboardToolbarViewer) { // Show/hide toolbar based on permission
                     elements.whiteboardToolbarViewer.style.display = viewerCanDrawOnWhiteboard ? 'flex' : 'none';
                 }
@@ -333,17 +352,20 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log("Viewer whiteboard canvas resized.");
     }
 
-    function showViewerWhiteboard() {
-        if (!elements.whiteboardOverlayViewer || isWhiteboardVisibleToViewer) return;
-        isWhiteboardVisibleToViewer = true;
+    function showViewerWhiteboard() { // Now only called when it *should* be shown
+        if (!elements.whiteboardOverlayViewer) return;
+        
+        isWhiteboardLocallyVisible = true; // Viewer chooses to see it
         elements.whiteboardOverlayViewer.style.opacity = 0;
         elements.whiteboardOverlayViewer.style.display = 'flex';
         
-        // Show/hide toolbar based on drawing permission
         if (elements.whiteboardToolbarViewer) {
             elements.whiteboardToolbarViewer.style.display = viewerCanDrawOnWhiteboard ? 'flex' : 'none';
         }
-
+        if (elements.toggleViewerWhiteboardDisplayBtn) { // Update the local toggle button's appearance
+            elements.toggleViewerWhiteboardDisplayBtn.innerHTML = '<i class="fas fa-eye-slash"></i> Ẩn Bảng Vẽ';
+            elements.toggleViewerWhiteboardDisplayBtn.title = "Ẩn bảng vẽ (cục bộ)";
+        }
 
         resizeWhiteboardCanvasViewer(); 
 
@@ -353,17 +375,23 @@ document.addEventListener('DOMContentLoaded', () => {
             gsap.set(elements.whiteboardOverlayViewer, { autoAlpha: 1 });
         }
         window.addEventListener('resize', resizeWhiteboardCanvasViewer);
-        console.log("Viewer whiteboard shown. Can draw:", viewerCanDrawOnWhiteboard);
+        console.log("Viewer whiteboard shown locally. Globally visible:", isWhiteboardGloballyVisible, "Can draw:", viewerCanDrawOnWhiteboard);
     }
 
-    function hideViewerWhiteboard() {
-        if (!elements.whiteboardOverlayViewer || !isWhiteboardVisibleToViewer) return;
+    function hideViewerWhiteboard(isGlobalHide = false) { // isGlobalHide true if streamer turned it off for everyone
+        if (!elements.whiteboardOverlayViewer || !isWhiteboardLocallyVisible) return; // Only hide if locally visible
         
         const onHideComplete = () => {
-            isWhiteboardVisibleToViewer = false;
+            isWhiteboardLocallyVisible = false; // Viewer no longer sees it
             elements.whiteboardOverlayViewer.style.display = 'none';
             window.removeEventListener('resize', resizeWhiteboardCanvasViewer);
-            console.log("Viewer whiteboard hidden");
+            if (elements.toggleViewerWhiteboardDisplayBtn) {
+                elements.toggleViewerWhiteboardDisplayBtn.innerHTML = '<i class="fas fa-chalkboard"></i> Hiện Bảng Vẽ';
+                 elements.toggleViewerWhiteboardDisplayBtn.title = "Hiện bảng vẽ (nếu streamer đang bật)";
+                 // Disable the button if whiteboard is not globally visible
+                 elements.toggleViewerWhiteboardDisplayBtn.disabled = !isWhiteboardGloballyVisible;
+            }
+            console.log("Viewer whiteboard hidden locally. Global hide:", isGlobalHide);
         };
 
         if (!prefersReducedMotion) {
@@ -374,8 +402,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function drawOnViewerWhiteboard(x0, y0, x1, y1, color, lineWidth, emitEvent = true, isRedrawing = false, isEraser = false, drawnBy = 'streamer') {
-        if (!wbCtxViewer) return;
+function drawOnViewerWhiteboard(x0, y0, x1, y1, color, lineWidth, emitEvent = true, isRedrawing = false, isEraser = false, drawnBy = 'streamer') {
+        if (!wbCtxViewer || !isWhiteboardLocallyVisible) return; // Check if locally visible
 
         const actualColor = isEraser ? WB_VIEWER_ERASER_COLOR : color;
         const actualLineWidth = isEraser ? lineWidth + 10 : lineWidth;
@@ -390,15 +418,15 @@ document.addEventListener('DOMContentLoaded', () => {
         wbCtxViewer.closePath();
         wbCtxViewer.globalCompositeOperation = 'source-over';
 
-        if (!isRedrawing) { // Only add to history if it's a new draw action being applied
+        if (!isRedrawing) { 
             wbViewerDrawingHistoryForRedraw.push({ type: 'draw', x0, y0, x1, y1, color: actualColor, lineWidth: actualLineWidth, isEraser, drawnBy });
              if (wbViewerDrawingHistoryForRedraw.length > 300) wbViewerDrawingHistoryForRedraw.splice(0, wbViewerDrawingHistoryForRedraw.length - 300);
         }
 
         if (emitEvent && viewerCanDrawOnWhiteboard && socket && socket.connected) {
-            socket.emit('wb:draw', { // Viewer sends their own drawing
+            socket.emit('wb:draw', { 
                 roomId: liveRoomConfig.roomId,
-                username: liveRoomConfig.username, // Identify who is drawing
+                username: liveRoomConfig.username, 
                 drawData: { x0, y0, x1, y1, color: actualColor, lineWidth: actualLineWidth, isEraser }
             });
         }
@@ -421,7 +449,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function handleViewerWhiteboardDrawStart(event) {
-        if (!isWhiteboardVisibleToViewer || !viewerCanDrawOnWhiteboard) return;
+        if (!isWhiteboardLocallyVisible || !viewerCanDrawOnWhiteboard) return; // Check local visibility and permission
         event.preventDefault();
         isDrawingOnViewerWhiteboard = true;
         const pos = getMousePosViewer(elements.whiteboardCanvasViewer, event);
@@ -435,7 +463,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function handleViewerWhiteboardDrawing(event) {
-        if (!isDrawingOnViewerWhiteboard || !isWhiteboardVisibleToViewer || !viewerCanDrawOnWhiteboard) return;
+        if (!isDrawingOnViewerWhiteboard || !isWhiteboardLocallyVisible || !viewerCanDrawOnWhiteboard) return; // Check local visibility and permission
         event.preventDefault();
 
         if (wbViewerEventThrottleTimer) return;
@@ -452,18 +480,20 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function handleViewerWhiteboardDrawEnd() {
-        if (!isDrawingOnViewerWhiteboard || !isWhiteboardVisibleToViewer || !viewerCanDrawOnWhiteboard) return;
+        if (!isDrawingOnViewerWhiteboard || !isWhiteboardLocallyVisible || !viewerCanDrawOnWhiteboard) return; // Check local visibility and permission
         isDrawingOnViewerWhiteboard = false;
         clearTimeout(wbViewerEventThrottleTimer);
         wbViewerEventThrottleTimer = null;
     }
 
-    function clearViewerWhiteboard() { // Only called by server events
+    function clearViewerWhiteboard() { 
         if (!wbCtxViewer || !elements.whiteboardCanvasViewer) return;
+        // We still clear the canvas even if not locally visible, to keep its state synced.
+        // The drawing functions will prevent drawing if not locally visible.
         wbCtxViewer.clearRect(0, 0, elements.whiteboardCanvasViewer.width, elements.whiteboardCanvasViewer.height);
-        wbViewerDrawingHistoryForRedraw.push({ type: 'clear' }); // Track clear for local redraw
+        wbViewerDrawingHistoryForRedraw.push({ type: 'clear' }); 
         if (wbViewerDrawingHistoryForRedraw.length > 300) wbViewerDrawingHistoryForRedraw.splice(0, wbViewerDrawingHistoryForRedraw.length - 300);
-        console.log("Viewer whiteboard cleared by host.");
+        if (isWhiteboardLocallyVisible) console.log("Viewer whiteboard cleared by host.");
     }
 
     function initViewerWhiteboard() {
