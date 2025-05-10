@@ -191,7 +191,16 @@ document.addEventListener('DOMContentLoaded', () => {
          socket.on("hostJoined", () => hideOverlay(elements.waitingOverlay)); 
          socket.on("roomEnded", () => {
             showOverlay(elements.endedOverlay);
-            if(isWhiteboardVisibleToViewer) hideViewerWhiteboard(); // Hide whiteboard if room ends
+            // Sử dụng isWhiteboardLocallyVisible và isWhiteboardGloballyVisible
+            if(isWhiteboardLocallyVisible && isWhiteboardGloballyVisible) {
+                hideViewerWhiteboard(true); // true để chỉ ra đây là global hide
+            }
+            isWhiteboardGloballyVisible = false; // Đảm bảo trạng thái global được cập nhật
+            if (elements.toggleViewerWhiteboardDisplayBtn) {
+                elements.toggleViewerWhiteboardDisplayBtn.disabled = true;
+                elements.toggleViewerWhiteboardDisplayBtn.innerHTML = '<i class="fas fa-chalkboard"></i> Hiện Bảng Vẽ';
+                elements.toggleViewerWhiteboardDisplayBtn.title = "Hiện bảng vẽ (nếu streamer đang bật)";
+            }
          });
          socket.on("waiting", () => showOverlay(elements.waitingOverlay)); 
          socket.on("banned", msg => { alert(msg || "Bạn đã bị chặn khỏi phòng này."); window.location.href = "/live"; });

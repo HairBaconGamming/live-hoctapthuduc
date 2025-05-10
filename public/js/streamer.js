@@ -75,6 +75,7 @@ document.addEventListener("DOMContentLoaded", () => {
     wbLineWidthRange: document.getElementById("wbLineWidthRangeV2"),
     wbLineWidthValueDisplay: document.getElementById("wbLineWidthValueV2"),
     wbEraserModeBtn: document.getElementById("wbEraserModeBtnV2"),
+    pipChatVideoPlayer: document.getElementById('pipChatVideoPlayer'),
   };
 
   // --- State Variables ---
@@ -102,6 +103,19 @@ document.addEventListener("DOMContentLoaded", () => {
   const WB_ERASER_COLOR = "#222639"; // Should match canvas background from CSS
   const WB_THROTTLE_INTERVAL = 16;
 
+  let pipChatCanvas = null;
+  let pipChatCtx = null;
+  let pipChatStream = null;
+  let pipChatUpdateRequestId = null; // For requestAnimationFrame
+  let isPipChatActive = false;
+  const PIP_CANVAS_WIDTH = 400; // Điều chỉnh kích thước canvas PiP
+  const PIP_CANVAS_HEIGHT = 600;
+  const PIP_FONT_SIZE_USER = 14;
+  const PIP_FONT_SIZE_MSG = 13;
+  const PIP_LINE_HEIGHT = 18;
+  const PIP_PADDING = 10;
+  const PIP_MSG_MAX_LINES = 3; // Số dòng tối đa cho mỗi tin nhắn trước khi cắt bớt
+
   // --- DECLARE SOCKET VARIABLE AT HIGHER SCOPE ---
   let socket = null;
 
@@ -114,6 +128,7 @@ document.addEventListener("DOMContentLoaded", () => {
     initPeer();
     initAnimations();
     initWhiteboard();
+    initPipChatCanvas(); // Khởi tạo canvas cho PiP
     initUIEventListeners();
     updateStreamDuration();
     if (durationInterval) clearInterval(durationInterval);
@@ -735,6 +750,193 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // ==================================
+  // PICTURE-IN-PICTURE CHAT LOGIC
+  // ==================================
+  function initPipChatCanvas() {
+    if (!elements.pipChatBtn) return; // Nút không tồn tại thì không cần canvas
+
+    pipChatCanvas = document.createElement("canvas");
+    pipChatCanvas.width = PIP_CANVAS_WIDTH;
+    pipChatCanvas.height = PIP_CANVAS_HEIGHT;
+    pipChatCtx = pipChatCanvas.getContext("2d");
+
+    if (!pipChatCtx) {
+      console.error("Failed to create 2D context for PiP chat canvas.");
+      elements.pipChatBtn.disabled = true;
+      elements.pipChatBtn.title = "Không thể tạo canvas cho PiP Chat.";
+      return;
+    }
+    console.log("PiP Chat Canvas initialized.");
+  }
+
+  function drawPipChatFrame() {
+    if (!pipChatCtx || !pipChatCanvas || !elements.chatMessagesList) {
+      cancelAnimationFrame(pipChatUpdateRequestId);
+      return;
+    }
+
+    // 1. Clear canvas
+    pipChatCtx.fillStyle = "rgba(15, 15, 30, 0.85)"; // Nền tương tự chat area
+    pipChatCtx.fillRect(0, 0, pipChatCanvas.width, pipChatCanvas.height);
+
+    // 2. Get chat messages (chỉ lấy vài tin nhắn cuối cùng)
+    const messages = Array.from(elements.chatMessagesList.children).slice(-15); // Lấy 15 tin nhắn cuối
+    let currentY = PIP_CANVAS_HEIGHT - PIP_PADDING; // Bắt đầu vẽ từ dưới lên
+
+    pipChatCtx.font = `${PIP_FONT_SIZE_MSG}px ${
+      getComputedStyle(document.body).fontFamily || "Inter, sans-serif"
+    }`;
+    pipChatCtx.textBaseline = "bottom";
+
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (currentY < PIP_PADDING + PIP_LINE_HEIGHT) break; // Không đủ không gian để vẽ
+
+      const msgItem = messages[i];
+      const usernameEl = msgItem.querySelector(".msg-username");
+      const bodyEl = msgItem.querySelector(".msg-body");
+      const timestampEl = msgItem.querySelector(".msg-timestamp");
+
+      const username = usernameEl ? usernameEl.textContent : "System";
+      let textContent = bodyEl ? bodyEl.innerText || bodyEl.textContent : ""; // Lấy text, bỏ qua HTML
+      const timestamp = timestampEl ? timestampEl.textContent : "";
+      const messageType = msgItem.className.includes("message-host")
+        ? "host"
+        : msgItem.className.includes("message-pro")
+        ? "pro"
+        : msgItem.className.includes("message-system")
+        ? "system"
+        : "guest";
+
+      // Xử lý xuống dòng và cắt bớt tin nhắn nếu quá dài
+      pipChatCtx.font = `${PIP_FONT_SIZE_MSG}px ${
+        getComputedStyle(document.body).fontFamily || "Inter, sans-serif"
+      }`;
+      const lines = [];
+      const words = textContent.split(" ");
+      let currentLine = "";
+      for (const word of words) {
+        const testLine = currentLine + word + " ";
+        const metrics = pipChatCtx.measureText(testLine);
+        if (
+          metrics.width > PIP_CANVAS_WIDTH - 2 * PIP_PADDING &&
+          currentLine !== ""
+        ) {
+          lines.push(currentLine.trim());
+          currentLine = word + " ";
+        } else {
+          currentLine = testLine;
+        }
+      }
+      lines.push(currentLine.trim());
+
+      let linesToDraw = lines;
+      if (lines.length > PIP_MSG_MAX_LINES) {
+        linesToDraw = lines.slice(0, PIP_MSG_MAX_LINES - 1);
+        linesToDraw.push(lines[PIP_MSG_MAX_LINES - 1].substring(0, 20) + "..."); // Cắt bớt dòng cuối
+      }
+
+      // Vẽ các dòng tin nhắn (từ dưới lên cho mỗi tin nhắn)
+      for (let j = linesToDraw.length - 1; j >= 0; j--) {
+        if (currentY < PIP_PADDING + PIP_LINE_HEIGHT) break;
+        pipChatCtx.fillStyle = "#e0e0e0"; // Màu chữ tin nhắn
+        pipChatCtx.fillText(linesToDraw[j], PIP_PADDING, currentY);
+        currentY -= PIP_LINE_HEIGHT;
+      }
+
+      // Vẽ username và timestamp
+      if (currentY < PIP_PADDING + PIP_LINE_HEIGHT) break;
+      pipChatCtx.font = `bold ${PIP_FONT_SIZE_USER}px ${
+        getComputedStyle(document.body).fontFamily || "Inter, sans-serif"
+      }`;
+      let userColor = "#a0a0c0"; // Guest
+      if (messageType === "host") userColor = "var(--primary-color)";
+      // #8a7ffb
+      else if (messageType === "pro") userColor = "var(--accent-color)";
+      // #ffde7d
+      else if (messageType === "system") userColor = "#8899bb";
+
+      pipChatCtx.fillStyle = userColor;
+      const userText = `${username} (${timestamp}):`;
+      const userTextWidth = pipChatCtx.measureText(userText).width;
+      pipChatCtx.fillText(userText, PIP_PADDING, currentY);
+      currentY -= PIP_LINE_HEIGHT + 2; // Thêm khoảng cách nhỏ giữa các tin nhắn
+    }
+
+    // Yêu cầu vẽ lại frame tiếp theo nếu PiP đang active
+    if (isPipChatActive) {
+      pipChatUpdateRequestId = requestAnimationFrame(drawPipChatFrame);
+    }
+  }
+
+  async function togglePipChat() {
+    if (!elements.pipChatBtn || !elements.pipChatVideoPlayer || !pipChatCanvas)
+      return;
+
+    if (document.pictureInPictureElement) {
+      // Đang ở chế độ PiP, thoát ra
+      try {
+        await document.exitPictureInPicture();
+        // isPipChatActive = false; // Sẽ được set trong event listener 'leavepictureinpicture'
+      } catch (error) {
+        console.error("Lỗi khi thoát PiP Chat:", error);
+        // Có thể không cần dừng stream ở đây nếu người dùng có thể vào lại
+      }
+    } else {
+      // Không ở chế độ PiP, vào PiP
+      if (
+        !pipChatStream ||
+        pipChatStream.getVideoTracks().length === 0 ||
+        !pipChatStream.active
+      ) {
+        try {
+          pipChatStream = pipChatCanvas.captureStream(30); // 30 FPS
+        } catch (e) {
+          console.error("Lỗi captureStream từ canvas:", e);
+          alert(
+            "Trình duyệt không hỗ trợ đầy đủ tính năng PiP cho chat (captureStream)."
+          );
+          return;
+        }
+      }
+
+      if (!pipChatStream) {
+        console.error("Không thể tạo stream cho PiP Chat.");
+        return;
+      }
+
+      elements.pipChatVideoPlayer.srcObject = pipChatStream;
+      try {
+        await elements.pipChatVideoPlayer.play(); // Cần play video trước khi request PiP
+        await elements.pipChatVideoPlayer.requestPictureInPicture();
+        // isPipChatActive = true; // Sẽ được set trong event listener 'enterpictureinpicture'
+      } catch (error) {
+        console.error("Lỗi khi vào PiP Chat:", error);
+        if (error.name === "NotAllowedError") {
+          alert(
+            "Yêu cầu vào PiP bị từ chối. Hãy thử tương tác với trang rồi thử lại."
+          );
+        } else if (error.name === "SecurityError") {
+          alert(
+            "Không thể vào PiP do giới hạn bảo mật (ví dụ: không trong iframe cho phép)."
+          );
+        } else {
+          alert("Không thể vào chế độ PiP cho chat.");
+        }
+        // Dừng stream nếu không vào PiP được
+        if (pipChatStream) {
+          pipChatStream.getTracks().forEach((track) => track.stop());
+          pipChatStream = null;
+        }
+        isPipChatActive = false;
+        cancelAnimationFrame(pipChatUpdateRequestId);
+        elements.pipChatBtn.classList.remove("active");
+        elements.pipChatBtn.innerHTML =
+          '<i class="fas fa-window-restore"></i><span class="btn-label">PiP Chat</span>';
+      }
+    }
+  }
+
+  // ==================================
   // STREAMING & UI LOGIC
   // ==================================
   function callViewer(viewerId) {
@@ -1109,8 +1311,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (
       streamerConfig.username === streamerConfig.roomOwner &&
       type !== "system" &&
-      originalMessage &&
-      originalMessage.username !== streamerConfig.username
+      originalMessage
     ) {
       const acts = document.createElement("div");
       acts.className = "msg-actions";
@@ -1158,6 +1359,17 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     elements.chatMessagesList.appendChild(li);
     scrollChatToBottom();
+
+    // Nếu PiP Chat đang hoạt động, yêu cầu vẽ lại frame (không cần ngay lập tức, drawPipChatFrame sẽ tự chạy)
+    // Tuy nhiên, để đảm bảo nó cập nhật ngay, có thể gọi drawPipChatFrame trực tiếp
+    // nhưng cần cẩn thận để không tạo quá nhiều yêu cầu vẽ.
+    // requestAnimationFrame trong drawPipChatFrame đã tối ưu việc này.
+    // Chỉ cần đảm bảo vòng lặp đang chạy.
+    if (isPipChatActive && !pipChatUpdateRequestId) {
+      // Nếu vòng lặp chưa chạy, khởi động lại
+      //  console.log("New message, ensuring PiP frame update loop is active.");
+      //  drawPipChatFrame(); // Không cần gọi trực tiếp, vòng lặp sẽ tự cập nhật
+    }
   }
   function displayPinnedComment(message) {
     const wasVisible =
@@ -1882,36 +2094,61 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     // --- PiP Button ---
-    if (elements.pipChatBtn) {
-      // Check for actual API support
-      const isPiPSupported =
-        typeof document.createElement("canvas").captureStream === "function" &&
-        typeof HTMLVideoElement.prototype.requestPictureInPicture ===
-          "function";
+    if (elements.pipChatBtn && elements.pipChatVideoPlayer && pipChatCanvas) {
+      const isPiPSupportedByBrowser =
+        typeof elements.pipChatVideoPlayer.requestPictureInPicture ===
+          "function" && typeof pipChatCanvas.captureStream === "function";
 
-      if (isPiPSupported) {
-        elements.pipChatBtn.style.display = "flex"; // Or 'inline-flex', 'block' etc. depending on your CSS for control-btn
+      if (isPiPSupportedByBrowser) {
+        elements.pipChatBtn.style.display = "flex"; // Hoặc 'inline-flex' / 'block'
         elements.pipChatBtn.disabled = false;
         elements.pipChatBtn.addEventListener("click", () => {
           playButtonFeedback(elements.pipChatBtn);
-          // Implement actual PiP logic here if you decide to proceed with this feature.
-          // For now, it will just be visible.
-          alert("Tính năng Chat PiP đang được phát triển!");
-          console.log("PiP Chat button clicked. Feature under development.");
+          togglePipChat();
         });
+
+        // Listen to PiP events on the video element
+        elements.pipChatVideoPlayer.addEventListener(
+          "enterpictureinpicture",
+          () => {
+            console.log("Đã vào chế độ PiP Chat.");
+            isPipChatActive = true;
+            elements.pipChatBtn.classList.add("active");
+            elements.pipChatBtn.innerHTML =
+              '<i class="fas fa-window-minimize"></i><span class="btn-label">Thoát PiP</span>';
+            drawPipChatFrame(); // Bắt đầu vòng lặp vẽ
+          }
+        );
+
+        elements.pipChatVideoPlayer.addEventListener(
+          "leavepictureinpicture",
+          () => {
+            console.log("Đã thoát chế độ PiP Chat.");
+            isPipChatActive = false;
+            cancelAnimationFrame(pipChatUpdateRequestId); // Dừng vòng lặp vẽ
+            elements.pipChatBtn.classList.remove("active");
+            elements.pipChatBtn.innerHTML =
+              '<i class="fas fa-window-restore"></i><span class="btn-label">PiP Chat</span>';
+            // Dừng stream khi thoát PiP để tiết kiệm tài nguyên
+            if (pipChatStream) {
+              pipChatStream.getTracks().forEach((track) => track.stop());
+              pipChatStream = null;
+            }
+          }
+        );
       } else {
-        // If not supported, you might still want to hide it or show it as disabled.
-        // For "cho hiện đi", we ensure it's not display:none by default.
-        // But if it's truly unsupported, it's better to hide or disable.
         console.warn(
           "PiP Chat (Canvas Capture or Video PiP) is not fully supported by this browser."
         );
-        elements.pipChatBtn.style.display = "flex"; // Show it anyway as requested.
-        elements.pipChatBtn.classList.add("control-btn-disabled-visual"); // Add a class for visual disable.
+        elements.pipChatBtn.style.display = "flex";
+        elements.pipChatBtn.classList.add("control-btn-disabled-visual");
         elements.pipChatBtn.title =
           "PiP Chat không được trình duyệt này hỗ trợ đầy đủ.";
-        // Remove or don't add click listener if not supported.
+        elements.pipChatBtn.disabled = true;
       }
+    } else if (elements.pipChatBtn) {
+      // Nếu video player hoặc canvas không có, vẫn ẩn/disable nút
+      elements.pipChatBtn.style.display = "none";
     }
   } // End initUIEventListeners
 
