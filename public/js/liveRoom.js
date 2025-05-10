@@ -66,7 +66,7 @@ document.addEventListener('DOMContentLoaded', () => {
         initSocket();
         initPeer(); 
         initViewerWhiteboard(); 
-        initUIEventListeners();
+        initUIEventListeners(); 
         initBackgroundParticles();
         initPageAnimations(); 
 
@@ -80,40 +80,35 @@ document.addEventListener('DOMContentLoaded', () => {
                 elements.toggleViewerWhiteboardDisplayBtn.title = "Hiện bảng vẽ (nếu streamer đang bật)";
             }
         }
+        
         if (elements.whiteboardToolbarViewer) {
-            elements.whiteboardToolbarViewer.style.display = (viewerCanDrawOnWhiteboard && isWhiteboardLocallyVisible && isWhiteboardGloballyVisible) ? 'flex' : 'none';
+            const shouldToolbarBeVisible = isWhiteboardGloballyVisible && isWhiteboardLocallyVisible;
+            elements.whiteboardToolbarViewer.style.display = shouldToolbarBeVisible ? 'flex' : 'none';
+            if (shouldToolbarBeVisible) {
+                 const drawingTools = [elements.wbColorPickerViewer, elements.wbLineWidthRangeViewer, elements.wbEraserModeBtnViewer];
+                 drawingTools.forEach(tool => { if (tool) tool.disabled = !viewerCanDrawOnWhiteboard; });
+                 
+                 let permissionMsgEl = elements.whiteboardToolbarViewer.querySelector('.wb-permission-msg');
+                 if (!viewerCanDrawOnWhiteboard && !permissionMsgEl) {
+                     permissionMsgEl = document.createElement('span');
+                     permissionMsgEl.className = 'wb-permission-msg';
+                     permissionMsgEl.textContent = 'Bạn chưa có quyền vẽ';
+                     permissionMsgEl.style.color = 'var(--warning-color)';
+                     permissionMsgEl.style.fontStyle = 'italic';
+                     permissionMsgEl.style.fontSize = '0.8em';
+                     permissionMsgEl.style.marginLeft = 'auto';
+                     elements.whiteboardToolbarViewer.appendChild(permissionMsgEl);
+                 } else if (viewerCanDrawOnWhiteboard && permissionMsgEl) {
+                     permissionMsgEl.remove();
+                 }
+
+                 if(elements.wbEraserModeBtnViewer && !viewerCanDrawOnWhiteboard){
+                    elements.wbEraserModeBtnViewer.classList.remove('active');
+                    wbViewerIsEraserMode = false;
+                 }
+                 if(elements.closeWhiteboardBtnViewer) elements.closeWhiteboardBtnViewer.disabled = false;
+            }
         }
-
-        // Attempt to notify server when viewer is leaving
-        const handleBeforeUnload = (event) => {
-            if (socket && socket.connected) {
-                // Standard way to send data with sendBeacon if available, otherwise a quick sync XHR (less reliable)
-                // However, for socket.io, a simple emit is often tried.
-                // It's not guaranteed to complete.
-                socket.emit('viewerLeaving', { roomId: liveRoomConfig.roomId, username: liveRoomConfig.username });
-                // socket.disconnect(); // Optionally explicitly disconnect
-            }
-            // Some browsers require a return value for beforeunload.
-            // event.preventDefault(); // Not always needed and can be annoying
-            // event.returnValue = ''; // For older browsers
-        };
-
-        window.addEventListener('beforeunload', handleBeforeUnload);
-
-        // For mobile browsers, 'pagehide' is often more reliable than 'unload' or 'beforeunload'
-        // for detecting when a page is being navigated away from or put into the background.
-        window.addEventListener('pagehide', (event) => {
-            // The event.persisted property is true if the page is being saved for fast back/forward navigation (bfcache)
-            // If !event.persisted, it means the page is likely being unloaded permanently.
-            if (!event.persisted) {
-                if (socket && socket.connected) {
-                    socket.emit('viewerLeaving', { roomId: liveRoomConfig.roomId, username: liveRoomConfig.username });
-                    // socket.disconnect(); // Optionally explicitly disconnect
-                }
-            }
-        });
-
-
         console.log("Viewer Initialization Complete.");
     }
 
@@ -219,51 +214,100 @@ document.addEventListener('DOMContentLoaded', () => {
             
             if (elements.toggleViewerWhiteboardDisplayBtn) {
                 elements.toggleViewerWhiteboardDisplayBtn.disabled = !isVisible; 
-                if (!isVisible) { // If globally hidden, update button text to "Hiện"
+                // Cập nhật text của nút toggle chính
+                if (!isVisible || !isWhiteboardLocallyVisible) { 
                      elements.toggleViewerWhiteboardDisplayBtn.innerHTML = '<i class="fas fa-chalkboard"></i> Hiện Bảng Vẽ';
                      elements.toggleViewerWhiteboardDisplayBtn.title = "Hiện bảng vẽ (nếu streamer đang bật)";
-                } else if (isWhiteboardLocallyVisible) { // If globally visible AND locally visible
+                } else { // isVisible và isWhiteboardLocallyVisible
                     elements.toggleViewerWhiteboardDisplayBtn.innerHTML = '<i class="fas fa-eye-slash"></i> Ẩn Bảng Vẽ';
                     elements.toggleViewerWhiteboardDisplayBtn.title = "Ẩn bảng vẽ (cục bộ)";
-                } else { // Globally visible but locally hidden
-                    elements.toggleViewerWhiteboardDisplayBtn.innerHTML = '<i class="fas fa-chalkboard"></i> Hiện Bảng Vẽ';
-                    elements.toggleViewerWhiteboardDisplayBtn.title = "Hiện bảng vẽ (nếu streamer đang bật)";
                 }
             }
-            if (elements.whiteboardToolbarViewer) { // Also update toolbar visibility
-                elements.whiteboardToolbarViewer.style.display = (viewerCanDrawOnWhiteboard && isWhiteboardLocallyVisible && isWhiteboardGloballyVisible) ? 'flex' : 'none';
-            }
-
-
-            if (isVisible) {
-                // If whiteboard becomes globally visible and wasn't before,
-                // and if viewer has it locally set to visible (or defaults to show when globally on)
+            
+            if (isVisible) { // Streamer muốn hiển thị bảng trắng
                 if (!isWhiteboardLocallyVisible && oldGlobalVisibility !== isVisible) { 
-                    // Default to show if streamer turns it on, unless viewer explicitly hid it before while it was on
-                    showViewerWhiteboard();
+                    showViewerWhiteboard(); // Sẽ hiển thị toolbar và set trạng thái công cụ
                     socket.emit('wb:requestInitialState', { roomId: liveRoomConfig.roomId });
-                } else if (isWhiteboardLocallyVisible) {
-                    // It's already locally visible, ensure canvas is sized
-                    resizeWhiteboardCanvasViewer();
+                } else if (isWhiteboardLocallyVisible) { // Đã hiện cục bộ, đảm bảo toolbar và công cụ đúng trạng thái
+                    if (elements.whiteboardToolbarViewer) {
+                         elements.whiteboardToolbarViewer.style.display = 'flex';
+                         const drawingTools = [elements.wbColorPickerViewer, elements.wbLineWidthRangeViewer, elements.wbEraserModeBtnViewer];
+                         drawingTools.forEach(tool => { if (tool) tool.disabled = !viewerCanDrawOnWhiteboard; });
+                         
+                         let permissionMsgEl = elements.whiteboardToolbarViewer.querySelector('.wb-permission-msg');
+                         if (!viewerCanDrawOnWhiteboard && !permissionMsgEl) {
+                             permissionMsgEl = document.createElement('span');
+                             permissionMsgEl.className = 'wb-permission-msg';
+                             permissionMsgEl.textContent = 'Bạn chưa có quyền vẽ';
+                             permissionMsgEl.style.color = 'var(--warning-color)';
+                             permissionMsgEl.style.fontStyle = 'italic';
+                             permissionMsgEl.style.fontSize = '0.8em';
+                             permissionMsgEl.style.marginLeft = 'auto';
+                             elements.whiteboardToolbarViewer.appendChild(permissionMsgEl);
+                         } else if (viewerCanDrawOnWhiteboard && permissionMsgEl) {
+                             permissionMsgEl.remove();
+                         }
+
+                         if(elements.wbEraserModeBtnViewer && !viewerCanDrawOnWhiteboard){
+                             elements.wbEraserModeBtnViewer.classList.remove('active');
+                             wbViewerIsEraserMode = false;
+                         }
+                         if(elements.closeWhiteboardBtnViewer) elements.closeWhiteboardBtnViewer.disabled = false;
+                    }
+                    resizeWhiteboardCanvasViewer(false); // Resize và vẽ lại nếu cần
                 }
-            } else {
-                // Streamer turned it off globally. Force hide for viewer.
-                if (isWhiteboardLocallyVisible) { // Only hide if it was locally visible
+            } else { // Streamer muốn ẩn bảng trắng
+                if (elements.whiteboardToolbarViewer) {
+                    elements.whiteboardToolbarViewer.style.display = 'none';
+                }
+                if (isWhiteboardLocallyVisible) { 
                     hideViewerWhiteboard(true); 
                 }
             }
         });
 
-        socket.on('wb:draw', (data) => { 
+socket.on('wb:draw', (data) => { 
             if (data && data.drawData) {
-                if (!isWhiteboardGloballyVisible) { // If streamer just enabled it, make it globally visible
+                let needsResizeBeforeDraw = false;
+                if (!isWhiteboardGloballyVisible) { 
                     isWhiteboardGloballyVisible = true;
-                     if (elements.toggleViewerWhiteboardDisplayBtn) elements.toggleViewerWhiteboardDisplayBtn.disabled = false;
+                    if (elements.toggleViewerWhiteboardDisplayBtn) elements.toggleViewerWhiteboardDisplayBtn.disabled = false;
                 }
-                if (!isWhiteboardLocallyVisible) showViewerWhiteboard(); 
-                else resizeWhiteboardCanvasViewer(); // Ensure canvas is ready
+                if (!isWhiteboardLocallyVisible) {
+                    showViewerWhiteboard(); // Sẽ gọi resizeWhiteboardCanvasViewer(false) bên trong
+                    needsResizeBeforeDraw = true; // showViewerWhiteboard đã gọi resize
+                } else {
+                    // Nếu đã hiển thị, kiểm tra xem kích thước có cần cập nhật không
+                    // nhưng không redraw toàn bộ history nếu chỉ là draw event
+                    // resizeWhiteboardCanvasViewer(true); // true để báo là do draw event mới
+                }
                 
-                drawOnViewerWhiteboard(data.drawData.x0, data.drawData.y0, data.drawData.x1, data.drawData.y1, data.drawData.color, data.drawData.lineWidth, false, false, data.drawData.isEraser || false, data.username || 'unknown');
+                const { x0, y0, x1, y1, color, lineWidth, isEraser } = data.drawData;
+                const drawnBy = data.username || 'streamer'; 
+
+                // Thêm vào history TRƯỚC khi vẽ, để nếu resize được gọi (do showWB), nó đã có sẵn
+                const drawAction = { type: 'draw', x0, y0, x1, y1, color, lineWidth, isEraser: isEraser || false, drawnBy };
+                wbViewerDrawingHistoryForRedraw.push(drawAction);
+                if (wbViewerDrawingHistoryForRedraw.length > 300) wbViewerDrawingHistoryForRedraw.splice(0, wbViewerDrawingHistoryForRedraw.length - 300);
+
+                // Chỉ vẽ trực tiếp nét mới này nếu không phải resize do showWB (vì showWB đã redraw cả history)
+                // Hoặc, đơn giản hơn: drawOnViewerWhiteboard sẽ kiểm tra isWhiteboardLocallyVisible
+                // và resizeWhiteboardCanvasViewer(false) trong showWB sẽ vẽ lại toàn bộ history.
+                // Nên, ở đây chỉ cần đảm bảo history được cập nhật.
+                // Nếu showViewerWhiteboard được gọi, nó đã tự vẽ lại.
+                // Nếu bảng đã hiện, vẽ trực tiếp nét mới.
+                if (isWhiteboardLocallyVisible && !needsResizeBeforeDraw) {
+                    // Vẽ nét mới này lên canvas hiện tại mà không clear
+                    wbCtxViewer.beginPath();
+                    wbCtxViewer.moveTo(x0, y0);
+                    wbCtxViewer.lineTo(x1, y1);
+                    wbCtxViewer.strokeStyle = isEraser ? WB_VIEWER_ERASER_COLOR : color;
+                    wbCtxViewer.lineWidth = isEraser ? (lineWidth < 10 ? lineWidth + 10 : lineWidth * 1.5) : lineWidth;
+                    wbCtxViewer.globalCompositeOperation = (isEraser || false) ? 'destination-out' : 'source-over';
+                    wbCtxViewer.stroke();
+                    wbCtxViewer.closePath();
+                    wbCtxViewer.globalCompositeOperation = 'source-over';
+                }
             }
         });
         socket.on('wb:clear', () => {
@@ -279,47 +323,88 @@ document.addEventListener('DOMContentLoaded', () => {
 
         socket.on('wb:permissionUpdate', ({ viewerUsername, canDraw }) => {
             if (viewerUsername === liveRoomConfig.username) {
+                const oldPermission = viewerCanDrawOnWhiteboard;
                 viewerCanDrawOnWhiteboard = canDraw;
                 console.log(`My drawing permission updated to: ${viewerCanDrawOnWhiteboard}`);
-                if (elements.whiteboardToolbarViewer) { 
-                    elements.whiteboardToolbarViewer.style.display = (viewerCanDrawOnWhiteboard && isWhiteboardLocallyVisible && isWhiteboardGloballyVisible) ? 'flex' : 'none';
+                
+                if (elements.whiteboardToolbarViewer && elements.whiteboardToolbarViewer.style.display === 'flex') {
+                    const drawingTools = [
+                        elements.wbColorPickerViewer, 
+                        elements.wbLineWidthRangeViewer,
+                        elements.wbEraserModeBtnViewer
+                    ];
+                    drawingTools.forEach(tool => {
+                        if (tool) tool.disabled = !viewerCanDrawOnWhiteboard;
+                    });
+
+                    let permissionMsgEl = elements.whiteboardToolbarViewer.querySelector('.wb-permission-msg');
+                    if (!viewerCanDrawOnWhiteboard && !permissionMsgEl) {
+                        permissionMsgEl = document.createElement('span');
+                        permissionMsgEl.className = 'wb-permission-msg';
+                        permissionMsgEl.textContent = 'Bạn chưa có quyền vẽ';
+                        permissionMsgEl.style.color = 'var(--warning-color)';
+                        permissionMsgEl.style.fontStyle = 'italic';
+                        permissionMsgEl.style.fontSize = '0.8em';
+                        permissionMsgEl.style.marginLeft = 'auto';
+                        elements.whiteboardToolbarViewer.appendChild(permissionMsgEl);
+                    } else if (viewerCanDrawOnWhiteboard && permissionMsgEl) {
+                        permissionMsgEl.remove();
+                    }
+
+                    if(elements.wbEraserModeBtnViewer && !viewerCanDrawOnWhiteboard){
+                        elements.wbEraserModeBtnViewer.classList.remove('active');
+                        wbViewerIsEraserMode = false;
+                    }
                 }
-                if (elements.whiteboardCanvasViewer) { // Update cursor
+
+                if (elements.whiteboardCanvasViewer) { 
                     elements.whiteboardCanvasViewer.style.cursor = viewerCanDrawOnWhiteboard ? (wbViewerIsEraserMode ? 'cell' : 'crosshair') : 'default';
                     elements.whiteboardCanvasViewer.classList.toggle('can-draw', viewerCanDrawOnWhiteboard);
                 }
             }
         });
         
-       socket.on('wb:initState', (state) => {
+        socket.on('wb:initState', (state) => {
             console.log("Viewer received initial whiteboard state", state);
-            isWhiteboardGloballyVisible = true; // Receiving state means it's globally active
+            isWhiteboardGloballyVisible = true; 
             if (elements.toggleViewerWhiteboardDisplayBtn) elements.toggleViewerWhiteboardDisplayBtn.disabled = false;
 
-            if (!isWhiteboardLocallyVisible) showViewerWhiteboard(); 
-            else resizeWhiteboardCanvasViewer(); 
+            if (!isWhiteboardLocallyVisible) {
+                showViewerWhiteboard(); 
+            } else {
+                resizeWhiteboardCanvasViewer(false); // false vì đây là init state, cần vẽ lại toàn bộ
+            }
 
-            wbCtxViewer.clearRect(0, 0, elements.whiteboardCanvasViewer.width, elements.whiteboardCanvasViewer.height);
+            // wbCtxViewer.clearRect(0, 0, elements.whiteboardCanvasViewer.width, elements.whiteboardCanvasViewer.height); // Resize đã làm việc này
             wbViewerDrawingHistoryForRedraw = []; 
 
             if (state && state.history && Array.isArray(state.history)) {
-                state.history.forEach(item => {
-                    if (item.type === 'draw') {
-                        drawOnViewerWhiteboard(item.x0, item.y0, item.x1, item.y1, item.color, item.lineWidth, false, true, item.isEraser || false, item.drawnBy || 'streamer');
-                    } else if (item.type === 'clear') {
-                        wbCtxViewer.clearRect(0, 0, elements.whiteboardCanvasViewer.width, elements.whiteboardCanvasViewer.height);
-                        wbViewerDrawingHistoryForRedraw = [];
-                    }
-                });
-                 console.log("Viewer whiteboard state restored from history.");
-            } else if (state && state.dataUrl) {
-                 const img = new Image();
-                 img.onload = () => {
+                wbViewerDrawingHistoryForRedraw = state.history.map(item => ({...item})); 
+                
+                // resizeWhiteboardCanvasViewer(false) được gọi bên trên (trong showWB hoặc trực tiếp)
+                // sẽ đảm nhận việc vẽ lại toàn bộ history này.
+                // Chúng ta không cần lặp và vẽ lại ở đây nữa nếu resize đã làm.
+                // Chỉ cần đảm bảo history được set đúng.
+                // Nếu resizeWhiteboardCanvasViewer không được gọi (ví dụ, WB đã hiện và kích thước không đổi), thì cần vẽ lại ở đây.
+                // Để an toàn, gọi resize một lần nữa nhưng báo là không phải new draw event.
+                if (isWhiteboardLocallyVisible) { // Nếu đã hiện
+                    resizeWhiteboardCanvasViewer(false); // Gọi lại để đảm bảo vẽ từ history mới
+                }
+
+
+                 console.log("Viewer whiteboard state restored from received history. Items:", wbViewerDrawingHistoryForRedraw.length);
+            } else if (state && state.dataUrl) { 
+                 wbViewerDrawingHistoryForRedraw = [{type: 'image', dataUrl: state.dataUrl, drawnBy: 'server'}];
+                 if (isWhiteboardLocallyVisible) {
+                    resizeWhiteboardCanvasViewer(false); // Để vẽ lại ảnh
+                 }
+                 console.log("Viewer whiteboard state restored from Data URL (history not available).");
+            } else {
+                // Nếu không có history hoặc dataUrl, đảm bảo canvas trống
+                if (isWhiteboardLocallyVisible) {
                      wbCtxViewer.clearRect(0, 0, elements.whiteboardCanvasViewer.width, elements.whiteboardCanvasViewer.height);
-                     wbCtxViewer.drawImage(img, 0, 0);
-                     console.log("Viewer whiteboard state restored from Data URL.");
-                 };
-                 img.src = state.dataUrl;
+                }
+                console.log("Received empty or invalid initial whiteboard state. Cleared local whiteboard.");
             }
         });
     }
@@ -386,14 +471,15 @@ document.addEventListener('DOMContentLoaded', () => {
     // ==================================
     // WHITEBOARD LOGIC (VIEWER)
     // ==================================
-    function resizeWhiteboardCanvasViewer() {
+    function resizeWhiteboardCanvasViewer(triggeredByNewDrawEvent = false) { // Thêm cờ
         if (!elements.whiteboardOverlayViewer || !elements.whiteboardCanvasViewer || !wbCtxViewer) return;
 
-        const toolbarHeight = elements.whiteboardToolbarViewer ? elements.whiteboardToolbarViewer.offsetHeight : 0;
-        const overlayPadding = 20; 
+        const toolbarIsVisible = elements.whiteboardToolbarViewer && elements.whiteboardToolbarViewer.style.display !== 'none';
+        const toolbarHeight = toolbarIsVisible ? elements.whiteboardToolbarViewer.offsetHeight : 0;
+        const overlayPadding = 10; 
         
         const availableWidth = elements.whiteboardOverlayViewer.clientWidth - (2 * overlayPadding);
-        const availableHeight = elements.whiteboardOverlayViewer.clientHeight - toolbarHeight - (2 * overlayPadding) - 10;
+        const availableHeight = elements.whiteboardOverlayViewer.clientHeight - toolbarHeight - (2 * overlayPadding) - (toolbarIsVisible ? 5 : 0) ;
 
         const aspectRatio = 16 / 9;
         let canvasWidth = availableWidth;
@@ -403,17 +489,31 @@ document.addEventListener('DOMContentLoaded', () => {
             canvasHeight = availableHeight;
             canvasWidth = canvasHeight * aspectRatio;
         }
-        if (canvasWidth > availableWidth) {
+        if (canvasWidth > availableWidth) { 
             canvasWidth = availableWidth;
             canvasHeight = canvasWidth / aspectRatio;
         }
+        
+        canvasWidth = Math.max(10, canvasWidth); 
+        canvasHeight = Math.max(10, canvasHeight);
 
-        elements.whiteboardCanvasViewer.width = canvasWidth;
-        elements.whiteboardCanvasViewer.height = canvasHeight;
+        // Chỉ thay đổi buffer canvas nếu kích thước thực sự thay đổi
+        // Hoặc nếu đây là lần đầu resize (ví dụ, khi showWhiteboard)
+        const oldWidth = elements.whiteboardCanvasViewer.width;
+        const oldHeight = elements.whiteboardCanvasViewer.height;
+
+        let dimensionsChanged = (oldWidth !== canvasWidth || oldHeight !== canvasHeight);
+
+        if (dimensionsChanged) {
+            elements.whiteboardCanvasViewer.width = canvasWidth;
+            elements.whiteboardCanvasViewer.height = canvasHeight;
+        }
+        
+        // CSS dimensions luôn được cập nhật để canvas hiển thị đúng trong layout
         elements.whiteboardCanvasViewer.style.width = `${canvasWidth}px`;
         elements.whiteboardCanvasViewer.style.height = `${canvasHeight}px`;
         
-        if (elements.whiteboardToolbarViewer) {
+        if (elements.whiteboardToolbarViewer && toolbarIsVisible) {
             elements.whiteboardToolbarViewer.style.width = `${canvasWidth}px`;
         }
 
@@ -421,44 +521,103 @@ document.addEventListener('DOMContentLoaded', () => {
         wbCtxViewer.lineJoin = 'round';
         wbCtxViewer.globalCompositeOperation = 'source-over'; 
 
-        // Redraw local history if needed (e.g., after resize)
-        const tempHistory = [...wbViewerDrawingHistoryForRedraw];
-        wbViewerDrawingHistoryForRedraw = []; 
-        wbCtxViewer.clearRect(0, 0, elements.whiteboardCanvasViewer.width, elements.whiteboardCanvasViewer.height);
-        tempHistory.forEach(item => {
-            if (item.type === 'draw') {
-                drawOnViewerWhiteboard(item.x0, item.y0, item.x1, item.y1, item.color, item.lineWidth, false, true, item.isEraser || false);
-            } else if (item.type === 'clear') {
-                wbCtxViewer.clearRect(0, 0, elements.whiteboardCanvasViewer.width, elements.whiteboardCanvasViewer.height);
-                wbViewerDrawingHistoryForRedraw = [];
-            }
-        });
-        console.log("Viewer whiteboard canvas resized.");
+        // Chỉ clear và vẽ lại toàn bộ history nếu kích thước canvas thực sự thay đổi,
+        // HOẶC nếu không phải do một draw event mới kích hoạt (ví dụ, khi bật WB lần đầu, hoặc window resize thật sự).
+        // Nếu là do draw event mới và kích thước không đổi, chúng ta không nên clear.
+        if (dimensionsChanged || !triggeredByNewDrawEvent) {
+            wbCtxViewer.clearRect(0, 0, elements.whiteboardCanvasViewer.width, elements.whiteboardCanvasViewer.height);
+            
+            console.log(`Viewer WB Resized or Initial Draw. Redrawing ${wbViewerDrawingHistoryForRedraw.length} items.`);
+            // Tạo bản sao của history để tránh thay đổi trong lúc lặp (mặc dù hiện tại không có)
+            const historyToRedraw = [...wbViewerDrawingHistoryForRedraw];
+            
+            historyToRedraw.forEach(item => {
+                if (item.type === 'draw') {
+                    // Gọi trực tiếp context để vẽ lại, không gọi drawOnViewerWhiteboard để tránh logic history/emit
+                    wbCtxViewer.beginPath();
+                    wbCtxViewer.moveTo(item.x0, item.y0);
+                    wbCtxViewer.lineTo(item.x1, item.y1);
+                    wbCtxViewer.strokeStyle = item.isEraser ? WB_VIEWER_ERASER_COLOR : item.color;
+                    wbCtxViewer.lineWidth = item.isEraser ? (item.lineWidth < 10 ? item.lineWidth + 10 : item.lineWidth * 1.5) : item.lineWidth;
+                    wbCtxViewer.globalCompositeOperation = item.isEraser ? 'destination-out' : 'source-over';
+                    wbCtxViewer.stroke();
+                    wbCtxViewer.closePath();
+                    wbCtxViewer.globalCompositeOperation = 'source-over'; // Reset
+                } else if (item.type === 'clear') {
+                    wbCtxViewer.clearRect(0, 0, elements.whiteboardCanvasViewer.width, elements.whiteboardCanvasViewer.height);
+                } else if (item.type === 'image' && item.dataUrl) { // Nếu khôi phục từ dataUrl
+                    const img = new Image();
+                    img.onload = () => { // Cần xử lý bất đồng bộ
+                        wbCtxViewer.drawImage(img, 0, 0, elements.whiteboardCanvasViewer.width, elements.whiteboardCanvasViewer.height);
+                    };
+                    img.src = item.dataUrl;
+                }
+            });
+            if (dimensionsChanged) console.log("Viewer whiteboard canvas buffer resized and history redrawn.");
+            else console.log("Viewer whiteboard history redrawn (e.g. initial show).");
+        }
     }
 
-    function showViewerWhiteboard() { // Now only called when it *should* be shown
+    function showViewerWhiteboard() { 
         if (!elements.whiteboardOverlayViewer) return;
         
-        isWhiteboardLocallyVisible = true; // Viewer chooses to see it
+        isWhiteboardLocallyVisible = true; 
         elements.whiteboardOverlayViewer.style.opacity = 0;
         elements.whiteboardOverlayViewer.style.display = 'flex';
         
         if (elements.whiteboardToolbarViewer) {
-            elements.whiteboardToolbarViewer.style.display = viewerCanDrawOnWhiteboard ? 'flex' : 'none';
+            elements.whiteboardToolbarViewer.style.display = 'flex'; // LUÔN HIỂN THỊ TOOLBAR KHI OVERLAY HIỂN THỊ
+
+            // Tạo hoặc lấy phần tử hiển thị thông báo quyền
+            let permissionMsgEl = elements.whiteboardToolbarViewer.querySelector('.wb-permission-msg');
+            if (!viewerCanDrawOnWhiteboard && !permissionMsgEl) {
+                permissionMsgEl = document.createElement('span');
+                permissionMsgEl.className = 'wb-permission-msg';
+                permissionMsgEl.textContent = 'Bạn chưa có quyền vẽ';
+                permissionMsgEl.style.color = 'var(--warning-color)';
+                permissionMsgEl.style.fontStyle = 'italic';
+                permissionMsgEl.style.fontSize = '0.8em';
+                permissionMsgEl.style.marginLeft = 'auto'; // Đẩy sang phải
+                elements.whiteboardToolbarViewer.appendChild(permissionMsgEl);
+            } else if (viewerCanDrawOnWhiteboard && permissionMsgEl) {
+                permissionMsgEl.remove(); // Xóa thông báo nếu có quyền
+            }
+
+
+            const drawingTools = [
+                elements.wbColorPickerViewer, 
+                elements.wbLineWidthRangeViewer,
+                elements.wbEraserModeBtnViewer
+            ];
+            drawingTools.forEach(tool => {
+                if (tool) tool.disabled = !viewerCanDrawOnWhiteboard;
+            });
+
+            if(elements.wbEraserModeBtnViewer && !viewerCanDrawOnWhiteboard){ 
+                elements.wbEraserModeBtnViewer.classList.remove('active');
+                wbViewerIsEraserMode = false; // Tắt chế độ tẩy nếu mất quyền
+                if(elements.whiteboardCanvasViewer) elements.whiteboardCanvasViewer.style.cursor = 'default';
+            } else if (elements.whiteboardCanvasViewer && viewerCanDrawOnWhiteboard) {
+                elements.whiteboardCanvasViewer.style.cursor = wbViewerIsEraserMode ? 'cell' : 'crosshair';
+            }
+
+
+            if(elements.closeWhiteboardBtnViewer) elements.closeWhiteboardBtnViewer.disabled = false;
         }
-        if (elements.toggleViewerWhiteboardDisplayBtn) { // Update the local toggle button's appearance
+
+        if (elements.toggleViewerWhiteboardDisplayBtn) { 
             elements.toggleViewerWhiteboardDisplayBtn.innerHTML = '<i class="fas fa-eye-slash"></i> Ẩn Bảng Vẽ';
             elements.toggleViewerWhiteboardDisplayBtn.title = "Ẩn bảng vẽ (cục bộ)";
         }
 
-        resizeWhiteboardCanvasViewer(); 
+        resizeWhiteboardCanvasViewer(false); 
 
         if (!prefersReducedMotion) {
             gsap.to(elements.whiteboardOverlayViewer, { duration: 0.5, autoAlpha: 1, ease: 'power2.out' });
         } else {
             gsap.set(elements.whiteboardOverlayViewer, { autoAlpha: 1 });
         }
-        window.addEventListener('resize', resizeWhiteboardCanvasViewer);
+        window.addEventListener('resize', () => resizeWhiteboardCanvasViewer(false)); 
         console.log("Viewer whiteboard shown locally. Globally visible:", isWhiteboardGloballyVisible, "Can draw:", viewerCanDrawOnWhiteboard);
     }
 
