@@ -26,7 +26,16 @@ document.addEventListener('DOMContentLoaded', () => {
         playButton: document.getElementById('playButtonLive'),
         exitButton: document.getElementById('exitRoomBtnLive'),
         liveIndicator: document.getElementById('liveIndicator'),
-        // Add refs for other elements if needed
+        // --- Whiteboard Elements for Viewer ---
+        whiteboardOverlayViewer: document.getElementById('whiteboardContainerOverlayViewer'), // Will be added to EJS
+        whiteboardCanvasViewer: document.getElementById('whiteboardCanvasViewer'),         // Will be added to EJS
+        whiteboardToolbarViewer: document.getElementById('whiteboardToolbarViewer'),       // Will be added to EJS
+        closeWhiteboardBtnViewer: document.getElementById('closeWhiteboardBtnViewer'),   // Will be added to EJS
+        wbColorPickerViewer: document.getElementById('wbColorPickerViewer'),
+        wbLineWidthRangeViewer: document.getElementById('wbLineWidthRangeViewer'),
+        wbLineWidthValueDisplayViewer: document.getElementById('wbLineWidthValueDisplayViewer'),
+        wbEraserModeBtnViewer: document.getElementById('wbEraserModeBtnViewer'),
+        // No clear button for viewers unless specifically allowed by streamer
     };
 
     // --- State ---
