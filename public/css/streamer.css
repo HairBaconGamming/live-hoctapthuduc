@@ -341,3 +341,101 @@
      .chat-messages-list .msg-body { font-size: 0.9rem; }
      .modal-content { padding: 15px 20px; }
 }
+
+/* --- Whiteboard Styles --- */
+.whiteboard-container-overlay {
+    position: fixed;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background-color: rgba(var(--bg-dark-rgb), 0.9); /* Slightly more transparent */
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
+    z-index: 1005;
+    display: none; /* GSAP controls display and opacity */
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 10px; /* Padding for the overlay itself */
+}
+
+#whiteboardCanvasV2 {
+    /* Dimensions will be set by JS, respect aspect ratio */
+    background-color: #222639; /* Slightly different dark bg for contrast */
+    border: 1px solid var(--border-highlight);
+    border-radius: var(--border-radius-base);
+    cursor: crosshair;
+    touch-action: none; /* Important for touch drawing */
+    box-shadow: 0 5px 20px rgba(0,0,0,0.4);
+}
+
+.whiteboard-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 12px; /* Increased gap */
+    padding: 12px 15px;
+    background-color: var(--bg-panel);
+    border-radius: var(--border-radius-base) var(--border-radius-base) 0 0;
+    border: 1px solid var(--border-color);
+    border-bottom: none;
+    /* width will be set by JS to match canvas */
+    box-sizing: border-box;
+    margin-bottom: 0; /* Canvas is directly below */
+    flex-wrap: wrap; /* Allow wrapping on smaller screens if needed */
+}
+
+.whiteboard-toolbar .wb-label {
+    color: var(--text-medium);
+    font-size: 0.9em;
+    margin-right: -5px; /* Adjust spacing */
+}
+
+.whiteboard-toolbar input[type="color"] {
+    width: 36px; /* Slightly larger */
+    height: 28px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    cursor: pointer;
+    padding: 2px;
+    background-color: transparent;
+    -webkit-appearance: none; /* Optional: for better cross-browser appearance */
+    moz-appearance: none;
+    appearance: none;
+}
+/* Styling for the color picker's swatch itself (might need vendor prefixes) */
+.whiteboard-toolbar input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+.whiteboard-toolbar input[type="color"]::-webkit-color-swatch { border: none; border-radius: 3px;}
+.whiteboard-toolbar input[type="color"]::-moz-color-swatch { border: none; border-radius: 3px;}
+
+
+.whiteboard-toolbar input[type="range"] {
+    cursor: pointer;
+    width: 100px; /* Adjust width */
+}
+.whiteboard-toolbar #wbLineWidthValueV2 {
+    color: var(--text-light);
+    font-weight: 500;
+}
+
+.whiteboard-toolbar .wb-tool-btn {
+    padding: 6px 10px !important; /* Override generic .control-btn if needed */
+    background-color: rgba(var(--primary-color-rgb), 0.1) !important;
+    border: 1px solid var(--border-highlight) !important;
+}
+.whiteboard-toolbar .wb-tool-btn:hover {
+     background-color: rgba(var(--primary-color-rgb), 0.2) !important;
+}
+.whiteboard-toolbar .wb-tool-btn i {
+    font-size: 1rem !important; /* Smaller icons for toolbar */
+    margin-bottom: 0 !important;
+    color: var(--text-medium) !important;
+}
+.whiteboard-toolbar .wb-tool-btn:hover i {
+    color: var(--primary-color) !important;
+}
+
+.whiteboard-toolbar #wbClearBtnV2 i { color: var(--danger-color) !important; }
+.whiteboard-toolbar #wbClearBtnV2:hover i { color: #ff8a8a !important; }
+.whiteboard-toolbar #closeWhiteboardBtnV2 i { color: var(--text-medium) !important; }
+.whiteboard-toolbar #closeWhiteboardBtnV2:hover i { color: var(--text-light) !important; }
+
+/* Ensure control-btn styles don't conflict too much if reused */
+.control-btn.wb-tool-btn .btn-label { display: none; } /* Hide label for toolbar buttons */

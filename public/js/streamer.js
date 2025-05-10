@@ -45,7 +45,17 @@ document.addEventListener('DOMContentLoaded', () => {
         closeBannedModalBtn: document.querySelector('#bannedModalV2 .modal-close-btn'),
         controlPanelHeader: document.querySelector('#controlPanelV2 .panel-header'),
         controlButtons: gsap.utils.toArray('#controlPanelV2 .control-btn'),
-        panelInternalHeader: document.querySelector('#controlPanelV2 .panel-header h3')
+        panelInternalHeader: document.querySelector('#controlPanelV2 .panel-header h3'),
+        // --- Whiteboard Elements ---
+        toggleWhiteboardBtn: document.getElementById('toggleWhiteboardBtnStreamerV2'), // In control panel
+        whiteboardOverlay: document.getElementById('whiteboardContainerOverlayV2'),
+        whiteboardCanvas: document.getElementById('whiteboardCanvasV2'),
+        whiteboardToolbar: document.getElementById('whiteboardToolbarV2'),
+        closeWhiteboardBtn: document.getElementById('closeWhiteboardBtnV2'), // On whiteboard overlay
+        wbClearBtn: document.getElementById('wbClearBtnV2'),
+        wbColorPicker: document.getElementById('wbColorPickerV2'),
+        wbLineWidthRange: document.getElementById('wbLineWidthRangeV2'),
+        wbLineWidthValueDisplay: document.getElementById('wbLineWidthValueV2'),
     };
 
     // --- State Variables ---
@@ -59,6 +69,16 @@ document.addEventListener('DOMContentLoaded', () => {
     let isPanelCollapsed = false;
     let streamStartTime = streamerConfig.roomCreatedAt; // Use EJS variable directly
     let durationInterval = null;
+    let whiteboardCtx = null;
+    let isWhiteboardActive = false;
+    let isDrawingOnWhiteboard = false;
+    let wbLastX = 0;
+    let wbLastY = 0;
+    let wbCurrentColor = '#FFFFFF';
+    let wbCurrentLineWidth = 3;
+    let wbDrawingHistory = []; // For potential state sync on join or undo/redo
+    let wbEventThrottleTimer = null;
+    const WB_THROTTLE_INTERVAL = 16; // Approx 60 FPS. Adjust as needed.
 
     // --- DECLARE SOCKET VARIABLE AT HIGHER SCOPE ---
     let socket = null;
@@ -71,8 +91,8 @@ document.addEventListener('DOMContentLoaded', () => {
         initSocket();
         initPeer();
         initAnimations();     // Initialize animations
+        initWhiteboard();     // Initialize whiteboard AFTER elements are in DOM
         initUIEventListeners(); // Setup interactions AFTER basic structure is visible & animations defined
-        // initBackgroundParticles(); // Called within initAnimations
         updateStreamDuration(); // Initial call
         if (durationInterval) clearInterval(durationInterval);
         durationInterval = setInterval(updateStreamDuration, 1000);
@@ -85,11 +105,21 @@ document.addEventListener('DOMContentLoaded', () => {
     // ==================================
     // SOCKET.IO LOGIC
     // ==================================
-    function initSocket() { /* ... Full code from previous answer ... */
+    function initSocket() {
         if (socket && socket.connected) { console.log("Socket already connected."); return; }
         socket = io();
         socket.on("connect_error", (err) => { console.error("Socket Connection Error:", err.message); alert(`Lỗi kết nối server: ${err.message}`); window.location.href = "https://hoctap-9a3.glitch.me/live";});
-        socket.on("connect", () => { console.log("Socket connected:", socket.id); socket.emit("joinRoom", { roomId: streamerConfig.roomId, username: streamerConfig.username }); if (peerInstance && peerInstance.id && !peerInstance.disconnected) { socket.emit("streamerReady", { roomId: streamerConfig.roomId, peerId: peerInstance.id }); } else { console.warn("Socket connected, but peer not ready to send streamerReady."); } });
+        socket.on("connect", () => { 
+            console.log("Socket connected:", socket.id); 
+            socket.emit("joinRoom", { roomId: streamerConfig.roomId, username: streamerConfig.username }); 
+            if (peerInstance && peerInstance.id && !peerInstance.disconnected) { 
+                socket.emit("streamerReady", { roomId: streamerConfig.roomId, peerId: peerInstance.id }); 
+            } else { 
+                console.warn("Socket connected, but peer not ready to send streamerReady."); 
+            }
+            // Request whiteboard state if another streamer was here or for resilience
+            socket.emit('wb:requestInitialState', { roomId: streamerConfig.roomId });
+        });
         socket.on("disconnect", (reason) => { console.warn("Socket disconnected:", reason); alert("Mất kết nối tới server chat."); window.location.href = "https://hoctap-9a3.glitch.me/live";});
         socket.on("userJoined", msg => addChatMessage(msg, 'system'));
         socket.on("viewerLeft", msg => addChatMessage(msg, 'system', 'left'));
@@ -97,12 +127,82 @@ document.addEventListener('DOMContentLoaded', () => {
         socket.on("updateViewers", count => { if(elements.viewerCount) elements.viewerCount.textContent = count ?? 0; });
         socket.on("commentPinned", data => displayPinnedComment(data?.message));
         socket.on("commentUnpinned", () => displayPinnedComment(null));
-        socket.on("newViewer", ({ viewerId }) => { if (!viewerId) return; console.log("Socket received new viewer:", viewerId); allJoinedViewers.add(viewerId); callViewer(viewerId); });
+        socket.on("newViewer", ({ viewerId }) => { 
+            if (!viewerId) return; 
+            console.log("Socket received new viewer:", viewerId); 
+            allJoinedViewers.add(viewerId); 
+            callViewer(viewerId); 
+            // If whiteboard is active, new viewer might need its current state
+            if (isWhiteboardActive && elements.whiteboardCanvas) {
+                 const dataUrl = elements.whiteboardCanvas.toDataURL();
+                 console.log("Sending current whiteboard state to new viewer via specific event");
+                 // This emit should ideally target only the new viewer via server relay,
+                 // or the server handles wb:requestInitialState from the new viewer.
+                 // For simplicity here, assuming server will relay or new viewer requests.
+                 // Let's rely on new viewer emitting 'wb:requestInitialState'
+            }
+        });
         socket.on("viewerDisconnected", ({ viewerId }) => { if (!viewerId) return; console.log("Viewer disconnected:", viewerId); allJoinedViewers.delete(viewerId); if (currentCalls[viewerId]) { currentCalls[viewerId].close(); delete currentCalls[viewerId]; } });
         socket.on("updateViewersList", data => renderListModal(elements.viewersModalList, data?.viewers || [], false));
         socket.on("updateBannedList", data => renderListModal(elements.bannedModalList, data?.banned || [], true));
         socket.on("forceEndStream", message => { alert(message || "Stream đã bị kết thúc bởi quản trị viên."); stopLocalStream(); if (socket) socket.disconnect(); window.location.href = "https://hoctap-9a3.glitch.me/live"; });
         socket.on("viewerBanned", msg => addChatMessage(msg, 'system', 'ban'));
+
+        // --- Whiteboard Socket Events ---
+        socket.on('wb:draw', (data) => {
+            if (data && data.drawData) {
+                 // Ensure this draw call doesn't re-emit (third param false)
+                drawOnWhiteboard(data.drawData.x0, data.drawData.y0, data.drawData.x1, data.drawData.y1, data.drawData.color, data.drawData.lineWidth, false, true);
+            }
+        });
+        socket.on('wb:clear', () => {
+            clearWhiteboard(false); // False to not re-emit
+        });
+        socket.on('wb:initState', (state) => { // Received initial state from another source (e.g. server after reconnect)
+            console.log("Received initial whiteboard state", state);
+            if (state && state.history && Array.isArray(state.history)) {
+                if (!isWhiteboardActive) showWhiteboard(); // Show if not already
+                else resizeWhiteboardCanvas(); // Ensure canvas is ready
+
+                whiteboardCtx.clearRect(0, 0, elements.whiteboardCanvas.width, elements.whiteboardCanvas.height);
+                wbDrawingHistory = []; // Reset local history before applying received one
+
+                state.history.forEach(item => {
+                    if (item.type === 'draw') {
+                        drawOnWhiteboard(item.x0, item.y0, item.x1, item.y1, item.color, item.lineWidth, false, true); // false: don't emit, true: isRedrawing
+                    } else if (item.type === 'clear') {
+                        whiteboardCtx.clearRect(0, 0, elements.whiteboardCanvas.width, elements.whiteboardCanvas.height);
+                        wbDrawingHistory = []; // Clear local history again for safety
+                    }
+                });
+                 console.log("Whiteboard state restored from history.");
+            } else if (state && state.dataUrl) { // Fallback for dataURL if history is not available/too large
+                 if (!isWhiteboardActive) showWhiteboard();
+                 else resizeWhiteboardCanvas();
+
+                 const img = new Image();
+                 img.onload = () => {
+                     whiteboardCtx.clearRect(0, 0, elements.whiteboardCanvas.width, elements.whiteboardCanvas.height);
+                     whiteboardCtx.drawImage(img, 0, 0);
+                     // wbDrawingHistory might be out of sync here, but visual state is restored.
+                     // For full sync, history is better.
+                     console.log("Whiteboard state restored from Data URL.");
+                 };
+                 img.src = state.dataUrl;
+            }
+        });
+        // When a viewer joins, they will emit 'wb:requestInitialState'. Server will relay this to streamer as 'wb:viewerRequestState'.
+        socket.on('wb:viewerRequestState', ({ viewerSocketId }) => {
+            if (isWhiteboardActive && elements.whiteboardCanvas && wbDrawingHistory.length > 0) {
+                console.log(`Streamer sending whiteboard history to viewer ${viewerSocketId}`);
+                socket.emit('wb:syncStateToViewer', {
+                    targetViewerId: viewerSocketId, // Server needs to handle routing this to the specific viewer
+                    history: wbDrawingHistory,
+                    // dataUrl: elements.whiteboardCanvas.toDataURL() // Alternative or fallback
+                });
+            }
+        });
+
     } // End initSocket
 
     // ==================================
@@ -123,6 +223,232 @@ document.addEventListener('DOMContentLoaded', () => {
          } catch (error) { console.error("Failed to init PeerJS:", error); alert("Lỗi khởi tạo PeerJS."); }
     } // End initPeer
 
+    // ==================================
+    // WHITEBOARD LOGIC
+    // ==================================
+    function resizeWhiteboardCanvas() {
+        if (!elements.whiteboardOverlay || !elements.whiteboardCanvas || !whiteboardCtx) return;
+
+        const toolbarHeight = elements.whiteboardToolbar ? elements.whiteboardToolbar.offsetHeight : 0;
+        const overlayPadding = 20; // Matches CSS padding for the overlay
+        
+        // Calculate available space within the overlay, considering padding and toolbar
+        const availableWidth = elements.whiteboardOverlay.clientWidth - (2 * overlayPadding);
+        const availableHeight = elements.whiteboardOverlay.clientHeight - toolbarHeight - (2 * overlayPadding) - 10; // 10px for some margin
+
+        // Define aspect ratio (e.g., 16:9) or use available space
+        const aspectRatio = 16 / 9;
+        let canvasWidth = availableWidth;
+        let canvasHeight = canvasWidth / aspectRatio;
+
+        if (canvasHeight > availableHeight) {
+            canvasHeight = availableHeight;
+            canvasWidth = canvasHeight * aspectRatio;
+        }
+        // Ensure canvas does not exceed available width if height constrains it first
+        if (canvasWidth > availableWidth) {
+            canvasWidth = availableWidth;
+            canvasHeight = canvasWidth / aspectRatio;
+        }
+
+
+        elements.whiteboardCanvas.width = canvasWidth;
+        elements.whiteboardCanvas.height = canvasHeight;
+        
+        // Style the canvas element itself to be centered if smaller than available space
+        elements.whiteboardCanvas.style.width = `${canvasWidth}px`;
+        elements.whiteboardCanvas.style.height = `${canvasHeight}px`;
+        
+        // Style the toolbar to match canvas width
+        if (elements.whiteboardToolbar) {
+            elements.whiteboardToolbar.style.width = `${canvasWidth}px`;
+        }
+
+
+        // Re-apply global composite operation and line cap/join after resize clears them
+        whiteboardCtx.lineCap = 'round';
+        whiteboardCtx.lineJoin = 'round';
+        whiteboardCtx.globalCompositeOperation = 'source-over'; // Default drawing mode
+
+        // Redraw existing history (if any)
+        // This is crucial if canvas content is not preserved by browser on resize
+        const tempHistory = [...wbDrawingHistory];
+        wbDrawingHistory = []; // Clear history to avoid duplicates during redraw
+        whiteboardCtx.clearRect(0, 0, elements.whiteboardCanvas.width, elements.whiteboardCanvas.height);
+        tempHistory.forEach(item => {
+            if (item.type === 'draw') {
+                drawOnWhiteboard(item.x0, item.y0, item.x1, item.y1, item.color, item.lineWidth, false, true);
+            } else if (item.type === 'clear') {
+                whiteboardCtx.clearRect(0, 0, elements.whiteboardCanvas.width, elements.whiteboardCanvas.height);
+                wbDrawingHistory = []; // Clear history on clear event
+            }
+        });
+
+        console.log("Whiteboard canvas resized to:", elements.whiteboardCanvas.width, "x", elements.whiteboardCanvas.height);
+    }
+
+    function showWhiteboard() {
+        if (!elements.whiteboardOverlay || isWhiteboardActive) return;
+        isWhiteboardActive = true;
+        elements.whiteboardOverlay.style.opacity = 0; // Start transparent for GSAP
+        elements.whiteboardOverlay.style.display = 'flex';
+
+        resizeWhiteboardCanvas(); // Resize before animation to get correct dimensions
+
+        if (!prefersReducedMotion) {
+            gsap.to(elements.whiteboardOverlay, {
+                duration: 0.5,
+                autoAlpha: 1,
+                ease: 'power2.out',
+            });
+        } else {
+            gsap.set(elements.whiteboardOverlay, { autoAlpha: 1 });
+        }
+        elements.toggleWhiteboardBtn?.classList.add('active');
+        window.addEventListener('resize', resizeWhiteboardCanvas);
+        console.log("Whiteboard shown");
+    }
+
+    function hideWhiteboard() {
+        if (!elements.whiteboardOverlay || !isWhiteboardActive) return;
+        
+        const onHideComplete = () => {
+            isWhiteboardActive = false;
+            elements.whiteboardOverlay.style.display = 'none';
+            elements.toggleWhiteboardBtn?.classList.remove('active');
+            window.removeEventListener('resize', resizeWhiteboardCanvas);
+            console.log("Whiteboard hidden");
+        };
+
+        if (!prefersReducedMotion) {
+            gsap.to(elements.whiteboardOverlay, {
+                duration: 0.4,
+                autoAlpha: 0,
+                ease: 'power1.in',
+                onComplete: onHideComplete
+            });
+        } else {
+            gsap.set(elements.whiteboardOverlay, { autoAlpha: 0 });
+            onHideComplete();
+        }
+    }
+
+    function drawOnWhiteboard(x0, y0, x1, y1, color, lineWidth, emitEvent = true, isRedrawing = false) {
+        if (!whiteboardCtx) return;
+        whiteboardCtx.beginPath();
+        whiteboardCtx.moveTo(x0, y0);
+        whiteboardCtx.lineTo(x1, y1);
+        whiteboardCtx.strokeStyle = color;
+        whiteboardCtx.lineWidth = lineWidth;
+        whiteboardCtx.stroke();
+        whiteboardCtx.closePath();
+
+        if (!isRedrawing) { // Only add to history if it's a new draw action
+             wbDrawingHistory.push({ type: 'draw', x0, y0, x1, y1, color, lineWidth });
+        }
+
+        if (emitEvent && socket && socket.connected) {
+            socket.emit('wb:draw', {
+                roomId: streamerConfig.roomId,
+                drawData: { x0, y0, x1, y1, color, lineWidth }
+            });
+        }
+    }
+    
+    function getMousePos(canvas, evt) {
+        const rect = canvas.getBoundingClientRect();
+        let clientX, clientY;
+        if (evt.touches && evt.touches.length > 0) {
+            clientX = evt.touches[0].clientX;
+            clientY = evt.touches[0].clientY;
+        } else {
+            clientX = evt.clientX;
+            clientY = evt.clientY;
+        }
+        return {
+            x: (clientX - rect.left) * (canvas.width / rect.width),
+            y: (clientY - rect.top) * (canvas.height / rect.height)
+        };
+    }
+
+    function handleWhiteboardDrawStart(event) {
+        if (!isWhiteboardActive) return;
+        event.preventDefault(); // Prevent page scroll on touch
+        isDrawingOnWhiteboard = true;
+        const pos = getMousePos(elements.whiteboardCanvas, event);
+        wbLastX = pos.x;
+        wbLastY = pos.y;
+        // For a single dot on click/tap
+        drawOnWhiteboard(wbLastX - 0.5, wbLastY - 0.5, wbLastX, wbLastY, wbCurrentColor, wbCurrentLineWidth, true);
+    }
+
+    function handleWhiteboardDrawing(event) {
+        if (!isDrawingOnWhiteboard || !isWhiteboardActive) return;
+        event.preventDefault();
+
+        // Throttle drawing events
+        if (wbEventThrottleTimer) return;
+        wbEventThrottleTimer = setTimeout(() => {
+            const pos = getMousePos(elements.whiteboardCanvas, event);
+            drawOnWhiteboard(wbLastX, wbLastY, pos.x, pos.y, wbCurrentColor, wbCurrentLineWidth, true);
+            wbLastX = pos.x;
+            wbLastY = pos.y;
+            wbEventThrottleTimer = null;
+        }, WB_THROTTLE_INTERVAL);
+    }
+
+    function handleWhiteboardDrawEnd() {
+        if (!isDrawingOnWhiteboard || !isWhiteboardActive) return;
+        isDrawingOnWhiteboard = false;
+        clearTimeout(wbEventThrottleTimer); // Clear any pending throttled event
+        wbEventThrottleTimer = null;
+    }
+    
+    function clearWhiteboard(emitEvent = true) {
+        if (!whiteboardCtx || !elements.whiteboardCanvas) return;
+        whiteboardCtx.clearRect(0, 0, elements.whiteboardCanvas.width, elements.whiteboardCanvas.height);
+        wbDrawingHistory.push({ type: 'clear' }); // Add clear action to history
+        if (wbDrawingHistory.length > 200) wbDrawingHistory.splice(0, wbDrawingHistory.length - 200); // Keep history manageable
+
+        if (emitEvent && socket && socket.connected) {
+            socket.emit('wb:clear', { roomId: streamerConfig.roomId });
+        }
+        console.log("Whiteboard cleared");
+    }
+
+    function initWhiteboard() {
+        if (!elements.whiteboardCanvas) {
+            console.error("Whiteboard canvas element not found!");
+            return;
+        }
+        whiteboardCtx = elements.whiteboardCanvas.getContext('2d');
+        if (!whiteboardCtx) {
+            console.error("Failed to get 2D context for whiteboard!");
+            return;
+        }
+
+        // Set initial drawing properties
+        whiteboardCtx.lineCap = 'round';
+        whiteboardCtx.lineJoin = 'round';
+        wbCurrentColor = elements.wbColorPicker?.value || '#FFFFFF';
+        wbCurrentLineWidth = parseInt(elements.wbLineWidthRange?.value || '3', 10);
+        if(elements.wbLineWidthValueDisplay) elements.wbLineWidthValueDisplay.textContent = wbCurrentLineWidth;
+
+
+        // Desktop mouse events
+        elements.whiteboardCanvas.addEventListener('mousedown', handleWhiteboardDrawStart);
+        elements.whiteboardCanvas.addEventListener('mousemove', handleWhiteboardDrawing);
+        elements.whiteboardCanvas.addEventListener('mouseup', handleWhiteboardDrawEnd);
+        elements.whiteboardCanvas.addEventListener('mouseout', handleWhiteboardDrawEnd); // Stop drawing if mouse leaves canvas
+
+        // Touch events
+        elements.whiteboardCanvas.addEventListener('touchstart', handleWhiteboardDrawStart, { passive: false });
+        elements.whiteboardCanvas.addEventListener('touchmove', handleWhiteboardDrawing, { passive: false });
+        elements.whiteboardCanvas.addEventListener('touchend', handleWhiteboardDrawEnd);
+        elements.whiteboardCanvas.addEventListener('touchcancel', handleWhiteboardDrawEnd);
+
+        console.log("Whiteboard Initialized.");
+    }
 
     // ==================================
     // STREAMING & UI LOGIC
@@ -311,43 +637,57 @@ document.addEventListener('DOMContentLoaded', () => {
     // UI EVENT LISTENERS SETUP
     // ==================================
     function initUIEventListeners() {
+        // --- Control Panel Toggle ---
         elements.togglePanelBtn?.addEventListener("click", () => {
-            isPanelCollapsed = elements.controlPanel.classList.toggle("collapsed");
+            isPanelCollapsed = elements.controlPanel.classList.toggle("collapsed"); // Toggle class first
             const icon = elements.togglePanelBtn.querySelector('i');
             if (!elements.panelContent) return;
 
+            // Animate icon rotation
             gsap.to(icon, { rotation: isPanelCollapsed ? 180 : 0, duration: 0.4, ease: 'power2.inOut' });
 
             if (!prefersReducedMotion) {
                 if (isPanelCollapsed) {
+                    // --- Collapse Animation ---
                      gsap.to(elements.controlButtons, {
-                        duration: 0.25, autoAlpha: 0, y: 10, stagger: 0.04,
-                        ease: 'power1.in', overwrite: true
+                        duration: 0.25, // Faster fade out
+                        autoAlpha: 0,
+                        y: 10, // Move down slightly
+                        stagger: 0.04,
+                        ease: 'power1.in',
+                        overwrite: true // Ensure it stops any 'from' animation
                      });
                      gsap.to(elements.panelContent, {
-                        duration: 0.4, height: 0, paddingTop: 0, paddingBottom: 0, marginTop: 0,
-                        autoAlpha: 0, ease: 'power2.inOut', delay: 0.1
+                        duration: 0.4,
+                        height: 0,
+                        paddingTop: 0,
+                        paddingBottom: 0,
+                        marginTop: 0,
+                        autoAlpha: 0,
+                        ease: 'power2.inOut',
+                        delay: 0.1 // Delay slightly after buttons start fading
                      });
                 } else {
-                     gsap.set(elements.panelContent, { display: 'block', height: 'auto', autoAlpha: 0 }); // Start invisible before calculating height
+                    // --- Expand Animation ---
+                     gsap.set(elements.panelContent, { display: 'block', height: 'auto', autoAlpha: 0 }); // Start invisible for height calc
                      const targetPanelStyles = {
                          height: elements.panelContent.scrollHeight,
                          paddingTop: 20,
-                         paddingBottom: 20, // Corrected
-                         marginTop: 0,      // Corrected
+                         paddingBottom: 20, 
+                         marginTop: 0,      
                          autoAlpha: 1
                      };
                      gsap.fromTo(elements.panelContent,
                          { height: 0, autoAlpha: 0, paddingTop: 0, paddingBottom: 0, marginTop: 0 },
                          {
-                             duration: 0.5,
+                             duration: 0.5, // Slightly longer expand
                              ...targetPanelStyles,
                              ease: 'power3.out',
                              onComplete: () => {
-                                 gsap.set(elements.panelContent, { height: 'auto' });
+                                  gsap.set(elements.panelContent, { height: 'auto' });
                                   if(elements.controlButtons.length > 0) {
                                      gsap.fromTo(elements.controlButtons,
-                                         { y: 15, autoAlpha: 0 },
+                                         { y: 15, autoAlpha: 0 }, // Start from slightly below
                                          { duration: 0.5, y: 0, autoAlpha: 1, stagger: 0.06, ease: 'power2.out', overwrite: true }
                                      );
                                   }
@@ -355,11 +695,82 @@ document.addEventListener('DOMContentLoaded', () => {
                          }
                      );
                 }
-            } else {
+            } else { // Reduced motion toggle
                  elements.panelContent.style.display = isPanelCollapsed ? 'none' : 'block';
-                 gsap.set(elements.controlButtons, { autoAlpha: isPanelCollapsed ? 0: 1});
+                 gsap.set(elements.controlButtons, { autoAlpha: isPanelCollapsed ? 0: 1}); // Instantly show/hide buttons
             }
         });
+        // --- Stream Control Buttons ---
+        elements.shareScreenBtn?.addEventListener('click', () => { playButtonFeedback(elements.shareScreenBtn); startScreenShare(); });
+        elements.liveCamBtn?.addEventListener('click', () => { playButtonFeedback(elements.liveCamBtn); startLiveCam(); });
+        elements.toggleMicBtn?.addEventListener('click', () => { playButtonFeedback(elements.toggleMicBtn); toggleMicrophone(); });
+        elements.endStreamBtn?.addEventListener('click', async () => { 
+            if (!socket) { console.error("Socket not connected."); return; } 
+            playButtonFeedback(elements.endStreamBtn); 
+            const confirmed = await showStreamerConfirmation("Xác nhận kết thúc stream?", "Kết thúc", "Hủy", "fas fa-exclamation-triangle");
+            if (confirmed) { 
+                stopLocalStream(); 
+                socket.emit("endRoom", { roomId: streamerConfig.roomId }); 
+                window.location.href = "https://hoctap-9a3.glitch.me/live"; 
+            } 
+        });
+        // --- Modal Buttons ---
+        elements.viewersListBtn?.addEventListener('click', () => {
+            if (!socket) return;
+            playButtonFeedback(elements.viewersListBtn);
+            socket.emit("getViewersList", { roomId: streamerConfig.roomId });
+            openModal(elements.viewersModal); 
+         });
+        elements.bannedListBtn?.addEventListener('click', () => {
+            if (!socket) return;
+            playButtonFeedback(elements.bannedListBtn);
+            socket.emit("getBannedList", { roomId: streamerConfig.roomId });
+            openModal(elements.bannedModal);
+         });
+        elements.closeViewersModalBtn?.addEventListener('click', () => closeModal(elements.viewersModal)); 
+        elements.closeBannedModalBtn?.addEventListener('click', () => closeModal(elements.bannedModal)); 
+         document.querySelectorAll('.modal-backdrop').forEach(backdrop => {
+             backdrop.addEventListener('click', (e) => {
+                 if (e.target === backdrop) {
+                    closeModal(backdrop.closest('.modal-v2')); 
+                 }
+             });
+         });
+        // --- Chat Input ---
+        elements.sendChatBtn?.addEventListener('click', sendChatMessage);
+        elements.chatInputArea?.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChatMessage(); } });
+        elements.chatInputArea?.addEventListener('input', function() { this.style.height = 'auto'; this.style.height = (this.scrollHeight) + 'px'; const rt=this.value||""; if(elements.chatPreview && typeof marked !== 'undefined'){try{let h=marked.parse(rt);elements.chatPreview.innerHTML=h;}catch(e){elements.chatPreview.innerHTML="Lỗi xem trước Markdown"}}});
+        // --- Search Filter ---
+        elements.viewersSearchInput?.addEventListener('input', function() { const q=this.value.toLowerCase(); const li=elements.viewersModalList?.querySelectorAll('li'); li?.forEach(l=>{const u=l.querySelector('.list-username')?.textContent.toLowerCase()||'';l.style.display=u.includes(q)?'':'none';}); });
+        // --- PiP Button ---
+        if (elements.pipChatBtn) { elements.pipChatBtn.style.display = 'none'; }
+
+        // --- Whiteboard Controls ---
+        elements.toggleWhiteboardBtn?.addEventListener('click', () => {
+            playButtonFeedback(elements.toggleWhiteboardBtn);
+            if (isWhiteboardActive) {
+                hideWhiteboard();
+            } else {
+                showWhiteboard();
+            }
+        });
+        elements.closeWhiteboardBtn?.addEventListener('click', () => {
+            playButtonFeedback(elements.closeWhiteboardBtn);
+            hideWhiteboard();
+        });
+        elements.wbColorPicker?.addEventListener('input', (e) => {
+            wbCurrentColor = e.target.value;
+        });
+        elements.wbLineWidthRange?.addEventListener('input', (e) => {
+            wbCurrentLineWidth = parseInt(e.target.value, 10);
+            if(elements.wbLineWidthValueDisplay) elements.wbLineWidthValueDisplay.textContent = wbCurrentLineWidth;
+        });
+        elements.wbClearBtn?.addEventListener('click', () => {
+            playButtonFeedback(elements.wbClearBtn);
+            clearWhiteboard(true); // True to emit event
+        });
+
+    } // End initUIEventListeners
 
         elements.shareScreenBtn?.addEventListener('click', () => { playButtonFeedback(elements.shareScreenBtn); startScreenShare(); });
         elements.liveCamBtn?.addEventListener('click', () => { playButtonFeedback(elements.liveCamBtn); startLiveCam(); });
@@ -408,7 +819,7 @@ document.addEventListener('DOMContentLoaded', () => {
         elements.viewersSearchInput?.addEventListener('input', function() { const q=this.value.toLowerCase(); const li=elements.viewersModalList?.querySelectorAll('li'); li?.forEach(l=>{const u=l.querySelector('.list-username')?.textContent.toLowerCase()||'';l.style.display=u.includes(q)?'':'none';}); });
         
         if (elements.pipChatBtn) { // Simplified PiP button logic, effectively hides it
-            elements.pipChatBtn.style.display = 'none';
+            //elements.pipChatBtn.style.display = 'none';
         }
     } // End initUIEventListeners
 
