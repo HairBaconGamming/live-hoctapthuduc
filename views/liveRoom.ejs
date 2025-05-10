@@ -35,6 +35,10 @@
              <span class="host-info">(Host: <%= room.owner %>)</span>
         </div>
         <div class="header-stats">
+            <!-- Trong .live-room-main-header .header-stats hoặc một vị trí tương tự -->
+            <button id="toggleViewerWhiteboardDisplayBtn" class="control-btn wb-viewer-toggle-btn" title="Hiện bảng vẽ (nếu streamer đang bật)" style="padding: 6px 10px; font-size:0.8rem;" disabled>
+                <i class="fas fa-chalkboard"></i> Hiện Bảng Vẽ
+            </button>
             <div class="viewer-count-widget">
                 <i class="fas fa-eye"></i>
                 <span id="viewerCountLive" class="viewer-count-live">0</span>

@@ -368,3 +368,24 @@ html, body.live-room-body {
 /* Specific for viewer close/hide button - might be an eye-slash */
 #whiteboardToolbarViewer #closeWhiteboardBtnViewer i { color: var(--text-medium) !important; }
 #whiteboardToolbarViewer #closeWhiteboardBtnViewer:hover i { color: var(--text-light) !important; }
+
+/* Style for the viewer's local whiteboard toggle button */
+.wb-viewer-toggle-btn {
+    background-color: rgba(var(--accent-color-rgb), 0.15);
+    border: 1px solid rgba(var(--accent-color-rgb), 0.4);
+    color: var(--accent-color);
+    /* Add other control-btn like styles if not inheriting automatically */
+}
+.wb-viewer-toggle-btn:hover:not(:disabled) {
+    background-color: rgba(var(--accent-color-rgb), 0.3);
+}
+.wb-viewer-toggle-btn:disabled {
+    background-color: rgba(var(--text-medium), 0.1) !important;
+    border-color: rgba(var(--text-medium), 0.2) !important;
+    color: var(--text-medium) !important;
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+.wb-viewer-toggle-btn i {
+    margin-right: 6px;
+}

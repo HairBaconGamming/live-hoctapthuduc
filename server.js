@@ -159,9 +159,12 @@ app.get("/room/:id", checkHoctapAuth, (req, res) => {
 io.on("connection", (socket) => {
   console.log("💡 New client connected");
 
-  socket.on("joinRoom", ({ roomId, username }) => {
+  socket.on("joinRoom", ({ roomId, username, peerId }) => {
     socket.join(roomId);
     socket.username = username;
+    if (peerId) { // Nếu viewer gửi peerId của họ
+      socket.peerIdForStreamer = peerId; // Lưu peerId này trên socket của viewer
+    }
     const room = liveRooms.find((r) => r.id === roomId);
     if (room) {
       // Kiểm tra nếu viewer bị ban
@@ -225,13 +228,23 @@ io.on("connection", (socket) => {
   });
 
   // Khi viewer gửi thông tin PeerJS ID cho streamer
-  socket.on("newViewer", ({ viewerId, roomId }) => {
-    const room = liveRooms.find((r) => r.id === roomId);
-    if (room && room.hostSocketId) {
-      io.to(room.hostSocketId).emit("newViewer", { viewerId });
-    }
+  socket.on("newViewer", ({ viewerId, roomId, username }) => { // username cũng nên có ở đây để xác định đúng socket
+      const room = liveRooms.find(r => r.id === roomId);
+      if (room && room.hostSocketId) {
+          // Tìm socket của viewer dựa trên username hoặc một định danh khác
+          io.in(roomId).allSockets().then(sockets => {
+              sockets.forEach(clientId => {
+                  const clientSocket = io.sockets.sockets.get(clientId);
+                  if (clientSocket && clientSocket.username === username) {
+                      clientSocket.peerIdForStreamer = viewerId; // Gán peerId vào socket của viewer
+                      console.log(`Associated PeerID ${viewerId} with viewer ${username} (socket ${clientSocket.id})`);
+                  }
+              });
+          });
+          io.to(room.hostSocketId).emit("newViewer", { viewerId }); // Thông báo cho streamer
+      }
   });
-
+  
   socket.on("chatMessage", ({ roomId, username, message }) => {
     io.to(roomId).emit("newMessage", { username, message });
   });
@@ -383,6 +396,20 @@ io.on("connection", (socket) => {
       io.to(targetViewerId).emit("wb:initState", { history, dataUrl }); // Send history or dataUrl
     }
   });
+  
+      socket.on('viewerLeaving', ({ roomId, username }) => {
+        // This event is a "best effort" notification from the client.
+        // The main 'disconnect' event for the socket is more reliable for actual cleanup.
+        console.log(`🏃‍♂️ Viewer ${username} is attempting to leave room ${roomId} (via beforeunload/pagehide).`);
+        // You could potentially act on this immediately, e.g., update viewer count faster,
+        // but be aware this client might not actually disconnect if they cancel the navigation.
+        // The 'disconnecting' event handler below is more robust for cleanup.
+        const room = liveRooms.find(r => r.id === roomId);
+        if (room && username) {
+            // Optional: emit a specific "user_is_leaving_soon" message if you want immediate UI feedback
+            // io.to(roomId).emit("viewerIsLeavingSoon", `${username} có thể sắp rời phòng.`);
+        }
+    });
 
   socket.on("disconnecting", () => {
     const rooms = Array.from(socket.rooms);

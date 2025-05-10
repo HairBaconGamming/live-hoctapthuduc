@@ -65,10 +65,55 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log("Initializing Live Room Viewer...");
         initSocket();
         initPeer(); 
-        initViewerWhiteboard(); // Initialize whiteboard for viewer
+        initViewerWhiteboard(); 
         initUIEventListeners();
         initBackgroundParticles();
         initPageAnimations(); 
+
+        if (elements.toggleViewerWhiteboardDisplayBtn) {
+            elements.toggleViewerWhiteboardDisplayBtn.disabled = !isWhiteboardGloballyVisible; 
+            if (isWhiteboardLocallyVisible && isWhiteboardGloballyVisible) { 
+                elements.toggleViewerWhiteboardDisplayBtn.innerHTML = '<i class="fas fa-eye-slash"></i> Ẩn Bảng Vẽ';
+                elements.toggleViewerWhiteboardDisplayBtn.title = "Ẩn bảng vẽ (cục bộ)";
+            } else {
+                elements.toggleViewerWhiteboardDisplayBtn.innerHTML = '<i class="fas fa-chalkboard"></i> Hiện Bảng Vẽ';
+                elements.toggleViewerWhiteboardDisplayBtn.title = "Hiện bảng vẽ (nếu streamer đang bật)";
+            }
+        }
+        if (elements.whiteboardToolbarViewer) {
+            elements.whiteboardToolbarViewer.style.display = (viewerCanDrawOnWhiteboard && isWhiteboardLocallyVisible && isWhiteboardGloballyVisible) ? 'flex' : 'none';
+        }
+
+        // Attempt to notify server when viewer is leaving
+        const handleBeforeUnload = (event) => {
+            if (socket && socket.connected) {
+                // Standard way to send data with sendBeacon if available, otherwise a quick sync XHR (less reliable)
+                // However, for socket.io, a simple emit is often tried.
+                // It's not guaranteed to complete.
+                socket.emit('viewerLeaving', { roomId: liveRoomConfig.roomId, username: liveRoomConfig.username });
+                // socket.disconnect(); // Optionally explicitly disconnect
+            }
+            // Some browsers require a return value for beforeunload.
+            // event.preventDefault(); // Not always needed and can be annoying
+            // event.returnValue = ''; // For older browsers
+        };
+
+        window.addEventListener('beforeunload', handleBeforeUnload);
+
+        // For mobile browsers, 'pagehide' is often more reliable than 'unload' or 'beforeunload'
+        // for detecting when a page is being navigated away from or put into the background.
+        window.addEventListener('pagehide', (event) => {
+            // The event.persisted property is true if the page is being saved for fast back/forward navigation (bfcache)
+            // If !event.persisted, it means the page is likely being unloaded permanently.
+            if (!event.persisted) {
+                if (socket && socket.connected) {
+                    socket.emit('viewerLeaving', { roomId: liveRoomConfig.roomId, username: liveRoomConfig.username });
+                    // socket.disconnect(); // Optionally explicitly disconnect
+                }
+            }
+        });
+
+
         console.log("Viewer Initialization Complete.");
     }
 
@@ -160,37 +205,66 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // --- Whiteboard Socket Events (Viewer) ---
         socket.on('wb:toggleVisibility', ({ isVisible }) => { 
-            isWhiteboardGloballyVisible = isVisible; // Update global state
+            const oldGlobalVisibility = isWhiteboardGloballyVisible;
+            isWhiteboardGloballyVisible = isVisible; 
+            
             if (elements.toggleViewerWhiteboardDisplayBtn) {
-                elements.toggleViewerWhiteboardDisplayBtn.disabled = !isVisible; // Enable/disable viewer's own toggle
+                elements.toggleViewerWhiteboardDisplayBtn.disabled = !isVisible; 
+                if (!isVisible) { // If globally hidden, update button text to "Hiện"
+                     elements.toggleViewerWhiteboardDisplayBtn.innerHTML = '<i class="fas fa-chalkboard"></i> Hiện Bảng Vẽ';
+                     elements.toggleViewerWhiteboardDisplayBtn.title = "Hiện bảng vẽ (nếu streamer đang bật)";
+                } else if (isWhiteboardLocallyVisible) { // If globally visible AND locally visible
+                    elements.toggleViewerWhiteboardDisplayBtn.innerHTML = '<i class="fas fa-eye-slash"></i> Ẩn Bảng Vẽ';
+                    elements.toggleViewerWhiteboardDisplayBtn.title = "Ẩn bảng vẽ (cục bộ)";
+                } else { // Globally visible but locally hidden
+                    elements.toggleViewerWhiteboardDisplayBtn.innerHTML = '<i class="fas fa-chalkboard"></i> Hiện Bảng Vẽ';
+                    elements.toggleViewerWhiteboardDisplayBtn.title = "Hiện bảng vẽ (nếu streamer đang bật)";
+                }
+            }
+            if (elements.whiteboardToolbarViewer) { // Also update toolbar visibility
+                elements.whiteboardToolbarViewer.style.display = (viewerCanDrawOnWhiteboard && isWhiteboardLocallyVisible && isWhiteboardGloballyVisible) ? 'flex' : 'none';
             }
 
+
             if (isVisible) {
-                // Streamer wants it visible. If viewer also has it locally visible (or default to show), then show.
-                // For simplicity, let's assume if streamer turns it on, viewer might want to see it by default.
-                if (!isWhiteboardLocallyVisible) { // Or some other logic to decide if viewer wants to see it
-                     showViewerWhiteboard();
-                     // After showing, viewer might need the current state
-                     socket.emit('wb:requestInitialState', { roomId: liveRoomConfig.roomId });
-                } else {
-                    // It's already locally visible, ensure canvas is sized if it wasn't before
+                // If whiteboard becomes globally visible and wasn't before,
+                // and if viewer has it locally set to visible (or defaults to show when globally on)
+                if (!isWhiteboardLocallyVisible && oldGlobalVisibility !== isVisible) { 
+                    // Default to show if streamer turns it on, unless viewer explicitly hid it before while it was on
+                    showViewerWhiteboard();
+                    socket.emit('wb:requestInitialState', { roomId: liveRoomConfig.roomId });
+                } else if (isWhiteboardLocallyVisible) {
+                    // It's already locally visible, ensure canvas is sized
                     resizeWhiteboardCanvasViewer();
                 }
             } else {
                 // Streamer turned it off globally. Force hide for viewer.
-                hideViewerWhiteboard(true); // true for global hide
+                if (isWhiteboardLocallyVisible) { // Only hide if it was locally visible
+                    hideViewerWhiteboard(true); 
+                }
             }
         });
 
-        socket.on('wb:draw', (data) => { // Drawings from streamer or other viewers
+        socket.on('wb:draw', (data) => { 
             if (data && data.drawData) {
-                if (!isWhiteboardVisibleToViewer) showViewerWhiteboard(); // Show if hidden
-                 // The `drawnBy` property can be added by the server if not sent by client
+                if (!isWhiteboardGloballyVisible) { // If streamer just enabled it, make it globally visible
+                    isWhiteboardGloballyVisible = true;
+                     if (elements.toggleViewerWhiteboardDisplayBtn) elements.toggleViewerWhiteboardDisplayBtn.disabled = false;
+                }
+                if (!isWhiteboardLocallyVisible) showViewerWhiteboard(); 
+                else resizeWhiteboardCanvasViewer(); // Ensure canvas is ready
+                
                 drawOnViewerWhiteboard(data.drawData.x0, data.drawData.y0, data.drawData.x1, data.drawData.y1, data.drawData.color, data.drawData.lineWidth, false, false, data.drawData.isEraser || false, data.username || 'unknown');
             }
         });
         socket.on('wb:clear', () => {
-            if (!isWhiteboardVisibleToViewer) showViewerWhiteboard(); // Show if hidden
+            if (!isWhiteboardGloballyVisible) {
+                isWhiteboardGloballyVisible = true;
+                if (elements.toggleViewerWhiteboardDisplayBtn) elements.toggleViewerWhiteboardDisplayBtn.disabled = false;
+            }
+            if (!isWhiteboardLocallyVisible) showViewerWhiteboard();
+            else resizeWhiteboardCanvasViewer();
+
             clearViewerWhiteboard();
         });
 
@@ -198,25 +272,26 @@ document.addEventListener('DOMContentLoaded', () => {
             if (viewerUsername === liveRoomConfig.username) {
                 viewerCanDrawOnWhiteboard = canDraw;
                 console.log(`My drawing permission updated to: ${viewerCanDrawOnWhiteboard}`);
-                if (viewerCanDrawOnWhiteboard) {
-                   showViewerWhiteboard();
-                } else {hideViewerWhiteboard();}
-                if (elements.whiteboardToolbarViewer) { // Show/hide toolbar based on permission
-                    elements.whiteboardToolbarViewer.style.display = viewerCanDrawOnWhiteboard ? 'flex' : 'none';
+                if (elements.whiteboardToolbarViewer) { 
+                    elements.whiteboardToolbarViewer.style.display = (viewerCanDrawOnWhiteboard && isWhiteboardLocallyVisible && isWhiteboardGloballyVisible) ? 'flex' : 'none';
                 }
-                 if (isWhiteboardVisibleToViewer) { // Re-render toolbar section of whiteboard
-                    // No explicit re-render needed, just style.display change of toolbar
-                 }
+                if (elements.whiteboardCanvasViewer) { // Update cursor
+                    elements.whiteboardCanvasViewer.style.cursor = viewerCanDrawOnWhiteboard ? (wbViewerIsEraserMode ? 'cell' : 'crosshair') : 'default';
+                    elements.whiteboardCanvasViewer.classList.toggle('can-draw', viewerCanDrawOnWhiteboard);
+                }
             }
         });
         
-        socket.on('wb:initState', (state) => {
+       socket.on('wb:initState', (state) => {
             console.log("Viewer received initial whiteboard state", state);
-             if (!isWhiteboardVisibleToViewer) showViewerWhiteboard(); // Ensure WB is visible
-             else resizeWhiteboardCanvasViewer(); // If already visible, ensure it's sized correctly
+            isWhiteboardGloballyVisible = true; // Receiving state means it's globally active
+            if (elements.toggleViewerWhiteboardDisplayBtn) elements.toggleViewerWhiteboardDisplayBtn.disabled = false;
+
+            if (!isWhiteboardLocallyVisible) showViewerWhiteboard(); 
+            else resizeWhiteboardCanvasViewer(); 
 
             wbCtxViewer.clearRect(0, 0, elements.whiteboardCanvasViewer.width, elements.whiteboardCanvasViewer.height);
-            wbViewerDrawingHistoryForRedraw = []; // Clear local history
+            wbViewerDrawingHistoryForRedraw = []; 
 
             if (state && state.history && Array.isArray(state.history)) {
                 state.history.forEach(item => {
@@ -509,24 +584,30 @@ function drawOnViewerWhiteboard(x0, y0, x1, y1, color, lineWidth, emitEvent = tr
         wbCtxViewer.lineCap = 'round';
         wbCtxViewer.lineJoin = 'round';
 
-        if(elements.wbColorPickerViewer) wbViewerCurrentColor = elements.wbColorPickerViewer.value;
-        if(elements.wbLineWidthRangeViewer) wbViewerCurrentLineWidth = parseInt(elements.wbLineWidthRangeViewer.value, 10);
+        if(elements.wbColorPickerViewer) wbViewerCurrentColor = elements.wbColorPickerViewer.value || '#FF6EC4'; // Ensure default
+        if(elements.wbLineWidthRangeViewer) wbViewerCurrentLineWidth = parseInt(elements.wbLineWidthRangeViewer.value || '3', 10);
         if(elements.wbLineWidthValueDisplayViewer) elements.wbLineWidthValueDisplayViewer.textContent = wbViewerCurrentLineWidth;
 
+        // Set initial cursor and class based on drawing permission
+        if (elements.whiteboardCanvasViewer) {
+            elements.whiteboardCanvasViewer.style.cursor = viewerCanDrawOnWhiteboard ? 'crosshair' : 'default';
+            elements.whiteboardCanvasViewer.classList.toggle('can-draw', viewerCanDrawOnWhiteboard);
+            elements.whiteboardCanvasViewer.classList.toggle('eraser-mode', wbViewerIsEraserMode && viewerCanDrawOnWhiteboard); // Also consider eraser mode
+        }
 
-        // Add event listeners only if viewer has permission initially or might get it
-        // For now, add them and let the `viewerCanDrawOnWhiteboard` check handle it.
+        // Desktop mouse events
         elements.whiteboardCanvasViewer.addEventListener('mousedown', handleViewerWhiteboardDrawStart);
         elements.whiteboardCanvasViewer.addEventListener('mousemove', handleViewerWhiteboardDrawing);
         elements.whiteboardCanvasViewer.addEventListener('mouseup', handleViewerWhiteboardDrawEnd);
-        elements.whiteboardCanvasViewer.addEventListener('mouseout', handleViewerWhiteboardDrawEnd);
+        elements.whiteboardCanvasViewer.addEventListener('mouseout', handleViewerWhiteboardDrawEnd); 
 
+        // Touch events
         elements.whiteboardCanvasViewer.addEventListener('touchstart', handleViewerWhiteboardDrawStart, { passive: false });
         elements.whiteboardCanvasViewer.addEventListener('touchmove', handleViewerWhiteboardDrawing, { passive: false });
         elements.whiteboardCanvasViewer.addEventListener('touchend', handleViewerWhiteboardDrawEnd);
         elements.whiteboardCanvasViewer.addEventListener('touchcancel', handleViewerWhiteboardDrawEnd);
         
-        console.log("Viewer Whiteboard Initialized.");
+        console.log("Viewer Whiteboard Initialized. Can draw:", viewerCanDrawOnWhiteboard);
     }
   
     // ==================================
@@ -802,31 +883,47 @@ function drawOnViewerWhiteboard(x0, y0, x1, y1, color, lineWidth, emitEvent = tr
           document.body.addEventListener('click', startPlay);
           document.body.addEventListener('keydown', startPlay);
 
-        // --- Viewer Whiteboard UI Listeners (Only if they have permission) ---
+        // --- Viewer Whiteboard UI Listeners ---
         elements.closeWhiteboardBtnViewer?.addEventListener('click', () => {
-            // Viewers typically cannot "close" the whiteboard if streamer has it open.
-            // This button might be for a local "hide" if desired, or removed for viewers.
-            // For now, let's assume streamer controls visibility.
-            // If viewer has their own WB instance, this could hide their local view of it.
-            // hideViewerWhiteboard(); // This would hide it locally, but streamer still dictates global state.
-            console.log("Viewer close WB button clicked - visibility controlled by streamer.");
+            // This button on viewer's toolbar now acts as a local hide.
+             if (isWhiteboardLocallyVisible) {
+                hideViewerWhiteboard(false); // false because it's a local action
+             }
         });
 
-        elements.wbColorPickerViewer?.addEventListener('input', (e) => {
-            if (!viewerCanDrawOnWhiteboard) return;
+       elements.wbColorPickerViewer?.addEventListener('input', (e) => {
+            if (!viewerCanDrawOnWhiteboard || !isWhiteboardLocallyVisible) return;
             wbViewerCurrentColor = e.target.value;
         });
         elements.wbLineWidthRangeViewer?.addEventListener('input', (e) => {
-            if (!viewerCanDrawOnWhiteboard) return;
+            if (!viewerCanDrawOnWhiteboard || !isWhiteboardLocallyVisible) return;
             wbViewerCurrentLineWidth = parseInt(e.target.value, 10);
             if(elements.wbLineWidthValueDisplayViewer) elements.wbLineWidthValueDisplayViewer.textContent = wbViewerCurrentLineWidth;
         });
         elements.wbEraserModeBtnViewer?.addEventListener('click', () => {
-            if (!viewerCanDrawOnWhiteboard) return;
-            // playButtonFeedback(elements.wbEraserModeBtnViewer); // Need to define playButtonFeedback or remove
+            if (!viewerCanDrawOnWhiteboard || !isWhiteboardLocallyVisible) return;
             wbViewerIsEraserMode = !wbViewerIsEraserMode;
             elements.wbEraserModeBtnViewer.classList.toggle('active', wbViewerIsEraserMode);
-            elements.whiteboardCanvasViewer.style.cursor = wbViewerIsEraserMode ? 'cell' : 'crosshair';
+            if (elements.whiteboardCanvasViewer) {
+                elements.whiteboardCanvasViewer.style.cursor = wbViewerIsEraserMode ? 'cell' : (viewerCanDrawOnWhiteboard ? 'crosshair' : 'default');
+                elements.whiteboardCanvasViewer.classList.toggle('eraser-mode', wbViewerIsEraserMode);
+            }
+        });
+      
+              // Listener for the new global toggle button for viewer's local display
+        elements.toggleViewerWhiteboardDisplayBtn?.addEventListener('click', () => {
+            // This button only works if the whiteboard is globally visible (streamer enabled it)
+            if (!isWhiteboardGloballyVisible) {
+                alert("Bảng vẽ chưa được streamer bật.");
+                return;
+            }
+            if (isWhiteboardLocallyVisible) {
+                hideViewerWhiteboard(false); // Local hide
+            } else {
+                showViewerWhiteboard();
+                // After showing, viewer might need the current state if they hid it then re-showed
+                socket.emit('wb:requestInitialState', { roomId: liveRoomConfig.roomId });
+            }
         });
     }
 
