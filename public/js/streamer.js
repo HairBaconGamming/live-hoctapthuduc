@@ -72,7 +72,7 @@ document.addEventListener('DOMContentLoaded', () => {
         initPeer();
         initAnimations();     // Initialize animations
         initUIEventListeners(); // Setup interactions AFTER basic structure is visible & animations defined
-        initBackgroundParticles(); // Initialize background particles
+        // initBackgroundParticles(); // Called within initAnimations
         updateStreamDuration(); // Initial call
         if (durationInterval) clearInterval(durationInterval);
         durationInterval = setInterval(updateStreamDuration, 1000);
@@ -116,10 +116,10 @@ document.addEventListener('DOMContentLoaded', () => {
              peerInstance = new Peer(streamerPeerId, streamerConfig.peerConfig);
 
              peerInstance.on('open', id => { console.log('Streamer PeerJS connected with actual ID:', id); if (socket && socket.connected) { socket.emit("streamerReady", { roomId: streamerConfig.roomId, peerId: id }); } else { console.warn("Peer opened, but socket not connected."); } });
-             peerInstance.on('error', err => { console.error('PeerJS Error:', err); alert(`Lỗi Peer: ${err.type}.`); });
+             peerInstance.on('error', err => { console.error('PeerJS Error:', err); alert(`Lỗi Peer: ${err.type}. Một số chức năng có thể không hoạt động. Thử tải lại trang.`); });
              peerInstance.on('disconnected', () => { console.warn('PeerJS disconnected.'); });
              peerInstance.on('close', () => { console.log('PeerJS closed.'); });
-             peerInstance.on('call', call => { console.warn('Incoming call, rejecting.'); call.close(); });
+             peerInstance.on('call', call => { console.warn('Incoming call to streamer, rejecting.'); call.close(); });
          } catch (error) { console.error("Failed to init PeerJS:", error); alert("Lỗi khởi tạo PeerJS."); }
     } // End initPeer
 
@@ -161,155 +161,148 @@ document.addEventListener('DOMContentLoaded', () => {
          if (!localStream || localStream.getTracks().length === 0) { console.warn("Skipping pending, no stream."); pendingViewers = []; return; } console.log(`Calling ${pendingViewers.length} pending...`); const toCall = [...pendingViewers]; pendingViewers = []; toCall.forEach(vId => { if(allJoinedViewers.has(vId)) callViewer(vId); else console.log(`Skipping pending ${vId}, already left.`); });
     }
     function scrollChatToBottom() { /* ... Full code from previous answer ... */ const w = elements.chatMessagesList?.parentNode; if(w){w.scrollTop = w.scrollHeight;} }
-    function addChatMessage(content, type = 'guest', username = 'System', timestamp = new Date(), originalMessage = null) { /* ... Full code from previous answer ... */ const li = document.createElement("li"); li.className = `chat-message-item message-${type}`; const iconSpan = document.createElement("span"); iconSpan.className = "msg-icon"; let iconClass = "fa-user"; if(type === 'host') iconClass = "fa-star"; else if(type === 'pro') iconClass = "fa-crown"; else if(type === 'system') iconClass = "fa-info-circle"; else if(type === 'left') iconClass = "fa-sign-out-alt"; else if(type === 'ban') iconClass = "fa-user-slash"; iconSpan.innerHTML = `<i class="fas ${iconClass}"></i>`; li.appendChild(iconSpan); const cont = document.createElement("div"); cont.className = "msg-content-container"; const head = document.createElement("div"); head.className = "msg-header"; const userS = document.createElement("span"); userS.className = "msg-username"; userS.textContent = username; head.appendChild(userS); const timeS = document.createElement("span"); timeS.className = "msg-timestamp"; timeS.textContent = new Date(timestamp).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' }); head.appendChild(timeS); cont.appendChild(head); const bodyS = document.createElement("span"); bodyS.className = "msg-body prose-styling"; let finalHtml = content || ''; if (type !== 'system' && typeof marked !== 'undefined') { try { finalHtml = marked.parse(content || ''); const t=document.createElement('div');t.innerHTML=finalHtml;if(typeof renderMathInElement==='function')renderMathInElement(t,{delimiters:[{left:"$$",right:"$$",display:!0},{left:"$",right:"$",display:!1},{left:"\\(",right:"\\)",display:!1},{left:"\\[",right:"\\]",display:!0}],throwOnError:!1});finalHtml=t.innerHTML;} catch(e){console.error("Marked/Katex Err:", e); finalHtml = content;} } bodyS.innerHTML = finalHtml; cont.appendChild(bodyS); li.appendChild(cont); if (streamerConfig.username === streamerConfig.roomOwner && type !== 'system' && originalMessage) { const acts = document.createElement('div'); acts.className='msg-actions'; const pinBtn = document.createElement("button"); pinBtn.className="action-btn pin-btn"; pinBtn.innerHTML = '<i class="fas fa-thumbtack"></i>'; pinBtn.title="Ghim"; pinBtn.onclick=()=>{if(!socket)return;playButtonFeedback(pinBtn);socket.emit("pinComment",{roomId:streamerConfig.roomId,message:originalMessage});}; acts.appendChild(pinBtn); if(username!==streamerConfig.username){ const banBtn=document.createElement("button"); banBtn.className="action-btn ban-user-btn"; banBtn.innerHTML='<i class="fas fa-user-slash"></i>'; banBtn.title=`Chặn ${username}`; banBtn.onclick=()=>{if(!socket)return;playButtonFeedback(banBtn);showCustomConfirm(`Chặn ${username}?`,()=>socket.emit("banViewer",{roomId:streamerConfig.roomId,viewerUsername:username}));}; acts.appendChild(banBtn); } li.appendChild(acts); } if (!prefersReducedMotion) { gsap.from(li, { duration: 0.5, autoAlpha: 0, y: 15, ease: 'power2.out' }); } else { gsap.set(li, { autoAlpha: 1 }); } elements.chatMessagesList.appendChild(li); scrollChatToBottom(); }
+    function addChatMessage(content, type = 'guest', username = 'System', timestamp = new Date(), originalMessage = null) { /* ... Full code from previous answer ... */ const li = document.createElement("li"); li.className = `chat-message-item message-${type}`; const iconSpan = document.createElement("span"); iconSpan.className = "msg-icon"; let iconClass = "fa-user"; if(type === 'host') iconClass = "fa-star"; else if(type === 'pro') iconClass = "fa-crown"; else if(type === 'system') iconClass = "fa-info-circle"; else if(type === 'left') iconClass = "fa-sign-out-alt"; else if(type === 'ban') iconClass = "fa-user-slash"; iconSpan.innerHTML = `<i class="fas ${iconClass}"></i>`; li.appendChild(iconSpan); const cont = document.createElement("div"); cont.className = "msg-content-container"; const head = document.createElement("div"); head.className = "msg-header"; const userS = document.createElement("span"); userS.className = "msg-username"; userS.textContent = username; head.appendChild(userS); const timeS = document.createElement("span"); timeS.className = "msg-timestamp"; timeS.textContent = new Date(timestamp).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' }); head.appendChild(timeS); cont.appendChild(head); const bodyS = document.createElement("span"); bodyS.className = "msg-body prose-styling"; let finalHtml = content || ''; if (type !== 'system' && typeof marked !== 'undefined') { try { finalHtml = marked.parse(content || ''); const t=document.createElement('div');t.innerHTML=finalHtml;if(typeof renderMathInElement==='function')renderMathInElement(t,{delimiters:[{left:"$$",right:"$$",display:!0},{left:"$",right:"$",display:!1},{left:"\\(",right:"\\)",display:!1},{left:"\\[",right:"\\]",display:!0}],throwOnError:!1});finalHtml=t.innerHTML;} catch(e){console.error("Marked/Katex Err:", e); finalHtml = content;} } bodyS.innerHTML = finalHtml; cont.appendChild(bodyS); li.appendChild(cont); if (streamerConfig.username === streamerConfig.roomOwner && type !== 'system' && originalMessage) { const acts = document.createElement('div'); acts.className='msg-actions'; const pinBtn = document.createElement("button"); pinBtn.className="action-btn pin-btn"; pinBtn.innerHTML = '<i class="fas fa-thumbtack"></i>'; pinBtn.title="Ghim"; pinBtn.onclick=()=>{if(!socket)return;playButtonFeedback(pinBtn);socket.emit("pinComment",{roomId:streamerConfig.roomId,message:originalMessage});}; acts.appendChild(pinBtn); if(username!==streamerConfig.username){ const banBtn=document.createElement("button"); banBtn.className="action-btn ban-user-btn"; banBtn.innerHTML='<i class="fas fa-user-slash"></i>'; banBtn.title=`Chặn ${username}`; banBtn.onclick= async ()=>{if(!socket)return;playButtonFeedback(banBtn); const confirmed = await showStreamerConfirmation(`Chặn ${username}?`, "Chặn", "Hủy", "fas fa-user-slash"); if(confirmed) socket.emit("banViewer",{roomId:streamerConfig.roomId,viewerUsername:username});}; acts.appendChild(banBtn); } li.appendChild(acts); } if (!prefersReducedMotion) { gsap.from(li, { duration: 0.5, autoAlpha: 0, y: 15, ease: 'power2.out' }); } else { gsap.set(li, { autoAlpha: 1 }); } elements.chatMessagesList.appendChild(li); scrollChatToBottom(); }
     function displayPinnedComment(message) { /* ... Full code from previous answer ... */ const wasVisible = elements.pinnedCommentContainer.style.height !== '0px' && elements.pinnedCommentContainer.style.opacity !== '0'; const targetHeight = message ? 'auto' : 0; const targetOpacity = message ? 1 : 0; gsap.to(elements.pinnedCommentContainer, { duration: 0.4, height: targetHeight, autoAlpha: targetOpacity, ease: 'power1.inOut', onComplete: () => { elements.pinnedCommentContainer.innerHTML = ""; if (message) { elements.pinnedCommentContainer.classList.add('has-content'); const pb=document.createElement("div"); pb.className="pinned-box"; const pi=document.createElement("span");pi.className="pin-icon";pi.innerHTML='<i class="fas fa-thumbtack"></i>'; const pc=document.createElement("div");pc.className="pinned-content"; const us=document.createElement("span");us.className="pinned-user";us.textContent=message.username; const ts=document.createElement("span");ts.className="pinned-text prose-styling"; const tss=document.createElement("span");tss.className="pinned-timestamp";tss.textContent=new Date(message.timestamp).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}); let ch=message.content||'';if(typeof marked!=='undefined'){try{ch=marked.parse(ch);const t=document.createElement('div');t.innerHTML=ch;if(typeof renderMathInElement==='function')renderMathInElement(t,{delimiters:[{left:"$$",right:"$$",display:!0},{left:"$",right:"$",display:!1},{left:"\\(",right:"\\)",display:!1},{left:"\\[",right:"\\]",display:!0}],throwOnError:!1});ch=t.innerHTML}catch(e){console.error("Pin Mark Err:",e)}}; ts.innerHTML=ch; pc.appendChild(us);pc.appendChild(ts); pb.appendChild(pi);pb.appendChild(pc);pb.appendChild(tss); if(streamerConfig.username===streamerConfig.roomOwner){const btn=document.createElement("button");btn.className="unpin-btn";btn.title="Bỏ ghim";btn.innerHTML=`<i class="fas fa-times"></i>`;btn.onclick=()=>{if(!socket)return;playButtonFeedback(btn);socket.emit("unpinComment",{roomId:streamerConfig.roomId});};pb.appendChild(btn);} elements.pinnedCommentContainer.appendChild(pb); if (!wasVisible && !prefersReducedMotion) { gsap.from(pb, { duration: 0.5, y: -10, autoAlpha: 0, ease: 'power2.out'}); } } else { elements.pinnedCommentContainer.classList.remove('has-content'); } }}); }
     function sendChatMessage(){ /* ... Full code from previous answer ... */ if (!socket || !socket.connected) { console.error("Socket not init/conn"); alert("Lỗi chat."); return; } const msg = elements.chatInputArea.value.trim(); if (!msg) return; const msgType = "host"; const msgObj = { username: streamerConfig.username, content: msg, messageType: msgType, timestamp: new Date().toISOString() }; socket.emit("chatMessage", { roomId: streamerConfig.roomId, message: msgObj }); elements.chatInputArea.value = ""; elements.chatPreview.innerHTML = ""; elements.chatInputArea.style.height = 'auto'; }
-         function openModal(modalElement) {
+    
+    function openModal(modalElement) {
          if (!modalElement) return;
-         console.log(`Opening modal: ${modalElement.id}`); // Debug log
-
-         // Stop any potentially running close animation on this modal
          gsap.killTweensOf(modalElement);
          gsap.killTweensOf(modalElement.querySelector('.modal-content'));
 
          if (!prefersReducedMotion) {
-             // 1. Set initial state BEFORE animation starts
-             gsap.set(modalElement, {
-                 display: 'flex', // Set display FIRST
-                 autoAlpha: 0,    // Start invisible
-             });
-             gsap.set(modalElement.querySelector('.modal-content'), {
-                 y: -30,           // Start slightly above
-                 scale: 0.95       // Start slightly smaller
-             });
-
-             // 2. Animate IN
+             gsap.set(modalElement, { display: 'flex', autoAlpha: 0 });
+             gsap.set(modalElement.querySelector('.modal-content'), { y: -30, scale: 0.95 });
              gsap.timeline()
-                 .to(modalElement, {
-                     duration: 0.4,
-                     autoAlpha: 1, // Fade in overlay/backdrop
-                     ease: 'power2.out'
-                 })
-                 .to(modalElement.querySelector('.modal-content'), {
-                     duration: 0.5,
-                     y: 0,           // Move to final position
-                     scale: 1,       // Scale to final size
-                     autoAlpha: 1,   // Ensure content is visible (redundant but safe)
-                     ease: 'back.out(1.4)' // Bouncy feel
-                 }, "-=0.3"); // Overlap slightly
+                 .to(modalElement, { duration: 0.4, autoAlpha: 1, ease: 'power2.out' })
+                 .to(modalElement.querySelector('.modal-content'), { duration: 0.5, y: 0, scale: 1, autoAlpha: 1, ease: 'back.out(1.4)' }, "-=0.3");
          } else {
-             // Instant show for reduced motion
              gsap.set(modalElement, { display: 'flex', autoAlpha: 1 });
-             gsap.set(modalElement.querySelector('.modal-content'), { y: 0, scale: 1 }); // Reset transforms
+             gsap.set(modalElement.querySelector('.modal-content'), { y: 0, scale: 1 });
          }
-         document.body.style.overflow = 'hidden'; // Prevent background scroll
+         document.body.style.overflow = 'hidden';
      }
 
      function closeModal(modalElement) {
-         if (!modalElement || gsap.getProperty(modalElement, "autoAlpha") === 0) return; // Don't close if already hidden/closing
-         console.log(`Closing modal: ${modalElement.id}`); // Debug log
-
-          // Stop any potentially running open animation
+         if (!modalElement || gsap.getProperty(modalElement, "autoAlpha") === 0) return;
          gsap.killTweensOf(modalElement);
          gsap.killTweensOf(modalElement.querySelector('.modal-content'));
 
           if (!prefersReducedMotion) {
-             gsap.timeline({
-                    onComplete: () => {
-                        // Crucially, only set display:none AFTER animation finishes
-                        gsap.set(modalElement, { display: 'none' });
-                        document.body.style.overflow = ''; // Restore scroll AFTER hiding
-                    }
-                })
-                 // Animate content out first
-                 .to(modalElement.querySelector('.modal-content'), {
-                     duration: 0.3,
-                     scale: 0.9, // Shrink content
-                     autoAlpha: 0, // Fade content out
-                     ease: 'power1.in'
-                 })
-                 // Then fade out overlay/backdrop
-                 .to(modalElement, {
-                     duration: 0.4,
-                     autoAlpha: 0, // Fade out the whole modal container
-                     ease: 'power1.in'
-                 }, "-=0.2"); // Overlap slightly
+             gsap.timeline({ onComplete: () => { gsap.set(modalElement, { display: 'none' }); document.body.style.overflow = ''; } })
+                 .to(modalElement.querySelector('.modal-content'), { duration: 0.3, scale: 0.9, autoAlpha: 0, ease: 'power1.in' })
+                 .to(modalElement, { duration: 0.4, autoAlpha: 0, ease: 'power1.in' }, "-=0.2");
          } else {
-             // Instant hide for reduced motion
              gsap.set(modalElement, { display: 'none', autoAlpha: 0 });
              document.body.style.overflow = '';
          }
     }
-    function renderListModal(listElement, items, isBannedList) { /* ... Full code from previous answer ... */ if(!listElement)return;listElement.innerHTML='';if(!items||items.length===0){listElement.innerHTML=`<li class="user-list-item empty">${isBannedList?'Không có ai bị chặn.':'Chưa có người xem.'}</li>`;return;}items.forEach(u=>{const li=document.createElement('li');li.className='user-list-item';const ns=document.createElement('span');ns.className='list-username';ns.textContent=u;li.appendChild(ns);const aw=document.createElement('div');aw.className='list-actions';if(isBannedList){const ub=document.createElement('button');ub.className='action-btn unban-btn';ub.innerHTML='<i class="fas fa-undo"></i> Bỏ chặn';ub.onclick=()=>{if(!socket)return;playButtonFeedback(ub);showCustomConfirm(`Bỏ chặn ${u}?`,()=>socket.emit("unbanViewer",{roomId:streamerConfig.roomId,viewerUsername:u}));};aw.appendChild(ub);}else if(u!==streamerConfig.username){const bb=document.createElement('button');bb.className='action-btn ban-btn';bb.innerHTML='<i class="fas fa-user-slash"></i> Chặn';bb.onclick=()=>{if(!socket)return;playButtonFeedback(bb);showCustomConfirm(`Chặn ${u}?`,()=>socket.emit("banViewer",{roomId:streamerConfig.roomId,viewerUsername:u}));};aw.appendChild(bb);}li.appendChild(aw);listElement.appendChild(li);});if(!prefersReducedMotion&&listElement.closest('.modal-v2')?.style.display==='flex'){gsap.from(listElement.children,{duration:0.4,autoAlpha:0,y:10,stagger:0.05,ease:'power1.out'});}}
-    function showCustomConfirm(message, onConfirm, onCancel) { /* ... Full code from previous answer ... */ if (typeof showAdvCustomConfirm === 'function') { showAdvCustomConfirm(message, onConfirm, onCancel); } else if (typeof window.showCustomConfirm === 'function') { window.showCustomConfirm(message).then(c => { if(c && onConfirm) onConfirm(); else if (!c && onCancel) onCancel(); }); } else { if (window.confirm(message)) { if(onConfirm) onConfirm(); } else { if(onCancel) onCancel(); } } }
+
+    function renderListModal(listElement, items, isBannedList) {
+        if (!listElement) return;
+        listElement.innerHTML = '';
+        if (!items || items.length === 0) {
+            listElement.innerHTML = `<li class="user-list-item empty">${isBannedList ? 'Không có ai bị chặn.' : 'Chưa có người xem.'}</li>`;
+            return;
+        }
+        items.forEach(u => {
+            const li = document.createElement('li');
+            li.className = 'user-list-item';
+            const ns = document.createElement('span');
+            ns.className = 'list-username';
+            ns.textContent = u;
+            li.appendChild(ns);
+            const aw = document.createElement('div');
+            aw.className = 'list-actions';
+            if (isBannedList) {
+                const ub = document.createElement('button');
+                ub.className = 'action-btn unban-btn control-btn'; // Added control-btn for consistent styling if desired
+                ub.innerHTML = '<i class="fas fa-undo"></i> Bỏ chặn';
+                ub.onclick = async () => { // Made async
+                    if (!socket) return;
+                    playButtonFeedback(ub);
+                    const confirmed = await showStreamerConfirmation(`Bỏ chặn ${u}?`, "Bỏ chặn", "Hủy", "fas fa-undo");
+                    if (confirmed) socket.emit("unbanViewer", { roomId: streamerConfig.roomId, viewerUsername: u });
+                };
+                aw.appendChild(ub);
+            } else if (u !== streamerConfig.username) {
+                const bb = document.createElement('button');
+                bb.className = 'action-btn ban-btn control-btn'; // Added control-btn
+                bb.innerHTML = '<i class="fas fa-user-slash"></i> Chặn';
+                bb.onclick = async () => { // Made async
+                    if (!socket) return;
+                    playButtonFeedback(bb);
+                    const confirmed = await showStreamerConfirmation(`Chặn ${u}?`, "Chặn", "Hủy", "fas fa-user-slash");
+                    if (confirmed) socket.emit("banViewer", { roomId: streamerConfig.roomId, viewerUsername: u });
+                };
+                aw.appendChild(bb);
+            }
+            li.appendChild(aw);
+            listElement.appendChild(li);
+        });
+        if (!prefersReducedMotion && listElement.closest('.modal-v2')?.style.display === 'flex') {
+            gsap.from(listElement.children, { duration: 0.4, autoAlpha: 0, y: 10, stagger: 0.05, ease: 'power1.out' });
+        }
+    }
+
+    // Replaced original showCustomConfirm with a new async wrapper
+    async function showStreamerConfirmation(message, confirmText = 'Xác nhận', cancelText = 'Hủy bỏ', iconClass = 'fas fa-question-circle') {
+        if (typeof showArtisticConfirm === 'function') {
+            return await showArtisticConfirm(message, confirmText, cancelText, iconClass);
+        }
+        console.warn("showArtisticConfirm not found, using window.confirm as fallback.");
+        return new Promise((resolve) => {
+            resolve(window.confirm(message));
+        });
+    }
+
     function updateStreamDuration() { /* ... Full code from previous answer ... */ if(!elements.streamDuration)return;const n=new Date();const d=n-streamStartTime;if(d<0)return;const h=Math.floor(d/36e5);const m=Math.floor((d%36e5)/6e4);const s=Math.floor((d%6e4)/1e3);elements.streamDuration.textContent=`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`; }
+    
     function initAnimations() {
-        // Set initial states explicitly, especially for elements inside collapsible areas
-        gsap.set(elements.panelContent, { // Set initial state based on class (safer)
+        gsap.set(elements.panelContent, {
              height: elements.controlPanel?.classList.contains('collapsed') ? 0 : 'auto',
              autoAlpha: elements.controlPanel?.classList.contains('collapsed') ? 0 : 1,
              paddingTop: elements.controlPanel?.classList.contains('collapsed') ? 0 : 20,
-             paddingBottom: elements.controlPanel?.classList.contains('collapsed') ? 0 : 0, // Usually no bottom padding needed when open
-             marginTop: elements.controlPanel?.classList.contains('collapsed') ? 0 : 20
+             paddingBottom: elements.controlPanel?.classList.contains('collapsed') ? 0 : 20, // Corrected for open state
+             marginTop: 0 // Corrected: panel content itself shouldn't have top margin
         });
-         // Ensure buttons START hidden if panel is collapsed, otherwise visible
-         gsap.set(elements.controlButtons, { autoAlpha: elements.controlPanel?.classList.contains('collapsed') ? 0 : 1 });
-
+        gsap.set(elements.controlButtons, { autoAlpha: elements.controlPanel?.classList.contains('collapsed') ? 0 : 1 });
 
         if (prefersReducedMotion) {
             gsap.set('[data-animate], .streamer-main-header, .streamer-sidebar, .streamer-chat-area, .panel-header h3, .control-btn', { autoAlpha: 1 });
-             // Ensure panel content display matches initial state if reduced motion
              if(elements.panelContent) elements.panelContent.style.display = elements.controlPanel?.classList.contains('collapsed') ? 'none' : 'block';
-             // Instantly show buttons if panel starts open
               if (!elements.controlPanel?.classList.contains('collapsed')) {
                  gsap.set(elements.controlButtons, { autoAlpha: 1 });
               }
+            initBackgroundParticles(); // Still init particles, they have their own prefersReducedMotion check
             return;
         }
 
         const tl = gsap.timeline({ delay: 0.2 });
-
-        // --- Animate main layout elements ---
         tl.from(elements.header, { duration: 0.8, y: -80, autoAlpha: 0, ease: 'power3.out' })
           .from(elements.sidebar, { duration: 0.9, x: -100, autoAlpha: 0, ease: 'power3.out' }, "-=0.5")
           .from(elements.chatArea, { duration: 0.9, x: 100, autoAlpha: 0, ease: 'power3.out' }, "<");
 
-        // --- Animate Control Panel Header Text ---
-        // Check if the element exists before animating
          if (elements.panelInternalHeader) {
              tl.from(elements.panelInternalHeader, { duration: 0.5, y: -15, autoAlpha: 0, ease: 'power2.out' }, "-=0.3");
          } else {
              console.warn("Control panel header H3 not found for animation.");
          }
 
-
-        // --- Animate Control Buttons ONLY IF PANEL STARTS OPEN ---
-        // This animation now happens *outside* the main timeline if panel starts open
         if (!elements.controlPanel?.classList.contains('collapsed') && elements.controlButtons.length > 0) {
             gsap.from(elements.controlButtons, {
-                duration: 0.6,
-                y: 20,
-                autoAlpha: 0, // Start hidden
-                stagger: 0.06,
-                ease: 'power2.out',
-                delay: tl.duration() - 0.2 // Start slightly before chat area finishes animating in
+                duration: 0.6, y: 20, autoAlpha: 0, stagger: 0.06,
+                ease: 'power2.out', delay: tl.duration() - 0.2
             });
         }
 
-        // --- Animate Chat Area Content ---
-        tl.from('.chat-container-v2 > *:not(#pinnedCommentV2)', { // Exclude pinned comment from initial load anim
-            duration: 0.6,
-            y: 20,
-            autoAlpha: 0,
-            stagger: 0.1,
-            ease: 'power2.out'
-        }, "-=0.5"); // Adjust timing relative to sidebar/chat area entrance
+        tl.from('.chat-container-v2 > *:not(#pinnedCommentV2)', {
+            duration: 0.6, y: 20, autoAlpha: 0, stagger: 0.1, ease: 'power2.out'
+        }, "-=0.5");
 
-        // --- Background Particles ---
-        // No need to delay this with delayedCall if it doesn't interfere visually
-         initBackgroundParticles(); // Call directly
-
+         initBackgroundParticles();
     } // End initAnimations
+
     function initBackgroundParticles() { /* ... Full code from previous answer ... */ if(prefersReducedMotion)return; const t=document.getElementById('tsparticles-bg');if(!t)return;tsParticles.load("tsparticles-bg",{fpsLimit:60,particles:{number:{value:50,density:{enable:!0,value_area:900}},color:{value:["#FFFFFF","#aaaacc","#ccaaff","#f0e68c"]},shape:{type:"circle"},opacity:{value:{min:.05,max:.2},random:!0,anim:{enable:!0,speed:.4,minimumValue:.05,sync:!1}},size:{value:{min:.5,max:1.5},random:!0,anim:{enable:!1}},links:{enable:!1},move:{enable:!0,speed:.3,direction:"none",random:!0,straight:!1,outModes:{default:"out"},attract:{enable:!1},trail:{enable:!1}}},interactivity:{detect_on:"window",events:{onhover:{enable:!1},onclick:{enable:!1}}},retina_detect:!0,background:{color:"transparent"}}).catch(e=>console.error("tsParticles bg err:",e));}
     function playButtonFeedback(button) { /* ... Full code from previous answer ... */ if(!button||prefersReducedMotion)return;gsap.timeline().to(button,{scale:.92,duration:.1,ease:"power1.in"}).to(button,{scale:1,duration:.35,ease:"elastic.out(1, 0.5)"});if(typeof tsParticles!=='undefined'){tsParticles.load({element:button,preset:"confetti",particles:{number:{value:10},size:{value:{min:1,max:3}}},emitters:{position:{x:50,y:50},size:{width:5,height:5},rate:{quantity:5,delay:0},life:{duration:.15,count:1}}}).then(c=>setTimeout(()=>c?.destroy(),400));}}
 
@@ -318,61 +311,43 @@ document.addEventListener('DOMContentLoaded', () => {
     // UI EVENT LISTENERS SETUP
     // ==================================
     function initUIEventListeners() {
-        // --- Control Panel Toggle ---
         elements.togglePanelBtn?.addEventListener("click", () => {
-            isPanelCollapsed = elements.controlPanel.classList.toggle("collapsed"); // Toggle class first
+            isPanelCollapsed = elements.controlPanel.classList.toggle("collapsed");
             const icon = elements.togglePanelBtn.querySelector('i');
             if (!elements.panelContent) return;
 
-            // Animate icon rotation
             gsap.to(icon, { rotation: isPanelCollapsed ? 180 : 0, duration: 0.4, ease: 'power2.inOut' });
 
             if (!prefersReducedMotion) {
                 if (isPanelCollapsed) {
-                    // --- Collapse Animation ---
-                     // Animate buttons out first
                      gsap.to(elements.controlButtons, {
-                        duration: 0.25, // Faster fade out
-                        autoAlpha: 0,
-                        y: 10, // Move down slightly
-                        stagger: 0.04,
-                        ease: 'power1.in',
-                        overwrite: true // Ensure it stops any 'from' animation
+                        duration: 0.25, autoAlpha: 0, y: 10, stagger: 0.04,
+                        ease: 'power1.in', overwrite: true
                      });
-                     // Then animate panel height/padding
                      gsap.to(elements.panelContent, {
-                        duration: 0.4,
-                        height: 0,
-                        paddingTop: 0,
-                        paddingBottom: 0,
-                        marginTop: 0,
-                        autoAlpha: 0,
-                        ease: 'power2.inOut',
-                        delay: 0.1 // Delay slightly after buttons start fading
+                        duration: 0.4, height: 0, paddingTop: 0, paddingBottom: 0, marginTop: 0,
+                        autoAlpha: 0, ease: 'power2.inOut', delay: 0.1
                      });
                 } else {
-                    // --- Expand Animation ---
-                     // Set initial state (needed for height calculation)
-                     gsap.set(elements.panelContent, { display: 'block', height: 'auto', autoAlpha: 1 });
-                     const height = elements.panelContent.scrollHeight; // Get natural height
-                      // Animate panel height/padding first
+                     gsap.set(elements.panelContent, { display: 'block', height: 'auto', autoAlpha: 0 }); // Start invisible before calculating height
+                     const targetPanelStyles = {
+                         height: elements.panelContent.scrollHeight,
+                         paddingTop: 20,
+                         paddingBottom: 20, // Corrected
+                         marginTop: 0,      // Corrected
+                         autoAlpha: 1
+                     };
                      gsap.fromTo(elements.panelContent,
                          { height: 0, autoAlpha: 0, paddingTop: 0, paddingBottom: 0, marginTop: 0 },
                          {
-                             duration: 0.5, // Slightly longer expand
-                             height: height,
-                             paddingTop: 20, // Should match CSS default padding
-                             // paddingBottom: 0, // Keep 0
-                             marginTop: 20, // Should match CSS default margin
-                             autoAlpha: 1,
+                             duration: 0.5,
+                             ...targetPanelStyles,
                              ease: 'power3.out',
-                             // Animate buttons IN after panel is mostly open
                              onComplete: () => {
-                                  // Ensure height is 'auto' after animation for dynamic content
                                  gsap.set(elements.panelContent, { height: 'auto' });
                                   if(elements.controlButtons.length > 0) {
                                      gsap.fromTo(elements.controlButtons,
-                                         { y: 15, autoAlpha: 0 }, // Start from slightly below
+                                         { y: 15, autoAlpha: 0 },
                                          { duration: 0.5, y: 0, autoAlpha: 1, stagger: 0.06, ease: 'power2.out', overwrite: true }
                                      );
                                   }
@@ -380,48 +355,61 @@ document.addEventListener('DOMContentLoaded', () => {
                          }
                      );
                 }
-            } else { // Reduced motion toggle
+            } else {
                  elements.panelContent.style.display = isPanelCollapsed ? 'none' : 'block';
-                 gsap.set(elements.controlButtons, { autoAlpha: isPanelCollapsed ? 0: 1}); // Instantly show/hide buttons
+                 gsap.set(elements.controlButtons, { autoAlpha: isPanelCollapsed ? 0: 1});
             }
         });
-        // --- Stream Control Buttons ---
+
         elements.shareScreenBtn?.addEventListener('click', () => { playButtonFeedback(elements.shareScreenBtn); startScreenShare(); });
         elements.liveCamBtn?.addEventListener('click', () => { playButtonFeedback(elements.liveCamBtn); startLiveCam(); });
         elements.toggleMicBtn?.addEventListener('click', () => { playButtonFeedback(elements.toggleMicBtn); toggleMicrophone(); });
-        elements.endStreamBtn?.addEventListener('click', () => { if (!socket) { console.error("Socket not connected."); return; } playButtonFeedback(elements.endStreamBtn); showCustomConfirm("Xác nhận kết thúc stream?", () => { stopLocalStream(); socket.emit("endRoom", { roomId: streamerConfig.roomId }); window.location.href = "https://hoctap-9a3.glitch.me/live"; }); });
-        // --- Modal Buttons ---
+        
+        elements.endStreamBtn?.addEventListener('click', async () => { // Made async
+            if (!socket) { console.error("Socket not connected."); return; }
+            playButtonFeedback(elements.endStreamBtn);
+            const confirmed = await showStreamerConfirmation(
+                "Xác nhận kết thúc stream?", "Kết thúc", "Hủy", "fas fa-exclamation-triangle"
+            );
+            if (confirmed) {
+                stopLocalStream();
+                socket.emit("endRoom", { roomId: streamerConfig.roomId });
+                window.location.href = "https://hoctap-9a3.glitch.me/live";
+            }
+        });
+
         elements.viewersListBtn?.addEventListener('click', () => {
             if (!socket) return;
             playButtonFeedback(elements.viewersListBtn);
             socket.emit("getViewersList", { roomId: streamerConfig.roomId });
-            openModal(elements.viewersModal); // Use the updated openModal
+            openModal(elements.viewersModal);
          });
         elements.bannedListBtn?.addEventListener('click', () => {
             if (!socket) return;
             playButtonFeedback(elements.bannedListBtn);
             socket.emit("getBannedList", { roomId: streamerConfig.roomId });
-            openModal(elements.bannedModal); // Use the updated openModal
+            openModal(elements.bannedModal);
          });
-        elements.closeViewersModalBtn?.addEventListener('click', () => closeModal(elements.viewersModal)); // Use updated closeModal
-        elements.closeBannedModalBtn?.addEventListener('click', () => closeModal(elements.bannedModal)); // Use updated closeModal
-        // Close modal on backdrop click
+        elements.closeViewersModalBtn?.addEventListener('click', () => closeModal(elements.viewersModal));
+        elements.closeBannedModalBtn?.addEventListener('click', () => closeModal(elements.bannedModal));
+        
          document.querySelectorAll('.modal-backdrop').forEach(backdrop => {
              backdrop.addEventListener('click', (e) => {
-                 // Ensure click is directly on backdrop, not content
                  if (e.target === backdrop) {
-                    closeModal(backdrop.closest('.modal-v2')); // Use updated closeModal
+                    closeModal(backdrop.closest('.modal-v2'));
                  }
              });
          });
-        // --- Chat Input ---
+
         elements.sendChatBtn?.addEventListener('click', sendChatMessage);
         elements.chatInputArea?.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChatMessage(); } });
-        elements.chatInputArea?.addEventListener('input', function() { this.style.height = 'auto'; this.style.height = (this.scrollHeight) + 'px'; const rt=this.value||""; if(elements.chatPreview && typeof marked !== 'undefined'){let h=marked.parse(rt);elements.chatPreview.innerHTML=h;} });
-        // --- Search Filter ---
+        elements.chatInputArea?.addEventListener('input', function() { this.style.height = 'auto'; this.style.height = (this.scrollHeight) + 'px'; const rt=this.value||""; if(elements.chatPreview && typeof marked !== 'undefined'){try {let h=marked.parse(rt); elements.chatPreview.innerHTML=h;} catch(e){elements.chatPreview.innerHTML="Lỗi xem trước Markdown"}} });
+        
         elements.viewersSearchInput?.addEventListener('input', function() { const q=this.value.toLowerCase(); const li=elements.viewersModalList?.querySelectorAll('li'); li?.forEach(l=>{const u=l.querySelector('.list-username')?.textContent.toLowerCase()||'';l.style.display=u.includes(q)?'':'none';}); });
-        // --- PiP Button ---
-        if (elements.pipChatBtn && typeof document.createElement('canvas').captureStream === 'function' && typeof HTMLVideoElement.prototype.requestPictureInPicture === 'function') { elements.pipChatBtn.style.display = 'none'; } else if (elements.pipChatBtn) { elements.pipChatBtn.style.display = 'none'; }
+        
+        if (elements.pipChatBtn) { // Simplified PiP button logic, effectively hides it
+            elements.pipChatBtn.style.display = 'none';
+        }
     } // End initUIEventListeners
 
     // ==================================
