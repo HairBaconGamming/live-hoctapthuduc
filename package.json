@@ -4,7 +4,8 @@
   "description": "A simple Node app built on fastify, instantly up and running. Built to be remixed on Glitch.com.",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "postinstall": "mkdir -p public/js/libs && cp node_modules/rasterizehtml/build/rasterizeHTML.all.js public/js/libs/"
   },
   "dependencies": {
     "axios": "^1.8.3",
@@ -19,7 +20,8 @@
     "peerjs": "^1.5.3",
     "socket.io": "^4.8.1",
     "uuid": "8.x",
-    "helmet": "^8.1.0"
+    "helmet": "^8.1.0",
+    "rasterizehtml": "^1.3.1"
   },
   "engines": {
     "node": "14.x"
