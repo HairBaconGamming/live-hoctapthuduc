@@ -856,6 +856,8 @@ document.addEventListener("DOMContentLoaded", () => {
           canvas: pipChatCanvas,
           width: PIP_CANVAS_WIDTH,
           height: PIP_CANVAS_HEIGHT,
+          iframeSandbox: 'allow-scripts allow-same-origin', 
+          iframeSandboxFlags: ['allow-scripts', 'allow-same-origin'], 
         };
         await rasterizeHTML.drawHTML(
           chatHtmlString,

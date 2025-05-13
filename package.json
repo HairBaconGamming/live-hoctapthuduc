@@ -5,7 +5,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "postinstall": "mkdir -p public/js/libs && cp node_modules/rasterizehtml/build/rasterizeHTML.all.js public/js/libs/"
+    "postinstall": "mkdir -p public/js/libs && cp node_modules/rasterizehtml/dist/rasterizeHTML.allinone.js public/js/libs/rasterizeHTML.all.js"
   },
   "dependencies": {
     "axios": "^1.8.3",

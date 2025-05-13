@@ -47,13 +47,15 @@ app.use("/peerjs", peerServer);
 app.use(cors());
 app.use(bodyParser.json());
 app.use((req, res, next) => {
-  res.setHeader(
-    "Content-Security-Policy",
+  res.setHeader("Content-Security-Policy", 
     "default-src 'self'; " +
-      "img-src 'self' https://cdn.glitch.global https://gc.kis.v2.scr.kaspersky-labs.com; " +
-      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; " +
-      "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://unpkg.com https://gc.kis.v2.scr.kaspersky-labs.com wss://gc.kis.v2.scr.kaspersky-labs.com; " +
-      "font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net;"
+    "img-src 'self' blob: data: https://cdn.glitch.global https://gc.kis.v2.scr.kaspersky-labs.com; " + // Thêm data:
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; " +
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://unpkg.com https://gc.kis.v2.scr.kaspersky-labs.com wss://gc.kis.v2.scr.kaspersky-labs.com; " + // Giữ 'unsafe-eval'
+    "font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net;" +
+    // Mở rộng frame-src hơn nữa, hoặc xem xét các directive khác liên quan đến iframe
+    "frame-src 'self' about: blob: data:; " // Thêm data: vào frame-src, mặc dù about: và blob: quan trọng hơn cho iframe nội tuyến
+    // "child-src 'self' blob:;" // child-src là directive mới hơn, bao gồm frame-src và worker-src
   );
   next();
 });
