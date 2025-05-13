@@ -972,25 +972,49 @@ socket.on('wb:draw', (data) => {
     function showOverlay(overlayElement) {
         if (!overlayElement) return;
         console.log(`Showing overlay: ${overlayElement.id}`);
+        
+        // Thêm hoặc cập nhật cursor
+        if (overlayElement.id === 'playOverlayLive' || overlayElement.id === 'roomEndedOverlayLive') {
+            // Cho phép click toàn bộ overlay này để thực hiện hành động mặc định
+            overlayElement.style.cursor = 'pointer';
+        } else {
+            overlayElement.style.cursor = 'default';
+        }
+        // Xóa pointer-events none nếu có, để overlay có thể nhận click
+        overlayElement.style.pointerEvents = 'auto';
+
+
          if (!prefersReducedMotion) {
             gsap.timeline()
-                .set(overlayElement, { display: 'flex' })
+                .set(overlayElement, { display: 'flex' }) // GSAP sẽ xử lý display
                 .to(overlayElement, { duration: 0.5, autoAlpha: 1, ease: 'power2.out' })
-                .from(overlayElement.querySelector('.overlay-content'), { duration: 0.6, scale: 0.9, autoAlpha: 1, ease: 'back.out(1.7)' }, "-=0.3");
+                .from(overlayElement.querySelector('.overlay-content'), { duration: 0.6, scale: 0.9, autoAlpha: 0, ease: 'back.out(1.7)' }, "-=0.3");
          } else {
               gsap.set(overlayElement, { display: 'flex', autoAlpha: 1 });
          }
+         overlayElement.classList.add('active'); // Thêm class active để CSS có thể target nếu cần
     }
 
     function hideOverlay(overlayElement) {
-        if (!overlayElement || gsap.getProperty(overlayElement, "autoAlpha") === 0) return; // Don't hide if already hidden
+        if (!overlayElement || gsap.getProperty(overlayElement, "autoAlpha") === 0) return; 
         console.log(`Hiding overlay: ${overlayElement.id}`);
+        
+        // Reset cursor và pointer-events khi ẩn
+        overlayElement.style.cursor = 'default';
+        // overlayElement.style.pointerEvents = 'none'; // Có thể không cần nếu display:none
+
          if (!prefersReducedMotion) {
-            gsap.timeline({ onComplete: () => {gsap.set(overlayElement, { display: 'none' }); overlayElement.classList.remove("active");} })
+            gsap.timeline({ 
+                onComplete: () => {
+                    gsap.set(overlayElement, { display: 'none' }); 
+                    overlayElement.classList.remove("active");
+                } 
+            })
                 .to(overlayElement.querySelector('.overlay-content'), { duration: 0.3, scale: 0.9, autoAlpha: 0, ease: 'power1.in' })
                 .to(overlayElement, { duration: 0.4, autoAlpha: 0 }, "-=0.2");
          } else {
               gsap.set(overlayElement, { display: 'none', autoAlpha: 0 });
+              overlayElement.classList.remove("active");
          }
     }
 
@@ -1052,17 +1076,66 @@ socket.on('wb:draw', (data) => {
                   } catch(e) { elements.chatPreview.textContent = "Lỗi preview markdown"; }
              }
         });
-         elements.playButton?.addEventListener('click', () => {
-             elements.liveVideo?.play().then(() => {
-                 hideOverlay(elements.playOverlay); 
-             }).catch(e => {
-                 console.error("Manual play failed:", e);
-                 showAlert("Không thể phát video tự động. Hãy thử tương tác với trang.", "warning");
-             });
-         });
-         const startPlay = () => {
-            if(elements.liveVideo && elements.liveVideo.paused && elements.liveVideo.srcObject){
-                 elements.liveVideo.play().then(() => hideOverlay(elements.playOverlay)).catch(()=>{}); 
+        
+        // Play button trong playOverlay đã có listener
+        elements.playButton?.addEventListener('click', (e) => {
+            e.stopPropagation(); // Ngăn sự kiện nổi bọt lên playOverlay listener
+            elements.liveVideo?.play().then(() => {
+                hideOverlay(elements.playOverlay); 
+            }).catch(err => {
+                console.error("Manual play failed from button:", err);
+                showAlert("Không thể phát video tự động. Hãy thử tương tác với trang.", "warning");
+            });
+        });
+
+        // Listener cho toàn bộ playOverlay
+        elements.playOverlay?.addEventListener('click', () => {
+            // Chỉ thực hiện nếu nút play đang hiển thị (tức là overlay đang active)
+            // và không phải là click vào chính nút play (đã có listener riêng)
+            if (elements.playOverlay.classList.contains('active') && elements.playButton && elements.playButton.offsetParent !== null) {
+                console.log("Play overlay clicked directly");
+                elements.liveVideo?.play().then(() => {
+                    hideOverlay(elements.playOverlay);
+                }).catch(err => {
+                    console.error("Manual play failed from overlay click:", err);
+                    // Không cần showAlert ở đây nữa vì nút Play đã có
+                });
+            }
+        });
+        
+        // Listener cho roomEndedOverlay
+        elements.endedOverlay?.addEventListener('click', (e) => {
+            if (elements.endedOverlay.classList.contains('active')) {
+                // Nếu click vào nút "Về trang chủ" bên trong overlay
+                if (e.target.closest('.overlay-action-btn')) {
+                    // Listener của nút đó sẽ tự xử lý (nếu có)
+                    // Hoặc bạn có thể đặt hành động mặc định ở đây nếu nút không có listener riêng
+                    // window.location.href = '/live'; // Đã có trong HTML của nút
+                    return; 
+                }
+                // Click vào vùng khác của overlay, có thể không làm gì hoặc làm hành động mặc định
+                console.log("Room Ended overlay clicked.");
+                // Có thể làm cho nó tự về trang chủ sau 1 thời gian hoặc khi click bất kỳ
+                // window.location.href = '/live'; // Ví dụ
+            }
+        });
+
+        // Listener cho waitingOverlay (thường không có hành động khi click)
+        elements.waitingOverlay?.addEventListener('click', () => {
+            if (elements.waitingOverlay.classList.contains('active')) {
+                console.log("Waiting overlay clicked - no default action.");
+            }
+        });
+
+
+         const startPlay = () => { // Listener này có thể không còn cần thiết nếu playOverlay xử lý tốt
+            if(elements.liveVideo && elements.liveVideo.paused && elements.liveVideo.srcObject && !elements.playOverlay.classList.contains('active')){
+                 elements.liveVideo.play().then(() => hideOverlay(elements.playOverlay)).catch(()=>{
+                    // Nếu autoplay thất bại và playOverlay chưa hiện, thì hiện nó lên
+                    if (!elements.playOverlay.classList.contains('active')) {
+                        showOverlay(elements.playOverlay);
+                    }
+                 });
             }
             document.body.removeEventListener('click', startPlay); 
             document.body.removeEventListener('keydown', startPlay);
@@ -1072,13 +1145,12 @@ socket.on('wb:draw', (data) => {
 
         // --- Viewer Whiteboard UI Listeners ---
         elements.closeWhiteboardBtnViewer?.addEventListener('click', () => {
-            // This button on viewer's toolbar now acts as a local hide.
              if (isWhiteboardLocallyVisible) {
-                hideViewerWhiteboard(false); // false because it's a local action
+                hideViewerWhiteboard(false); 
              }
         });
 
-       elements.wbColorPickerViewer?.addEventListener('input', (e) => {
+        elements.wbColorPickerViewer?.addEventListener('input', (e) => {
             if (!viewerCanDrawOnWhiteboard || !isWhiteboardLocallyVisible) return;
             wbViewerCurrentColor = e.target.value;
         });
@@ -1096,19 +1168,16 @@ socket.on('wb:draw', (data) => {
                 elements.whiteboardCanvasViewer.classList.toggle('eraser-mode', wbViewerIsEraserMode);
             }
         });
-      
-              // Listener for the new global toggle button for viewer's local display
+
         elements.toggleViewerWhiteboardDisplayBtn?.addEventListener('click', () => {
-            // This button only works if the whiteboard is globally visible (streamer enabled it)
             if (!isWhiteboardGloballyVisible) {
-                alert("Bảng vẽ chưa được streamer bật.");
+                showAlert("Bảng vẽ chưa được streamer bật.", "info"); // Sử dụng showAlert nếu có
                 return;
             }
             if (isWhiteboardLocallyVisible) {
-                hideViewerWhiteboard(false); // Local hide
+                hideViewerWhiteboard(false); 
             } else {
                 showViewerWhiteboard();
-                // After showing, viewer might need the current state if they hid it then re-showed
                 socket.emit('wb:requestInitialState', { roomId: liveRoomConfig.roomId });
             }
         });

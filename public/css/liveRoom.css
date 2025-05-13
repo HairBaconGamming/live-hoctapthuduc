@@ -211,6 +211,15 @@ html, body.live-room-body {
     pointer-events: none;
 }
 .live-status-overlay.active { display: flex; pointer-events: auto;/* JS controls display */ }
+/* Đặt cursor pointer cho các overlay cụ thể khi active */
+.live-status-overlay#playOverlayLive.active,
+.live-status-overlay#roomEndedOverlayLive.active {
+    cursor: pointer;
+}
+/* Overlay chờ thì không cần cursor pointer */
+.live-status-overlay#waitingOverlayLive.active {
+    cursor: default;
+}
 .overlay-content { text-align: center; color: var(--text-light); padding: 20px; }
 .overlay-content h2 { font-size: 1.8rem; margin-bottom: 15px; font-weight: 600; }
 .overlay-content p { font-size: 1rem; color: var(--text-medium); margin-bottom: 25px; max-width: 400px; margin-left: auto; margin-right: auto; }
