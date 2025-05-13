@@ -856,8 +856,8 @@ document.addEventListener("DOMContentLoaded", () => {
           canvas: pipChatCanvas,
           width: PIP_CANVAS_WIDTH,
           height: PIP_CANVAS_HEIGHT,
-          iframeSandbox: 'allow-scripts allow-same-origin', 
-          iframeSandboxFlags: ['allow-scripts', 'allow-same-origin'], 
+          iframeSandbox: "allow-scripts allow-same-origin",
+          iframeSandboxFlags: ["allow-scripts", "allow-same-origin"],
         };
         await rasterizeHTML.drawHTML(
           chatHtmlString,
@@ -883,78 +883,104 @@ document.addEventListener("DOMContentLoaded", () => {
       !pipChatCanvas ||
       !pipChatCtx
     ) {
-      console.error("PiP Chat prerequisites not met.");
-      if (elements.pipChatBtn) elements.pipChatBtn.disabled = true;
+      console.error(
+        "PiP Chat prerequisites not met (button, video player, or canvas missing)."
+      );
+      if (elements.pipChatBtn) {
+        elements.pipChatBtn.disabled = true;
+        elements.pipChatBtn.title = "PiP Chat không thể khởi tạo.";
+      }
       return;
     }
 
+    // Kiểm tra xem có đang ở chế độ PiP không bằng cách so sánh với video element của chúng ta
     if (document.pictureInPictureElement === elements.pipChatVideoPlayer) {
+      console.log("PiP Chat: Attempting to exit PiP mode.");
       try {
         await document.exitPictureInPicture();
-        // Event listener 'leavepictureinpicture' sẽ xử lý isPipChatActive = false;
+        // Listener 'leavepictureinpicture' sẽ xử lý isPipChatActive = false;
       } catch (error) {
-        console.error("Lỗi khi thoát PiP Chat:", error);
+        console.error("PiP Chat: Lỗi khi thoát PiP:", error);
+        // Thường thì thoát PiP ít khi lỗi, nhưng vẫn log lại
       }
     } else {
+      // Không ở chế độ PiP, cố gắng vào PiP
+      console.log("PiP Chat: Attempting to enter PiP mode.");
+
+      // 1. Đảm bảo stream từ canvas được tạo hoặc còn active
       if (!pipChatStream || !pipChatStream.active) {
-        // Chỉ tạo stream mới nếu chưa có hoặc stream cũ không active
+        console.log("PiP Chat: Creating or recreating canvas stream.");
         try {
-          pipChatStream = pipChatCanvas.captureStream(25); // 25 FPS, có thể điều chỉnh
-          console.log("PiP Chat stream captured from canvas.");
+          pipChatStream = pipChatCanvas.captureStream(25); // FPS có thể điều chỉnh
+          if (!pipChatStream || pipChatStream.getVideoTracks().length === 0) {
+            console.error(
+              "PiP Chat: Failed to capture stream or stream has no video tracks."
+            );
+            pipChatStream = null; // Reset nếu stream không hợp lệ
+            alert("Không thể tạo stream video từ nội dung chat cho PiP.");
+            return;
+          }
+          console.log("PiP Chat: Canvas stream captured successfully.");
         } catch (e) {
-          console.error("Lỗi captureStream từ canvas:", e);
-          alert(
-            "Trình duyệt không hỗ trợ đầy đủ tính năng PiP cho chat (captureStream)."
+          console.error(
+            "PiP Chat: Lỗi nghiêm trọng khi captureStream từ canvas:",
+            e
           );
+          alert(
+            "Trình duyệt không hỗ trợ đầy đủ tính năng PiP cho chat (lỗi captureStream)."
+          );
+          pipChatStream = null;
           return;
         }
       }
 
-      if (!pipChatStream || pipChatStream.getVideoTracks().length === 0) {
-        console.error(
-          "Không thể tạo stream hoặc stream không có video track cho PiP Chat."
-        );
-        if (pipChatStream) {
-          // Nếu stream có nhưng không có track, dừng nó
-          pipChatStream.getTracks().forEach((track) => track.stop());
-          pipChatStream = null;
-        }
-        return;
+      // 2. Gán stream vào video player
+      if (elements.pipChatVideoPlayer.srcObject !== pipChatStream) {
+        elements.pipChatVideoPlayer.srcObject = pipChatStream;
+        console.log("PiP Chat: Stream assigned to video player.");
       }
 
-      elements.pipChatVideoPlayer.srcObject = pipChatStream;
+      // 3. Play video và yêu cầu PiP
       try {
-        // Đảm bảo video player sẵn sàng
-        if (elements.pipChatVideoPlayer.paused) {
-          await elements.pipChatVideoPlayer.play();
-        }
+        // Video cần được play để có thể vào PiP.
+        // muted là true và playsinline được đặt trong HTML để tránh lỗi tự động phát có tiếng.
+        console.log("PiP Chat: Attempting to play pipChatVideoPlayer.");
+        await elements.pipChatVideoPlayer.play();
+        console.log(
+          "PiP Chat: pipChatVideoPlayer playing. Requesting Picture-in-Picture."
+        );
+
         await elements.pipChatVideoPlayer.requestPictureInPicture();
-        // Event listener 'enterpictureinpicture' sẽ xử lý isPipChatActive = true và bắt đầu vẽ
+        // Nếu thành công, sự kiện 'enterpictureinpicture' sẽ được kích hoạt
+        // và log "Đã vào chế độ PiP Chat." sẽ được hiển thị từ listener đó.
+        // Không cần set isPipChatActive ở đây.
       } catch (error) {
-        console.error("Lỗi khi vào PiP Chat:", error);
+        console.error(
+          "PiP Chat: Lỗi khi play video hoặc requestPictureInPicture:",
+          error.name,
+          error.message
+        );
         let userMessage = "Không thể vào chế độ PiP cho chat.";
         if (error.name === "NotAllowedError") {
           userMessage =
-            "Yêu cầu vào PiP bị từ chối. Hãy thử tương tác với trang rồi thử lại.";
+            "Yêu cầu vào PiP bị từ chối. Hãy đảm bảo bạn đã tương tác với trang (click) trước khi thử lại.";
         } else if (error.name === "SecurityError") {
           userMessage =
-            "Không thể vào PiP do giới hạn bảo mật (ví dụ: không trong iframe cho phép).";
-        } else if (
-          error.name === "InvalidStateError" &&
-          elements.pipChatVideoPlayer.readyState < 3
-        ) {
-          // HAVE_FUTURE_DATA or HAVE_ENOUGH_DATA
+            "Không thể vào PiP do giới hạn bảo mật (ví dụ: trang không được phép dùng API này, hoặc không trong iframe cho phép).";
+        } else if (error.name === "InvalidStateError") {
           userMessage =
-            "Video cho PiP chưa sẵn sàng. Vui lòng thử lại sau giây lát.";
+            "Video cho PiP đang ở trạng thái không hợp lệ. Vui lòng thử lại.";
+        } else if (error.name === "NotFoundError") {
+          userMessage = "Không tìm thấy tài nguyên video hợp lệ để vào PiP.";
         }
         alert(userMessage);
 
         // Dọn dẹp nếu không thành công
-        if (pipChatStream) {
+        if (pipChatStream && pipChatStream.active) {
           pipChatStream.getTracks().forEach((track) => track.stop());
-          pipChatStream = null;
         }
-        isPipChatActive = false;
+        pipChatStream = null; // Quan trọng: đặt lại để lần sau tạo stream mới
+        isPipChatActive = false; // Đảm bảo trạng thái đúng
         if (pipChatUpdateRequestId) {
           cancelAnimationFrame(pipChatUpdateRequestId);
           pipChatUpdateRequestId = null;
@@ -2140,9 +2166,11 @@ document.addEventListener("DOMContentLoaded", () => {
         elements.pipChatVideoPlayer.addEventListener(
           "enterpictureinpicture",
           () => {
-            console.log("Đã vào chế độ PiP Chat.");
+            console.log(
+              "PiP Chat: Sự kiện 'enterpictureinpicture' đã kích hoạt."
+            ); // Log này phải xuất hiện
             isPipChatActive = true;
-            pipChatNeedsUpdate = true; // Cần vẽ lại frame đầu tiên
+            pipChatNeedsUpdate = true;
             if (elements.pipChatBtn) {
               elements.pipChatBtn.classList.add("active");
               elements.pipChatBtn.innerHTML =
@@ -2150,7 +2178,7 @@ document.addEventListener("DOMContentLoaded", () => {
             }
             if (pipChatUpdateRequestId)
               cancelAnimationFrame(pipChatUpdateRequestId);
-            drawPipChatFrame(); // Bắt đầu vòng lặp vẽ
+            drawPipChatFrame();
           }
         );
 
