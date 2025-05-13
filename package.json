@@ -13,13 +13,14 @@
     "ejs": "^3.1.10",
     "express": "^4.21.2",
     "firebase": "^11.4.0",
+    "helmet": "^8.1.0",
+    "html2canvas": "^1.4.1",
     "jsonwebtoken": "^9.0.2",
     "peer": "^1.0.2",
     "peer-server": "^1.1.2",
     "peerjs": "^1.5.3",
     "socket.io": "^4.8.1",
-    "uuid": "8.x",
-    "helmet": "^8.1.0"
+    "uuid": "8.x"
   },
   "engines": {
     "node": "14.x"

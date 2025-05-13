@@ -756,126 +756,153 @@ document.addEventListener("DOMContentLoaded", () => {
   function initPipChatCanvas() {
     if (!elements.pipChatBtn) return;
 
-    // Tạo canvas nếu chưa có
     if (!pipChatCanvas) {
       pipChatCanvas = document.createElement("canvas");
     }
-    pipChatCanvas.width = PIP_CANVAS_WIDTH;
-    pipChatCanvas.height = PIP_CANVAS_HEIGHT;
-    // pipChatCanvas.style.display = 'none'; // Không cần hiển thị canvas này trực tiếp
-    // document.body.appendChild(pipChatCanvas); // Không cần append vào body nếu chỉ dùng để captureStream
+    // Kích thước canvas nên phù hợp với những gì bạn muốn hiển thị trong PiP
+    pipChatCanvas.width = PIP_CANVAS_WIDTH; // ~400
+    pipChatCanvas.height = PIP_CANVAS_HEIGHT; // ~600
 
     pipChatCtx = pipChatCanvas.getContext("2d");
 
     if (!pipChatCtx) {
-      console.error("Failed to create 2D context for PiP chat canvas.");
+      console.error(
+        "Failed to create 2D context for PiP chat canvas (html2canvas target)."
+      );
       if (elements.pipChatBtn) {
         elements.pipChatBtn.disabled = true;
         elements.pipChatBtn.title = "Không thể tạo canvas cho PiP Chat.";
-        elements.pipChatBtn.style.display = "none"; // Ẩn nếu không thể dùng
+        elements.pipChatBtn.style.display = "none";
       }
       return;
     }
-    // Vẽ một nền ban đầu để đảm bảo canvas không trống hoàn toàn
-    pipChatCtx.fillStyle = "rgba(15, 15, 30, 0.92)"; // Màu nền PiP
-    pipChatCtx.fillRect(0, 0, PIP_CANVAS_WIDTH, PIP_CANVAS_HEIGHT);
-    pipChatCtx.fillStyle = "#555";
-    pipChatCtx.font = "16px Inter, sans-serif";
-    pipChatCtx.textAlign = "center";
-    pipChatCtx.fillText(
-      "Đang tải PiP Chat...",
-      PIP_CANVAS_WIDTH / 2,
-      PIP_CANVAS_HEIGHT / 2
-    );
-
-    console.log("PiP Chat Canvas initialized and initial frame drawn.");
+    console.log("PiP Chat Canvas (for html2canvas target) initialized.");
   }
 
     async function drawPipChatFrame() {
-        // Kiểm tra điều kiện để dừng vòng lặp trước tiên
         if (!isPipChatActive) {
-            if (pipChatUpdateRequestId) {
-                cancelAnimationFrame(pipChatUpdateRequestId);
-                pipChatUpdateRequestId = null;
-            }
+            if (pipChatUpdateRequestId) cancelAnimationFrame(pipChatUpdateRequestId);
+            pipChatUpdateRequestId = null;
             return;
         }
-
-        // Nếu PiP active, luôn yêu cầu frame tiếp theo để giữ vòng lặp
         pipChatUpdateRequestId = requestAnimationFrame(drawPipChatFrame);
 
-        // Chỉ thực hiện vẽ nếu có cờ update và các thành phần cần thiết có sẵn
-        if (!pipChatNeedsUpdate || !pipChatCtx || !pipChatCanvas || !elements.chatMessagesList || typeof rasterizeHTML === 'undefined') {
-            return; // Không cần update hoặc chưa sẵn sàng, nhưng vòng lặp vẫn tiếp tục
-        }
-
-        pipChatNeedsUpdate = false; // Đặt lại cờ NGAY SAU KHI kiểm tra, trước khi thực hiện tác vụ nặng
-
-        // console.log("PiP Chat: Drawing new frame due to pipChatNeedsUpdate=true");
-
-        const chatMessagesContainer = elements.chatMessagesList.parentNode;
-        if (!chatMessagesContainer) {
-            console.warn("PiP Chat: Chat messages container not found for drawing.");
+        if (!pipChatNeedsUpdate || !pipChatCanvas || !elements.chatMessagesList || typeof html2canvas === 'undefined') {
             return;
         }
-
-        const messagesToRender = Array.from(elements.chatMessagesList.children).slice(-10); // Lấy 10 tin nhắn cuối
-        // Sử dụng box-sizing: border-box để padding không làm tăng kích thước tổng thể
-        let chatHtmlString = '<div id="pip-chat-render-source" style="width:' + PIP_CANVAS_WIDTH + 'px; height:' + PIP_CANVAS_HEIGHT + 'px; overflow: hidden; background-color: rgba(15, 15, 30, 0.92); color: #e8eaf6; font-family: Inter, sans-serif; padding: ' + PIP_PADDING + 'px; display: flex; flex-direction: column-reverse; justify-content: flex-start; box-sizing: border-box;">';
+        pipChatNeedsUpdate = false;
         
-        messagesToRender.forEach(msgItem => {
-            const usernameEl = msgItem.querySelector('.msg-username');
-            const bodyEl = msgItem.querySelector('.msg-body'); // Lấy nguyên .msg-body để có thể render HTML từ Markdown
-            const timestampEl = msgItem.querySelector('.msg-timestamp');
-            const username = usernameEl ? usernameEl.textContent.trim() : 'System';
-            // Lấy innerHTML để giữ lại định dạng từ Markdown/Katex nếu có
-            const bodyHtmlContent = bodyEl ? bodyEl.innerHTML : ''; 
-            const timestamp = timestampEl ? timestampEl.textContent.trim() : '';
-            
-            let userColor = '#a0a0c0'; // Guest
-            if (msgItem.classList.contains('message-host')) userColor = '#8a7ffb';
-            else if (msgItem.classList.contains('message-pro')) userColor = '#ffde7d';
-            else if (msgItem.classList.contains('message-system')) userColor = '#8899bb';
+        console.log("PiP Chat (h2c): Attempting to draw frame.");
 
-            chatHtmlString += `<div class="pip-chat-message-item" style="margin-bottom: 5px; font-size: ${PIP_FONT_SIZE_MSG}px; line-height: ${PIP_LINE_HEIGHT}px; max-width: 100%; overflow-wrap: break-word; word-wrap: break-word;">`;
-            chatHtmlString += `<div class="pip-chat-header" style="font-size: ${PIP_FONT_SIZE_USER}px; font-weight: bold; color: ${userColor}; margin-bottom: 2px;">`;
-            // Sanitize username and timestamp before inserting into HTML string if they could contain HTML
-            const escapeHtml = (unsafe) => unsafe.replace(/[&<"']/g, (match) => ({'&': '&', '<': '<', '>': '>', '"': '"', "'": "'"}[match]));
-            chatHtmlString += `${escapeHtml(username)} <span style="font-weight:normal; font-size:0.8em; opacity:0.7;">${timestamp ? `(${escapeHtml(timestamp)})` : ''}</span>`;
-            chatHtmlString += `</div>`;
-            // bodyHtmlContent đã là HTML từ Markdown, không cần escape
-            chatHtmlString += `<div class="pip-chat-body" style="color: #e8eaf6;">${bodyHtmlContent}</div>`; 
-            chatHtmlString += `</div>`;
+        const sourceElementContainer = document.createElement('div');
+        sourceElementContainer.id = 'pip-chat-render-source-h2c';
+        Object.assign(sourceElementContainer.style, {
+            width: `${PIP_CANVAS_WIDTH}px`,
+            height: `${PIP_CANVAS_HEIGHT}px`,
+            overflowY: 'hidden',
+            backgroundColor: 'rgba(15, 15, 30, 0.92)',
+            color: '#e8eaf6',
+            fontFamily: 'Inter, sans-serif',
+            padding: `${PIP_PADDING}px`,
+            display: 'flex',
+            flexDirection: 'column-reverse',
+            justifyContent: 'flex-start',
+            boxSizing: 'border-box',
+            position: 'absolute', left: '-9999px', top: '-9999px',
         });
-        chatHtmlString += '</div>';
 
-        // Xóa canvas TRƯỚC KHI vẽ nội dung mới từ rasterizeHTML
-        // Điều này đảm bảo nếu rasterizeHTML mất một chút thời gian, người dùng không thấy frame cũ + frame mới chồng lên nhau.
-        pipChatCtx.clearRect(0, 0, pipChatCanvas.width, pipChatCanvas.height);
-        // Không cần vẽ nền ở đây nữa vì rasterizeHTML sẽ vẽ toàn bộ div có nền.
+        // // ---- TEST ĐƠN GIẢN 1: Chỉ text ----
+        // sourceElementContainer.style.display = 'flex';
+        // sourceElementContainer.style.alignItems = 'center';
+        // sourceElementContainer.style.justifyContent = 'center';
+        // sourceElementContainer.style.fontSize = '24px';
+        // sourceElementContainer.textContent = "PiP Test " + new Date().getSeconds();
+        // // ---- HẾT TEST ĐƠN GIẢN 1 ----
+
+        // ---- Lấy tin nhắn thật (nếu test đơn giản hoạt động) ----
+        const messagesToRender = Array.from(elements.chatMessagesList.children).slice(-10);
+        if (messagesToRender.length === 0) { // Nếu không có tin nhắn, vẽ placeholder
+             sourceElementContainer.style.display = 'flex';
+             sourceElementContainer.style.alignItems = 'center';
+             sourceElementContainer.style.justifyContent = 'center';
+             sourceElementContainer.textContent = "Chưa có tin nhắn...";
+        } else {
+            messagesToRender.forEach(msgItemOriginal => {
+                const msgItemClone = msgItemOriginal.cloneNode(true);
+                const actions = msgItemClone.querySelector('.msg-actions');
+                if (actions) actions.remove();
+                // Thêm style trực tiếp vào clone để đảm bảo html2canvas thấy
+                msgItemClone.style.marginBottom = "5px";
+                msgItemClone.style.fontSize = PIP_FONT_SIZE_MSG + "px";
+                msgItemClone.style.lineHeight = PIP_LINE_HEIGHT + "px";
+                msgItemClone.style.maxWidth = "100%";
+                msgItemClone.style.overflowWrap = "break-word";
+                msgItemClone.style.wordWrap = "break-word";
+                // Style cho header và body bên trong clone
+                const headerClone = msgItemClone.querySelector('.msg-username'); // Giả sử .msg-username là header
+                if (headerClone) {
+                    headerClone.style.fontSize = PIP_FONT_SIZE_USER + "px";
+                    headerClone.style.fontWeight = "bold";
+                    // Lấy màu từ class gốc (ví dụ)
+                    if (msgItemOriginal.classList.contains('message-host')) headerClone.style.color = '#8a7ffb';
+                    else if (msgItemOriginal.classList.contains('message-pro')) headerClone.style.color = '#ffde7d';
+                    else if (msgItemOriginal.classList.contains('message-system')) headerClone.style.color = '#8899bb';
+                    else headerClone.style.color = '#a0a0c0';
+                }
+                const bodyClone = msgItemClone.querySelector('.msg-body');
+                if (bodyClone) bodyClone.style.color = '#e8eaf6';
+
+                sourceElementContainer.appendChild(msgItemClone);
+            });
+        }
+        // ---- HẾT PHẦN LẤY TIN NHẮN THẬT ----
+        
+        document.body.appendChild(sourceElementContainer);
+        // console.log("PiP Chat (h2c): sourceElementContainer appended. InnerHTML:", sourceElementContainer.innerHTML.substring(0, 200) + "...");
 
         try {
-            const rasterizeOptions = { 
-                canvas: pipChatCanvas, 
-                width: PIP_CANVAS_WIDTH, 
+            const renderedCanvas = await html2canvas(sourceElementContainer, {
+                width: PIP_CANVAS_WIDTH,
                 height: PIP_CANVAS_HEIGHT,
-                // Thêm baseUrl để rasterizeHTML có thể tìm CSS nếu cần (ví dụ, nếu bạn dùng class từ CSS file)
-                // baseUrl: window.location.href.substring(0, window.location.href.lastIndexOf("/") + 1)
-            };
-            await rasterizeHTML.drawHTML(chatHtmlString, pipChatCanvas, rasterizeOptions);
-            // console.log("PiP Chat: Frame rasterized successfully.");
+                backgroundColor: null, 
+                useCORS: true,
+                logging: true, // Bật log của html2canvas để xem chi tiết
+                onclone: (clonedDoc) => { // Callback sau khi html2canvas clone DOM
+                    // Bạn có thể cố gắng áp dụng CSS phức tạp hơn ở đây cho clonedDoc nếu cần
+                    // Ví dụ: load một stylesheet vào clonedDoc
+                    // console.log("PiP Chat (h2c): DOM cloned by html2canvas", clonedDoc);
+                }
+            });
+
+            // console.log("PiP Chat (h2c): html2canvas promise resolved. Canvas:", renderedCanvas);
+            if (!renderedCanvas || renderedCanvas.width === 0 || renderedCanvas.height === 0) {
+                console.error("PiP Chat (h2c): html2canvas returned an invalid or empty canvas.");
+                throw new Error("html2canvas produced an empty canvas.");
+            }
+
+            pipChatCtx.clearRect(0, 0, pipChatCanvas.width, pipChatCanvas.height);
+            pipChatCtx.drawImage(renderedCanvas, 0, 0, pipChatCanvas.width, pipChatCanvas.height);
+            // console.log("PiP Chat (h2c): Frame drawn onto target pipChatCanvas.");
+
         } catch (error) {
-            console.error("PiP Chat: Lỗi khi rasterize HTML:", error);
-            // Vẽ một thông báo lỗi rõ ràng lên canvas nếu rasterize thất bại
-            pipChatCtx.fillStyle = 'rgba(15, 15, 30, 0.92)'; // Vẽ lại nền
+            console.error("PiP Chat (h2c): Lỗi trong khi html2canvas render:", error);
+            // Vẽ lỗi lên canvas chính
+            pipChatCtx.clearRect(0, 0, pipChatCanvas.width, pipChatCanvas.height); // Xóa trước
+            pipChatCtx.fillStyle = 'rgba(15, 15, 30, 0.92)';
             pipChatCtx.fillRect(0, 0, pipChatCanvas.width, pipChatCanvas.height);
-            pipChatCtx.fillStyle = 'red';
-            pipChatCtx.font = 'bold 16px Inter, sans-serif';
+            pipChatCtx.fillStyle = 'orange'; // Màu khác cho lỗi html2canvas
+            pipChatCtx.font = 'bold 14px Inter, sans-serif';
             pipChatCtx.textAlign = 'center';
             pipChatCtx.textBaseline = 'middle';
-            pipChatCtx.fillText('Lỗi render PiP Chat', pipChatCanvas.width / 2, pipChatCanvas.height / 2 - 10);
-            pipChatCtx.font = '12px Inter, sans-serif';
-            pipChatCtx.fillText(error.message || 'Unknown error', pipChatCanvas.width / 2, pipChatCanvas.height / 2 + 10);
+            pipChatCtx.fillText('Lỗi render PiP Chat (h2c)', pipChatCanvas.width / 2, pipChatCanvas.height / 2 - 10);
+            if (error && error.message) {
+                pipChatCtx.font = '11px Inter, sans-serif';
+                pipChatCtx.fillText(error.message.substring(0,50), pipChatCanvas.width / 2, pipChatCanvas.height / 2 + 10);
+            }
+        } finally {
+            if (document.body.contains(sourceElementContainer)) {
+                document.body.removeChild(sourceElementContainer);
+            }
         }
     }
   
