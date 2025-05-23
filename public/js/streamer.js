@@ -76,6 +76,20 @@ document.addEventListener("DOMContentLoaded", () => {
     wbLineWidthValueDisplay: document.getElementById("wbLineWidthValueV2"),
     wbEraserModeBtn: document.getElementById("wbEraserModeBtnV2"),
     pipChatVideoPlayer: document.getElementById("pipChatVideoPlayer"),
+    // ---- Start: Quiz Elements Streamer ----
+    toggleQuizPanelBtn: document.getElementById("toggleQuizPanelBtn"), 
+    streamerQuizPanel: document.getElementById("streamerQuizPanel"),
+    quizQuestionText: document.getElementById("quizQuestionText"),
+    quizOptionsContainer: document.getElementById("quizOptionsContainer"),
+    addQuizOptionBtn: document.getElementById("addQuizOptionBtn"),
+    quizCorrectAnswerSelect: document.getElementById("quizCorrectAnswerSelect"),
+    startQuizBtn: document.getElementById("startQuizBtn"),
+    showQuizAnswerBtn: document.getElementById("showQuizAnswerBtn"),
+    nextQuizQuestionBtn: document.getElementById("nextQuizQuestionBtn"),
+    endQuizBtn: document.getElementById("endQuizBtn"),
+    quizStreamerStatus: document.getElementById("quizStreamerStatus"),
+    quizStreamerResults: document.getElementById("quizStreamerResults")
+    // ---- End: Quiz Elements Streamer ----
   };
 
   // --- State Variables ---

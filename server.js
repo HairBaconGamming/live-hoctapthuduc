@@ -47,14 +47,15 @@ app.use("/peerjs", peerServer);
 app.use(cors());
 app.use(bodyParser.json());
 app.use((req, res, next) => {
-  res.setHeader("Content-Security-Policy", 
+  res.setHeader(
+    "Content-Security-Policy",
     "default-src 'self'; " +
-    "img-src 'self' blob: data: https://cdn.glitch.global https://gc.kis.v2.scr.kaspersky-labs.com; " + // Thêm data:
-    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; " +
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://unpkg.com https://gc.kis.v2.scr.kaspersky-labs.com wss://gc.kis.v2.scr.kaspersky-labs.com; " + // Giữ 'unsafe-eval'
-    "font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net;" +
-    // Mở rộng frame-src hơn nữa, hoặc xem xét các directive khác liên quan đến iframe
-    "frame-src 'self' about: blob: data:; " // Thêm data: vào frame-src, mặc dù about: và blob: quan trọng hơn cho iframe nội tuyến
+      "img-src 'self' blob: data: https://cdn.glitch.global https://gc.kis.v2.scr.kaspersky-labs.com; " + // Thêm data:
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; " +
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://unpkg.com https://gc.kis.v2.scr.kaspersky-labs.com wss://gc.kis.v2.scr.kaspersky-labs.com; " + // Giữ 'unsafe-eval'
+      "font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net;" +
+      // Mở rộng frame-src hơn nữa, hoặc xem xét các directive khác liên quan đến iframe
+      "frame-src 'self' about: blob: data:; " // Thêm data: vào frame-src, mặc dù about: và blob: quan trọng hơn cho iframe nội tuyến
     // "child-src 'self' blob:;" // child-src là directive mới hơn, bao gồm frame-src và worker-src
   );
   next();
@@ -98,6 +99,16 @@ app.post("/api/createStream", (req, res) => {
     isLive: false, // Ban đầu phòng chưa live (chờ host)
     bannedViewers: [],
     viewersList: [],
+    // ---- Start: Quiz Data ----
+    quiz: {
+      isActive: false,
+      currentQuestionId: null,
+      currentQuestion: null, // { id: uuid, text: "...", options: ["A", "B", "C", "D"], correctAnswerIndex: 0 }
+      responses: {}, // { questionId: { userId(username): answerIndex, ... } }
+      results: {}, // { questionId: { 0: count, 1: count, ... } }
+      showCorrectAnswer: false,
+    },
+    // ---- End: Quiz Data ----
   };
   liveRooms.push(newRoom);
   console.log("✅ Room created:", newRoom);
@@ -164,15 +175,13 @@ io.on("connection", (socket) => {
   socket.on("joinRoom", ({ roomId, username, peerId }) => {
     socket.join(roomId);
     socket.username = username;
-    if (peerId) { // Nếu viewer gửi peerId của họ
-      socket.peerIdForStreamer = peerId; // Lưu peerId này trên socket của viewer
+    if (peerId) { 
+      socket.peerIdForStreamer = peerId; 
     }
     const room = liveRooms.find((r) => r.id === roomId);
     if (room) {
-      // Kiểm tra nếu viewer bị ban
       if (room.bannedViewers.includes(username)) {
         socket.emit("banned", "Bạn đã bị ban khỏi phòng live này.");
-        // Có thể disconnect socket nếu cần
         socket.leave(roomId);
         return;
       }
@@ -192,61 +201,79 @@ io.on("connection", (socket) => {
         io.to(roomId).emit("hostJoined");
         console.log(`Host ${username} joined room ${roomId}`);
         
-        // If whiteboard was previously active in this room session, inform the rejoining host
         if (room.isWhiteboardActive) {
             socket.emit('wb:toggleVisibility', { isVisible: true });
-            // Host should then emit its wb:requestInitialState to get data if it doesn't have it locally
         }
       } else {
         room.viewers++;
-        // Thêm viewer vào danh sách nếu chưa có
         if (!room.viewersList.some((v) => v.username === username)) {
-          room.viewersList.push({ username: username, canDraw: false }); // Default: cannot draw
+          room.viewersList.push({ username: username, canDraw: false }); 
         }
         io.to(roomId).emit("updateViewers", room.viewers);
         if (!room.isLive) {
           socket.emit("waiting", "Chờ streamer vào live...");
         }
         io.to(roomId).emit("userJoined", `${username} đã tham gia phòng.`);
-        // Gửi pinned comment nếu có
         if (room.pinnedComment) {
           socket.emit("commentPinned", { message: room.pinnedComment });
         }
-        if (room.isWhiteboardActive) { // If whiteboard is active when viewer joins
+        if (room.isWhiteboardActive) { 
             socket.emit('wb:toggleVisibility', { isVisible: true });
-            // Viewer will then emit 'wb:requestInitialState'
         }
-        // Update viewer's permission state
         const viewerInfo = room.viewersList.find(v => v.username === username);
         if (viewerInfo) {
             socket.emit('wb:permissionUpdate', { viewerUsername: username, canDraw: viewerInfo.canDraw });
         }
-        // Cập nhật danh sách viewers cho host (nếu có)
-        io.to(room.hostSocketId).emit("updateViewersList", {
-          viewers: room.viewersList,
-        });
-      }
-    }
+
+        // ---- Start: Send current quiz state to new viewer ----
+        if (room.quiz.isActive && room.quiz.currentQuestion) {
+            socket.emit("quiz:newQuestion", {
+                questionId: room.quiz.currentQuestion.id,
+                text: room.quiz.currentQuestion.text,
+                options: room.quiz.currentQuestion.options
+            });
+            if (room.quiz.showCorrectAnswer) { // If answer was already shown, send it too
+                 socket.emit("quiz:correctAnswer", {
+                    questionId: room.quiz.currentQuestion.id,
+                    correctAnswerIndex: room.quiz.currentQuestion.correctAnswerIndex,
+                    results: room.quiz.results[room.quiz.currentQuestion.id] || {}
+                });
+            }
+        }
+        // ---- End: Send current quiz state to new viewer ----
+
+        if (room.hostSocketId) { 
+            io.to(room.hostSocketId).emit("updateViewersList", {
+                viewers: room.viewersList,
+            });
+        }
+      } 
+    } 
   });
 
   // Khi viewer gửi thông tin PeerJS ID cho streamer
-  socket.on("newViewer", ({ viewerId, roomId, username }) => { // username cũng nên có ở đây để xác định đúng socket
-      const room = liveRooms.find(r => r.id === roomId);
-      if (room && room.hostSocketId) {
-          // Tìm socket của viewer dựa trên username hoặc một định danh khác
-          io.in(roomId).allSockets().then(sockets => {
-              sockets.forEach(clientId => {
-                  const clientSocket = io.sockets.sockets.get(clientId);
-                  if (clientSocket && clientSocket.username === username) {
-                      clientSocket.peerIdForStreamer = viewerId; // Gán peerId vào socket của viewer
-                      console.log(`Associated PeerID ${viewerId} with viewer ${username} (socket ${clientSocket.id})`);
-                  }
-              });
+  socket.on("newViewer", ({ viewerId, roomId, username }) => {
+    // username cũng nên có ở đây để xác định đúng socket
+    const room = liveRooms.find((r) => r.id === roomId);
+    if (room && room.hostSocketId) {
+      // Tìm socket của viewer dựa trên username hoặc một định danh khác
+      io.in(roomId)
+        .allSockets()
+        .then((sockets) => {
+          sockets.forEach((clientId) => {
+            const clientSocket = io.sockets.sockets.get(clientId);
+            if (clientSocket && clientSocket.username === username) {
+              clientSocket.peerIdForStreamer = viewerId; // Gán peerId vào socket của viewer
+              console.log(
+                `Associated PeerID ${viewerId} with viewer ${username} (socket ${clientSocket.id})`
+              );
+            }
           });
-          io.to(room.hostSocketId).emit("newViewer", { viewerId }); // Thông báo cho streamer
-      }
+        });
+      io.to(room.hostSocketId).emit("newViewer", { viewerId }); // Thông báo cho streamer
+    }
   });
-  
+
   socket.on("chatMessage", ({ roomId, username, message }) => {
     io.to(roomId).emit("newMessage", { username, message });
   });
@@ -380,14 +407,18 @@ io.on("connection", (socket) => {
   });
 
   // Handle request for initial state from a newly joined client (streamer or viewer)
-    socket.on('wb:requestInitialState', ({ roomId }) => {
-        const room = liveRooms.find(r => r.id === roomId);
-        if (room && room.hostSocketId) {
-            // Always relay request to the current host for state
-            console.log(`Relaying wb:requestInitialState from ${socket.id} to host ${room.hostSocketId} in room ${roomId}`);
-            io.to(room.hostSocketId).emit('wb:viewerRequestState', { viewerSocketId: socket.id });
-        }
-    });
+  socket.on("wb:requestInitialState", ({ roomId }) => {
+    const room = liveRooms.find((r) => r.id === roomId);
+    if (room && room.hostSocketId) {
+      // Always relay request to the current host for state
+      console.log(
+        `Relaying wb:requestInitialState from ${socket.id} to host ${room.hostSocketId} in room ${roomId}`
+      );
+      io.to(room.hostSocketId).emit("wb:viewerRequestState", {
+        viewerSocketId: socket.id,
+      });
+    }
+  });
 
   // Streamer sends its current state to a specific viewer who requested it
   socket.on("wb:syncStateToViewer", ({ targetViewerId, history, dataUrl }) => {
@@ -398,18 +429,129 @@ io.on("connection", (socket) => {
       io.to(targetViewerId).emit("wb:initState", { history, dataUrl }); // Send history or dataUrl
     }
   });
+
+  socket.on("viewerLeaving", ({ roomId, username }) => {
+    // This event is a "best effort" notification from the client.
+    // The main 'disconnect' event for the socket is more reliable for actual cleanup.
+    console.log(
+      `🏃‍♂️ Viewer ${username} is attempting to leave room ${roomId} (via beforeunload/pagehide).`
+    );
+    // You could potentially act on this immediately, e.g., update viewer count faster,
+    // but be aware this client might not actually disconnect if they cancel the navigation.
+    // The 'disconnecting' event handler below is more robust for cleanup.
+    const room = liveRooms.find((r) => r.id === roomId);
+    if (room && username) {
+      // Optional: emit a specific "user_is_leaving_soon" message if you want immediate UI feedback
+      // io.to(roomId).emit("viewerIsLeavingSoon", `${username} có thể sắp rời phòng.`);
+    }
+  });
   
-      socket.on('viewerLeaving', ({ roomId, username }) => {
-        // This event is a "best effort" notification from the client.
-        // The main 'disconnect' event for the socket is more reliable for actual cleanup.
-        console.log(`🏃‍♂️ Viewer ${username} is attempting to leave room ${roomId} (via beforeunload/pagehide).`);
-        // You could potentially act on this immediately, e.g., update viewer count faster,
-        // but be aware this client might not actually disconnect if they cancel the navigation.
-        // The 'disconnecting' event handler below is more robust for cleanup.
+  socket.on("quiz:start", ({ roomId, questionText, options, correctAnswerIndex }) => {
         const room = liveRooms.find(r => r.id === roomId);
-        if (room && username) {
-            // Optional: emit a specific "user_is_leaving_soon" message if you want immediate UI feedback
-            // io.to(roomId).emit("viewerIsLeavingSoon", `${username} có thể sắp rời phòng.`);
+        if (room && socket.username === room.owner) {
+            const questionId = uuidv4();
+            room.quiz.isActive = true;
+            room.quiz.currentQuestionId = questionId;
+            room.quiz.currentQuestion = {
+                id: questionId,
+                text: questionText,
+                options: options, // Array of strings
+                correctAnswerIndex: correctAnswerIndex // 0-based index
+            };
+            room.quiz.responses[questionId] = {};
+            room.quiz.results[questionId] = {};
+            options.forEach((_, index) => {
+                room.quiz.results[questionId][index] = 0;
+            });
+            room.quiz.showCorrectAnswer = false;
+
+            io.to(roomId).emit("quiz:newQuestion", {
+                questionId: questionId,
+                text: questionText,
+                options: options
+            });
+            console.log(`Quiz started in room ${roomId} by ${socket.username} with question ID ${questionId}`);
+        } else if (room) {
+            socket.emit("quiz:error", "Chỉ chủ phòng mới có thể bắt đầu trắc nghiệm.");
+        }
+    });
+
+    socket.on("quiz:submitAnswer", ({ roomId, questionId, answerIndex }) => {
+        const room = liveRooms.find(r => r.id === roomId);
+        if (room && room.quiz.isActive && room.quiz.currentQuestionId === questionId && socket.username) {
+            const userId = socket.username; 
+
+            // Allow re-submission only if answer not shown yet
+            if (room.quiz.showCorrectAnswer) {
+                socket.emit("quiz:error", "Đã hiển thị đáp án, không thể thay đổi lựa chọn.");
+                return;
+            }
+            
+            const userResponsesForQuestion = room.quiz.responses[questionId];
+            if (userResponsesForQuestion) {
+                const previousAnswer = userResponsesForQuestion[userId];
+                if (previousAnswer !== undefined && room.quiz.results[questionId][previousAnswer] > 0) {
+                    room.quiz.results[questionId][previousAnswer]--;
+                }
+
+                userResponsesForQuestion[userId] = answerIndex;
+                if (room.quiz.results[questionId][answerIndex] !== undefined) {
+                    room.quiz.results[questionId][answerIndex]++;
+                } else {
+                    room.quiz.results[questionId][answerIndex] = 1;
+                }
+
+                if (room.hostSocketId) {
+                    io.to(room.hostSocketId).emit("quiz:resultsUpdate", {
+                        questionId: questionId,
+                        results: room.quiz.results[questionId]
+                    });
+                }
+                socket.emit("quiz:answerSubmitted", { questionId, answerIndex }); 
+                console.log(`User ${userId} answered ${answerIndex} for Q ${questionId} in room ${roomId}`);
+            } else {
+                 socket.emit("quiz:error", "Câu hỏi không hợp lệ hoặc đã kết thúc.");
+            }
+        } else if (room) {
+            socket.emit("quiz:error", "Không thể nộp câu trả lời lúc này.");
+        }
+    });
+
+    socket.on("quiz:showAnswer", ({ roomId, questionId }) => {
+        const room = liveRooms.find(r => r.id === roomId);
+        if (room && socket.username === room.owner && room.quiz.currentQuestionId === questionId) {
+            room.quiz.showCorrectAnswer = true;
+            io.to(roomId).emit("quiz:correctAnswer", {
+                questionId: questionId,
+                correctAnswerIndex: room.quiz.currentQuestion.correctAnswerIndex,
+                results: room.quiz.results[questionId] || {} 
+            });
+            console.log(`Correct answer shown for Q ${questionId} in room ${roomId}`);
+        }
+    });
+
+    socket.on("quiz:nextQuestion", ({ roomId }) => { 
+        const room = liveRooms.find(r => r.id === roomId);
+        if (room && socket.username === room.owner) {
+            room.quiz.isActive = true; 
+            room.quiz.currentQuestionId = null;
+            room.quiz.currentQuestion = null;
+            room.quiz.showCorrectAnswer = false;
+            
+            io.to(roomId).emit("quiz:clearCurrent"); 
+            console.log(`Quiz cleared for next question in room ${roomId}`);
+        }
+    });
+    
+    socket.on("quiz:end", ({ roomId }) => {
+        const room = liveRooms.find(r => r.id === roomId);
+        if (room && socket.username === room.owner) {
+            room.quiz.isActive = false;
+            room.quiz.currentQuestionId = null;
+            room.quiz.currentQuestion = null;
+            room.quiz.showCorrectAnswer = false;
+            io.to(roomId).emit("quiz:ended");
+            console.log(`Quiz ended in room ${roomId}`);
         }
     });
 
@@ -502,13 +644,14 @@ io.on("connection", (socket) => {
     }
   });
 
-  socket.on('wb:draw', ({ roomId, username, drawData }) => { // Added username
-      // Broadcast to all other clients in the room
-      // If username is not present, it means it's from the streamer
-      const drawingUsername = username || socket.username; // Fallback to socket.username if not provided (e.g. old streamer client)
-      socket.to(roomId).emit('wb:draw', { username: drawingUsername, drawData });
+  socket.on("wb:draw", ({ roomId, username, drawData }) => {
+    // Added username
+    // Broadcast to all other clients in the room
+    // If username is not present, it means it's from the streamer
+    const drawingUsername = username || socket.username; // Fallback to socket.username if not provided (e.g. old streamer client)
+    socket.to(roomId).emit("wb:draw", { username: drawingUsername, drawData });
   });
-  
+
   socket.on("disconnect", () => {
     console.log("👋 Client disconnected", socket.id);
   });
