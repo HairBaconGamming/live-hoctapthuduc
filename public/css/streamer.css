@@ -463,3 +463,85 @@
     transform: none !important;
     box-shadow: none !important;
 }
+
+#alertContainerGlobal {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 10050;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: auto;
+    max-width: 380px; // Matches --notification-width from styles.css
+    pointer-events: none; // Container itself should not block
+}
+
+.custom-alert {
+    display: flex;
+    align-items: flex-start; // Better for multi-line messages
+    padding: 12px 15px;
+    border-radius: var(--border-radius-medium, 10px);
+    box-shadow: var(--shadow-medium, 0 6px 18px rgba(0,0,0,0.1));
+    pointer-events: auto; // Alerts are interactive
+    min-width: 300px;
+    line-height: 1.5;
+    color: var(--text-dark); // Default text color for alerts if not overridden
+}
+
+.custom-alert .alert-icon {
+    margin-right: 12px;
+    font-size: 1.3em; 
+    line-height: 1.5; 
+    margin-top: 2px; 
+}
+
+.custom-alert .alert-text-container {
+    flex-grow: 1;
+}
+
+.custom-alert .alert-close-btn {
+    background: none;
+    border: none;
+    color: inherit; 
+    opacity: 0.6;
+    margin-left: 15px;
+    font-size: 1.6em;
+    font-weight: bold;
+    cursor: pointer;
+    padding: 0 5px;
+    line-height: 1; 
+    transition: opacity 0.2s ease;
+}
+
+.custom-alert .alert-close-btn:hover {
+    opacity: 1;
+}
+
+.alert-info {
+    background-color: var(--bg-info-light, #e3f2fd);
+    color: var(--info-color-dark, #0d47a1);
+    border-left: 5px solid var(--info-color, #2196F3);
+}
+.alert-info .alert-icon { color: var(--info-color, #2196F3); }
+
+.alert-success {
+    background-color: var(--bg-success-light, #e8f5e9);
+    color: var(--success-color-dark, #1e4620);
+    border-left: 5px solid var(--success-color, #4CAF50);
+}
+.alert-success .alert-icon { color: var(--success-color, #4CAF50); }
+
+.alert-warning {
+    background-color: var(--bg-warning-light, #fff3e0);
+    color: var(--warning-color-dark, #e65100);
+    border-left: 5px solid var(--warning-color, #ff9800);
+}
+.alert-warning .alert-icon { color: var(--warning-color, #ff9800); }
+
+.alert-error {
+    background-color: var(--bg-danger-light, #ffebee);
+    color: var(--danger-color-dark, #c62828);
+    border-left: 5px solid var(--danger-color, #F44336);
+}
+.alert-error .alert-icon { color: var(--danger-color, #F44336); }
