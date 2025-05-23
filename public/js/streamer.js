@@ -195,31 +195,48 @@ document.addEventListener("DOMContentLoaded", () => {
     socket = io();
     socket.on("connect_error", (err) => {
       console.error("Socket Connection Error:", err.message);
-      alert(`Lỗi kết nối server: ${err.message}`);
-      window.location.href = "https://hoctap-9a3.glitch.me/live";
+      if (typeof showAlert === "function")
+        showAlert(`Lỗi kết nối server: ${err.message}`, "error");
+      else alert(`Lỗi kết nối server: ${err.message}`);
+      // window.location.href = "https://hoctap-9a3.glitch.me/live"; // Consider conditional redirect
     });
     socket.on("connect", () => {
       console.log("Socket connected:", socket.id);
+      // Emit joinRoom as soon as socket connects
       socket.emit("joinRoom", {
         roomId: streamerConfig.roomId,
         username: streamerConfig.username,
       });
-      if (peerInstance && peerInstance.id && !peerInstance.disconnected) {
+
+      // Check if PeerJS is also ready, then emit streamerReady
+      if (
+        peerInstance &&
+        peerInstance.id &&
+        !peerInstance.disconnected &&
+        !peerInstance.destroyed
+      ) {
+        console.log(
+          "Socket connected AND PeerJS ready. Emitting streamerReady."
+        );
         socket.emit("streamerReady", {
           roomId: streamerConfig.roomId,
           peerId: peerInstance.id,
         });
       } else {
         console.warn(
-          "Socket connected, but peer not ready to send streamerReady."
+          "Socket connected, but PeerJS not yet ready. Waiting for PeerJS 'open' event."
         );
       }
+      // Request initial whiteboard state regardless of peer status, handled by server logic
       socket.emit("wb:requestInitialState", { roomId: streamerConfig.roomId });
     });
+
     socket.on("disconnect", (reason) => {
       console.warn("Socket disconnected:", reason);
-      alert("Mất kết nối tới server chat.");
-      window.location.href = "https://hoctap-9a3.glitch.me/live";
+      if (typeof showAlert === "function")
+        showAlert("Mất kết nối tới server chat.", "error");
+      else alert("Mất kết nối tới server chat.");
+      // window.location.href = "https://hoctap-9a3.glitch.me/live"; // Consider conditional redirect
     });
     socket.on("userJoined", (msg) => addChatMessage(msg, "system"));
     socket.on("viewerLeft", (msg) => addChatMessage(msg, "system", "left"));
@@ -275,7 +292,8 @@ document.addEventListener("DOMContentLoaded", () => {
     socket.on("viewerBanned", (msg) => addChatMessage(msg, "system", "ban"));
 
     socket.on("wb:draw", (data) => {
-      if (data && data.drawData) {
+      if (data && data.drawData && data.username !== streamerConfig.username) {
+        // Don't redraw own actions if server echoes
         drawOnWhiteboard(
           data.drawData.x0,
           data.drawData.y0,
@@ -283,14 +301,17 @@ document.addEventListener("DOMContentLoaded", () => {
           data.drawData.y1,
           data.drawData.color,
           data.drawData.lineWidth,
-          false,
-          true,
+          false, // Do not re-emit
+          true, // Indicate this is for redrawing from server
           data.drawData.isEraser || false
         );
       }
     });
     socket.on("wb:clear", () => {
-      clearWhiteboard(false);
+      // Server told us to clear, so we clear our history and redraw
+      wbDrawingHistory = [];
+      redrawWhiteboardFull(); // This will now show an empty canvas
+      console.log("Streamer whiteboard cleared by server event.");
     });
     socket.on("wb:initState", (state) => {
       console.log(
@@ -302,34 +323,24 @@ document.addEventListener("DOMContentLoaded", () => {
         return;
       }
 
-      // Ensure whiteboard UI is active if we are receiving state
       if (!isWhiteboardActive) {
-        showWhiteboard(); // This will call resize and initial redraw (which will be empty initially)
+        showWhiteboard();
       } else {
-        resizeWhiteboardCanvas(); // Ensure canvas is sized correctly before drawing history
+        resizeWhiteboardCanvas();
       }
 
-      wbDrawingHistory = []; // Clear local history before applying server's state
+      wbDrawingHistory = [];
 
       if (state && state.history && Array.isArray(state.history)) {
-        wbDrawingHistory = state.history.map((item) => ({ ...item })); // Deep copy
+        wbDrawingHistory = state.history.map((item) => ({ ...item }));
         console.log(
           `Whiteboard state restored from history. Items: ${wbDrawingHistory.length}. Redrawing...`
         );
       } else if (state && state.dataUrl) {
-        // dataUrl restoration is more complex with a large virtual canvas and pan/zoom.
-        // The dataUrl would represent the *entire* virtual canvas, which could be huge.
-        // For simplicity, this example will prioritize history.
-        // If you need dataUrl, it should ideally be of a "snapshot" view, or
-        // you'd need to rethink how it's applied to a panned/zoomed canvas.
         console.warn(
           "Whiteboard state from Data URL is not fully supported with pan/zoom in this example. Prioritizing history if available."
         );
         if (!wbDrawingHistory.length) {
-          // Only if no history
-          // Potentially add a single image item to history representing the dataUrl at 0,0 of world.
-          // This won't be perfectly accurate if the dataUrl was a snapshot of a panned/zoomed view.
-          // wbDrawingHistory.push({ type: 'image', dataUrl: state.dataUrl, x: 0, y: 0, width: WB_MAX_WIDTH, height: WB_MAX_HEIGHT });
           console.log("Attempting to use dataUrl, but this is limited.");
         }
       } else {
@@ -337,22 +348,19 @@ document.addEventListener("DOMContentLoaded", () => {
           "Received empty or invalid initial whiteboard state. Whiteboard remains/is cleared."
         );
       }
-      redrawWhiteboardFull(); // Redraw with the new (or empty) history and current camera
+      redrawWhiteboardFull();
     });
     socket.on("wb:viewerRequestState", ({ viewerSocketId }) => {
-      if (
-        isWhiteboardActive &&
-        elements.whiteboardCanvas &&
-        wbDrawingHistory.length > 0
-      ) {
-        console.log(
-          `Streamer sending whiteboard history to viewer ${viewerSocketId}`
-        );
-        socket.emit("wb:syncStateToViewer", {
-          targetViewerId: viewerSocketId,
-          history: wbDrawingHistory,
-        });
-      }
+      // No need to check isWhiteboardActive here, just send what we have.
+      // Server may have told us to show WB if it was active for the room,
+      // even if streamer's local isWhiteboardActive was false (e.g. after a refresh).
+      console.log(
+        `Streamer sending whiteboard history (count: ${wbDrawingHistory.length}) to viewer ${viewerSocketId}`
+      );
+      socket.emit("wb:syncStateToViewer", {
+        targetViewerId: viewerSocketId,
+        history: wbDrawingHistory, // Send current history
+      });
     });
     socket.on("wb:permissionUpdate", ({ viewerUsername, canDraw }) => {
       viewerDrawPermissions[viewerUsername] = canDraw;
@@ -367,13 +375,24 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     });
     socket.on("wb:toggleVisibility", ({ isVisible }) => {
+      // Server dictates global visibility
+      console.log(
+        `Streamer received wb:toggleVisibility: ${isVisible}. Current local active: ${isWhiteboardActive}`
+      );
       if (isVisible) {
-        if (!isWhiteboardActive) showWhiteboard();
+        if (!isWhiteboardActive) {
+          showWhiteboard(); // This also calls resize and redraw
+          // If whiteboard was not active and now is, streamer might need to request its own state
+          // if it was a rejoin and server had an active WB session.
+          // However, server's `wb:viewerRequestState` covers viewers.
+          // Streamer on join also does `wb:requestInitialState`.
+        }
       } else {
-        if (isWhiteboardActive) hideWhiteboard();
+        if (isWhiteboardActive) {
+          hideWhiteboard();
+        }
       }
     });
-    // ---- Start: Streamer Quiz Socket Listeners ----
     socket.on("quiz:newQuestion", ({ questionId }) => {
       currentQuizQuestionIdStreamer = questionId;
       if (elements.showQuizAnswerBtn)
@@ -501,7 +520,6 @@ document.addEventListener("DOMContentLoaded", () => {
           elements.quizCorrectAnswerSelect.disabled = false;
       }
     });
-    // ---- End: Streamer Quiz Socket Listeners ----
   } // End initSocket
 
   // ==================================
@@ -509,41 +527,90 @@ document.addEventListener("DOMContentLoaded", () => {
   // ==================================
   function initPeer() {
     try {
-      const streamerPeerId = `${streamerConfig.roomId}_streamer_${Date.now()
-        .toString()
-        .slice(-5)}`;
-      console.log("Initializing PeerJS with ID:", streamerPeerId);
+      // Generate a more deterministic or user-specific ID if needed, but random is fine for PeerJS server assignment.
+      // Using a more stable ID format for streamer if they reconnect.
+      const streamerPeerId = `${streamerConfig.roomId}_host_${streamerConfig.username}`;
+      console.log("Attempting to initialize PeerJS with ID:", streamerPeerId);
+
       peerInstance = new Peer(streamerPeerId, streamerConfig.peerConfig);
+
       peerInstance.on("open", (id) => {
-        console.log("Streamer PeerJS connected with actual ID:", id);
+        console.log("Streamer PeerJS connected with actual ID:", id); // This might be different if ID was taken
+        // Now, check if Socket.IO is also connected, then emit streamerReady
         if (socket && socket.connected) {
+          console.log(
+            "PeerJS opened AND Socket connected. Emitting streamerReady."
+          );
           socket.emit("streamerReady", {
             roomId: streamerConfig.roomId,
-            peerId: id,
+            peerId: id, // Use the actual ID from PeerJS
           });
         } else {
-          console.warn("Peer opened, but socket not connected.");
+          console.warn(
+            "PeerJS opened, but socket not yet connected. Waiting for socket 'connect' event."
+          );
         }
       });
+
       peerInstance.on("error", (err) => {
         console.error("PeerJS Error:", err);
-        alert(
-          `Lỗi Peer: ${err.type}. Một số chức năng có thể không hoạt động. Thử tải lại trang.`
-        );
+        let message = `Lỗi PeerJS: ${err.type}.`;
+        if (err.type === "unavailable-id") {
+          message += ` ID ${streamerPeerId} đã được sử dụng. Thử lại sau hoặc đổi ID phòng.`;
+        } else if (err.type === "peer-unavailable") {
+          message += ` Không thể kết nối tới viewer. Họ có thể đã rời đi.`;
+        } else if (err.type === "network") {
+          message += ` Lỗi mạng khi kết nối PeerJS. Kiểm tra kết nối internet.`;
+        } else if (err.type === "server-error") {
+          message += ` Lỗi từ PeerJS server. Vui lòng thử lại sau.`;
+        }
+
+        if (typeof showAlert === "function") showAlert(message, "error");
+        else alert(message);
+
+        // Depending on the error, you might want to attempt a re-init or disable features
+        if (
+          err.type === "disconnected" ||
+          err.type === "network" ||
+          err.type === "server-error"
+        ) {
+          // Consider attempting to reconnect PeerJS after a delay
+          // For now, just log and alert
+          console.warn(
+            "PeerJS connection issue, may need to re-initialize or refresh."
+          );
+        }
       });
       peerInstance.on("disconnected", () => {
-        console.warn("PeerJS disconnected.");
+        console.warn(
+          "PeerJS client disconnected from the PeerServer. Attempting to reconnect..."
+        );
+        // PeerJS will attempt to reconnect automatically if the disconnection was not explicit (destroy()).
+        // You might want to add UI feedback here.
+        if (peerInstance && !peerInstance.destroyed) {
+          // peerInstance.reconnect(); // This is handled automatically by PeerJS usually
+        }
       });
       peerInstance.on("close", () => {
-        console.log("PeerJS closed.");
+        // This event is usually triggered when peer.destroy() is called.
+        console.log("PeerJS connection closed permanently.");
       });
       peerInstance.on("call", (call) => {
-        console.warn("Incoming call to streamer, rejecting.");
-        call.close();
+        // Streamer should generally not receive calls, only make them.
+        console.warn(
+          "Incoming call to streamer detected, which is unexpected. Rejecting call from:",
+          call.peer
+        );
+        call.close(); // Auto-reject
       });
     } catch (error) {
-      console.error("Failed to init PeerJS:", error);
-      alert("Lỗi khởi tạo PeerJS.");
+      console.error("Failed to initialize PeerJS instance:", error);
+      if (typeof showAlert === "function")
+        showAlert(
+          "Lỗi nghiêm trọng khi khởi tạo PeerJS. Không thể stream.",
+          "error"
+        );
+      else alert("Lỗi nghiêm trọng khi khởi tạo PeerJS. Không thể stream.");
     }
   } // End initPeer
 
