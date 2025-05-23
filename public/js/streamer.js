@@ -97,31 +97,52 @@ document.addEventListener("DOMContentLoaded", () => {
   let currentMode = null;
   let peerInstance = null;
   let currentCalls = {};
-  let viewerDrawPermissions = {};
+  let viewerDrawPermissions = {}; 
   let pendingViewers = [];
   let allJoinedViewers = new Set();
   let isMicEnabled = true;
   let isPanelCollapsed = false;
   let streamStartTime = streamerConfig.roomCreatedAt;
   let durationInterval = null;
+  
+  // --- Whiteboard State ---
   let whiteboardCtx = null;
-  let isWhiteboardActive = false;
+  let isWhiteboardActive = false; // Whether the WB overlay is globally visible/interactive
   let isDrawingOnWhiteboard = false;
-  let wbLastX = 0;
-  let wbLastY = 0;
+  let wbDrawingHistory = []; // Stores draw actions {type, x0,y0,x1,y1,color,lineWidth,isEraser} in world coordinates
+  let wbEventThrottleTimer = null;
+  
+  // Drawing tool state
   let wbCurrentColor = "#FFFFFF";
   let wbCurrentLineWidth = 3;
-  let wbDrawingHistory = [];
-  let wbEventThrottleTimer = null;
   let wbIsEraserMode = false;
-  const WB_ERASER_COLOR = "#222639";
-  const WB_THROTTLE_INTERVAL = 16;
+  const WB_ERASER_COLOR_STREAMER = "#222639"; // Canvas background from CSS
+  const WB_THROTTLE_INTERVAL = 16; // ms
+
+  // Camera/Viewport state for the whiteboard (World Coordinates)
+  const WB_MAX_WIDTH = 2048 * 2; // Virtual canvas size
+  const WB_MAX_HEIGHT = 2048 * 2;
+  let wbCamera = {
+    x: WB_MAX_WIDTH / 4, // Initial pan X (world coord at top-left of viewport)
+    y: WB_MAX_HEIGHT / 4, // Initial pan Y
+    scale: 0.5,          // Initial zoom level
+    isPanning: false,
+    lastPanMouseX: 0,    // Screen coordinates for panning
+    lastPanMouseY: 0,
+    isPanToolActive: false, // True if pan tool is selected
+    // Pinch zoom state
+    lastPinchDistance: 0,
+    isPinching: false,
+  };
+  const WB_MIN_SCALE = 0.1;
+  const WB_MAX_SCALE = 4.0;
+  // --- End Whiteboard State ---
 
   let pipChatNeedsUpdate = false;
   let pipChatCanvas = null;
   let pipChatCtx = null;
   let pipChatStream = null;
-  let pipChatUpdateRequestId = null;
+  let pipChatUpdateRequestId = null; 
   let isPipChatActive = false;
   const PIP_CANVAS_WIDTH = 400;
   const PIP_CANVAS_HEIGHT = 600;
@@ -131,13 +152,10 @@ document.addEventListener("DOMContentLoaded", () => {
   const PIP_PADDING = 10;
   const PIP_MSG_MAX_LINES = 3;
 
-  // ---- Start: Quiz State Streamer ----
-  let quizOptionsStreamer = [];
-  let currentQuizQuestionIdStreamer = null;
-  let isQuizActiveStreamer = false;
-  // ---- End: Quiz State Streamer ----
+let quizOptionsStreamer = []; 
+let currentQuizQuestionIdStreamer = null;
+let isQuizActiveStreamer = false; 
 
-  // --- DECLARE SOCKET VARIABLE AT HIGHER SCOPE ---
   let socket = null;
 
   // ==================================
@@ -2121,18 +2139,7 @@ document.addEventListener("DOMContentLoaded", () => {
       "-=0.5"
     );
     initBackgroundParticles();
-  } // End initAnimations
-
-  function initBackgroundParticles() {
-    if (prefersReducedMotion) return;
-    const t = document.getElementById("tsparticles-bg");
-    if (!t) return;
-    tsParticles
-      .load("tsparticles-bg", {
-        fpsLimit: 60,
-        particles: {
-          number: { value: 50, density: { enable: !0, value_area: 900 } },
-          color: { value: ["#FFFFFF", "#aaaacc", "#ccaaff", "#f0e68c"] },
+  } // End initAnimations "#f0e68c"] },
           shape: { type: "circle" },
           opacity: {
             value: { min: 0.05, max: 0.2 },
@@ -2414,391 +2421,41 @@ document.addEventListener("DOMContentLoaded", () => {
     quizOptionsStreamer = [];
     addQuizOptionInput();
     addQuizOptionInput();
-    if (elements.quizCorrectAnswerSelect) {
-      elements.quizCorrectAnswerSelect.innerHTML = "";
-      elements.quizCorrectAnswerSelect.disabled = false;
-      updateQuizCorrectAnswerSelect();
+    if (elements.quizCorrectAnswerSel function resetQuizUIStreamer() {
+    if (elements.quizQuestionText) {
+        elements.quizQuestionText.value = "";
+        elements.quizQuestionText.disabled = false;
     }
-
+    if (elements.quizOptionsContainer) elements.quizOptionsContainer.innerHTML = "";
+    quizOptionsStreamer = [];
+    addQuizOptionInput(); 
+    addQuizOptionInput(); 
+    if (elements.quizCorrectAnswerSelect) {
+        elements.quizCorrectAnswerSelect.innerHTML = "";
+        elements.quizCorrectAnswerSelect.disabled = false;
+        updateQuizCorrectAnswerSelect();
+    }
+    
     if (elements.addQuizOptionBtn) elements.addQuizOptionBtn.disabled = false;
     if (elements.startQuizBtn) elements.startQuizBtn.disabled = false;
     if (elements.showQuizAnswerBtn) elements.showQuizAnswerBtn.disabled = true;
-    if (elements.nextQuizQuestionBtn)
-      elements.nextQuizQuestionBtn.disabled = true;
+    if (elements.nextQuizQuestionBtn) elements.nextQuizQuestionBtn.disabled = true;
     if (elements.endQuizBtn) elements.endQuizBtn.disabled = true;
-    if (elements.quizStreamerResults)
-      elements.quizStreamerResults.innerHTML = "";
+    if (elements.quizStreamerResults) elements.quizStreamerResults.innerHTML = "";
     currentQuizQuestionIdStreamer = null;
     isQuizActiveStreamer = false; // Ensure this is also reset
-    if (
-      elements.streamerQuizPanel &&
-      elements.streamerQuizPanel.style.display !== "none"
-    ) {
-      // Only hide if it was open and now quiz is fully reset/ended, or keep it if user explicitly opened it
-      // elements.streamerQuizPanel.style.display = 'none';
-      // if(elements.toggleQuizPanelBtn) elements.toggleQuizPanelBtn.classList.remove('active');
+    if (elements.streamerQuizPanel && elements.streamerQuizPanel.style.display !== 'none') {
+        // Only hide if it was open and now quiz is fully reset/ended, or keep it if user explicitly opened it
+        // elements.streamerQuizPanel.style.display = 'none'; 
+        // if(elements.toggleQuizPanelBtn) elements.toggleQuizPanelBtn.classList.remove('active');
     }
-    if (elements.quizStreamerStatus)
-      elements.quizStreamerStatus.innerHTML = `<p>Trạng thái: Chưa bắt đầu.</p>`;
-  }
+     if (elements.quizStreamerStatus) elements.quizStreamerStatus.innerHTML = `<p>Trạng thái: Chưa bắt đầu.</p>`;
+}
 
-  function initializeQuizOptionFields() {
-    if (quizOptionsStreamer.length === 0 && elements.quizOptionsContainer) {
-      // Check container exists
-      addQuizOptionInput();
-      addQuizOptionInput();
-    }
-  }
-
-  // ==================================
-  // UI EVENT LISTENERS SETUP
-  // ==================================
-  function initUIEventListeners() {
-    // --- Control Panel Toggle ---
-    elements.togglePanelBtn?.addEventListener("click", () => {
-      isPanelCollapsed = elements.controlPanel.classList.toggle("collapsed"); 
-      const icon = elements.togglePanelBtn.querySelector("i");
-      if (!elements.panelContent) return;
-
-      gsap.to(icon, {
-        rotation: isPanelCollapsed ? 180 : 0,
-        duration: 0.4,
-        ease: "power2.inOut",
-      });
-
-      // GSAP can't directly animate to 'auto' for height with overflow changes.
-      // We'll handle overflow after the animation.
-      if (!prefersReducedMotion) {
-        if (isPanelCollapsed) {
-          gsap.to(elements.controlButtons, {
-            duration: 0.25, 
-            autoAlpha: 0,
-            y: 10, 
-            stagger: 0.04,
-            ease: "power1.in",
-            overwrite: true, 
-          });
-          gsap.to(elements.panelContent, {
-            duration: 0.4,
-            height: 0,
-            paddingTop: 0,
-            paddingBottom: 0,
-            marginTop: 0, // Keep this if it's part of the collapsed style
-            autoAlpha: 0,
-            ease: "power2.inOut",
-            delay: 0.1, 
-            onComplete: () => {
-              // elements.panelContent.style.overflowY = "hidden"; // Hide scrollbar when collapsed
-            }
-          });
-        } else {
-          // elements.panelContent.style.overflowY = "hidden"; // Keep hidden during expansion animation
-          gsap.set(elements.panelContent, {
-            display: "block", // Make it block to calculate scrollHeight
-            height: "auto",   // Temporarily set to auto to get scrollHeight
-            autoAlpha: 0,     // Keep it invisible
-          });
-          const targetHeight = elements.panelContent.scrollHeight; // Get the natural height
-          
-          gsap.fromTo(
-            elements.panelContent,
-            { // From:
-              height: 0,
-              autoAlpha: 0,
-              paddingTop: 0,
-              paddingBottom: 0,
-              // marginTop: 0 // if it's part of the collapsed style
-            },
-            { // To:
-              duration: 0.5, 
-              height: targetHeight, // Animate to the calculated height
-              paddingTop: 20,    // Restore padding
-              paddingBottom: 20,
-              // marginTop: 0,    // Restore margin if needed
-              autoAlpha: 1,
-              ease: "power3.out",
-              onComplete: () => {
-                gsap.set(elements.panelContent, { height: "auto" }); // Set to auto for dynamic content
-                // elements.panelContent.style.overflowY = "auto"; // Allow scrollbar now
-                if (elements.controlButtons && elements.controlButtons.length > 0) {
-                  gsap.fromTo(
-                    elements.controlButtons,
-                    { y: 15, autoAlpha: 0 }, 
-                    {
-                      duration: 0.5,
-                      y: 0,
-                      autoAlpha: 1,
-                      stagger: 0.06,
-                      ease: "power2.out",
-                      overwrite: true,
-                    }
-                  );
-                }
-              },
-            }
-          );
-        }
-      } else { // Reduced motion
-        elements.panelContent.style.display = isPanelCollapsed
-          ? "none"
-          : "block";
-        // elements.panelContent.style.overflowY = isPanelCollapsed ? "hidden" : "auto";
-        if(elements.controlButtons) {
-            gsap.set(elements.controlButtons, {
-              autoAlpha: isPanelCollapsed ? 0 : 1,
-            }); 
-        }
-      }
-    });
-
-    elements.shareScreenBtn?.addEventListener("click", () => {
-      playButtonFeedback(elements.shareScreenBtn);
-      startScreenShare();
-    });
-    elements.liveCamBtn?.addEventListener("click", () => {
-      playButtonFeedback(elements.liveCamBtn);
-      startLiveCam();
-    });
-    elements.toggleMicBtn?.addEventListener("click", () => {
-      playButtonFeedback(elements.toggleMicBtn);
-      toggleMicrophone();
-    });
-    elements.endStreamBtn?.addEventListener("click", async () => {
-      if (!socket) {
-        console.error("Socket not connected.");
-        return;
-      }
-      playButtonFeedback(elements.endStreamBtn);
-      const confirmed = await showStreamerConfirmation(
-        "Xác nhận kết thúc stream?",
-        "Kết thúc",
-        "Hủy",
-        "fas fa-exclamation-triangle"
-      );
-      if (confirmed) {
-        stopLocalStream();
-        socket.emit("endRoom", { roomId: streamerConfig.roomId });
-        window.location.href = "https://hoctap-9a3.glitch.me/live";
-      }
-    });
-    elements.viewersListBtn?.addEventListener("click", () => {
-      if (!socket) return;
-      playButtonFeedback(elements.viewersListBtn);
-      socket.emit("getViewersList", { roomId: streamerConfig.roomId });
-      openModal(elements.viewersModal);
-    });
-    elements.bannedListBtn?.addEventListener("click", () => {
-      if (!socket) return;
-      playButtonFeedback(elements.bannedListBtn);
-      socket.emit("getBannedList", { roomId: streamerConfig.roomId });
-      openModal(elements.bannedModal);
-    });
-    elements.closeViewersModalBtn?.addEventListener("click", () =>
-      closeModal(elements.viewersModal)
-    );
-    elements.closeBannedModalBtn?.addEventListener("click", () =>
-      closeModal(elements.bannedModal)
-    );
-    document.querySelectorAll(".modal-backdrop").forEach((backdrop) => {
-      backdrop.addEventListener("click", (e) => {
-        if (e.target === backdrop) {
-          closeModal(backdrop.closest(".modal-v2"));
-        }
-      });
-    });
-    elements.sendChatBtn?.addEventListener("click", sendChatMessage);
-    elements.chatInputArea?.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" && !e.shiftKey) {
-        e.preventDefault();
-        sendChatMessage();
-      }
-    });
-    elements.chatInputArea?.addEventListener("input", function () {
-      this.style.height = "auto";
-      this.style.height = this.scrollHeight + "px";
-      const rt = this.value || "";
-      if (elements.chatPreview && typeof marked !== "undefined") {
-        try {
-          let h = marked.parse(rt);
-          elements.chatPreview.innerHTML = h;
-        } catch (e) {
-          elements.chatPreview.innerHTML = "Lỗi xem trước Markdown";
-        }
-      }
-    });
-    elements.viewersSearchInput?.addEventListener("input", function () {
-      const q = this.value.toLowerCase();
-      const li = elements.viewersModalList?.querySelectorAll("li");
-      li?.forEach((l) => {
-        const u =
-          l.querySelector(".list-username")?.textContent.toLowerCase() || "";
-        l.style.display = u.includes(q) ? "" : "none";
-      });
-    });
-
-    elements.toggleWhiteboardBtn?.addEventListener("click", () => {
-      playButtonFeedback(elements.toggleWhiteboardBtn);
-      const newVisibility = !isWhiteboardActive;
-      if (socket && socket.connected) {
-        socket.emit("wb:toggleGlobalVisibility", {
-          roomId: streamerConfig.roomId,
-          isVisible: newVisibility,
-        });
-      } else {
-        if (newVisibility) {
-          showWhiteboard();
-        } else {
-          hideWhiteboard();
-        }
-      }
-    });
-    elements.closeWhiteboardBtn?.addEventListener("click", () => {
-      playButtonFeedback(elements.closeWhiteboardBtn);
-      if (socket && socket.connected) {
-        socket.emit("wb:toggleGlobalVisibility", {
-          roomId: streamerConfig.roomId,
-          isVisible: false,
-        });
-      } else {
-        hideWhiteboard();
-      }
-    });
-    elements.wbColorPicker?.addEventListener("input", (e) => {
-      wbCurrentColor = e.target.value;
-    });
-    elements.wbLineWidthRange?.addEventListener("input", (e) => {
-      wbCurrentLineWidth = parseInt(e.target.value, 10);
-      if (elements.wbLineWidthValueDisplay)
-        elements.wbLineWidthValueDisplay.textContent = wbCurrentLineWidth;
-    });
-    elements.wbClearBtn?.addEventListener("click", () => {
-      playButtonFeedback(elements.wbClearBtn);
-      clearWhiteboard(true);
-    });
-    elements.wbEraserModeBtn?.addEventListener("click", () => {
-      playButtonFeedback(elements.wbEraserModeBtn);
-      wbIsEraserMode = !wbIsEraserMode;
-      elements.wbEraserModeBtn.classList.toggle("active", wbIsEraserMode);
-      if(elements.whiteboardCanvas){
-          elements.whiteboardCanvas.style.cursor = wbIsEraserMode
-            ? "cell"
-            : "crosshair";
-      }
-      if (wbIsEraserMode) {
-        console.log("Eraser mode ON");
-      } else {
-        console.log("Eraser mode OFF, Pen mode ON");
-      }
-    });
-
-    if (elements.pipChatBtn && elements.pipChatVideoPlayer && pipChatCanvas) {
-      const isPiPSupportedByBrowser =
-        typeof elements.pipChatVideoPlayer.requestPictureInPicture ===
-          "function" && typeof pipChatCanvas.captureStream === "function";
-
-      if (isPiPSupportedByBrowser) {
-        elements.pipChatBtn.style.display = "flex"; 
-        elements.pipChatBtn.disabled = false;
-        elements.pipChatBtn.addEventListener("click", () => {
-          playButtonFeedback(elements.pipChatBtn);
-          togglePipChat();
-        });
-
-        elements.pipChatVideoPlayer.addEventListener(
-          "enterpictureinpicture",
-          () => {
-            console.log(
-              "PiP Chat: Sự kiện 'enterpictureinpicture' đã kích hoạt."
-            ); 
-            isPipChatActive = true;
-            pipChatNeedsUpdate = true;
-            if (elements.pipChatBtn) {
-              elements.pipChatBtn.classList.add("active");
-              elements.pipChatBtn.innerHTML =
-                '<i class="fas fa-window-minimize"></i><span class="btn-label">Thoát PiP</span>';
-            }
-            if (pipChatUpdateRequestId)
-              cancelAnimationFrame(pipChatUpdateRequestId);
-            drawPipChatFrame();
-          }
-        );
-
-        elements.pipChatVideoPlayer.addEventListener(
-          "leavepictureinpicture",
-          () => {
-            console.log("Đã thoát chế độ PiP Chat.");
-            isPipChatActive = false;
-            pipChatNeedsUpdate = false; 
-            if (pipChatUpdateRequestId) {
-              cancelAnimationFrame(pipChatUpdateRequestId);
-              pipChatUpdateRequestId = null;
-            }
-            if (elements.pipChatBtn) {
-              elements.pipChatBtn.classList.remove("active");
-              elements.pipChatBtn.innerHTML =
-                '<i class="fas fa-window-restore"></i><span class="btn-label">PiP Chat</span>';
-            }
-            if (pipChatStream) {
-              pipChatStream.getTracks().forEach((track) => track.stop());
-              pipChatStream = null;
-            }
-          }
-        );
-      } else {
-        console.warn(
-          "PiP Chat (Canvas Capture or Video PiP) is not fully supported by this browser."
-        );
-        if (elements.pipChatBtn) {
-            elements.pipChatBtn.style.display = "flex";
-            elements.pipChatBtn.classList.add("control-btn-disabled-visual");
-            elements.pipChatBtn.title =
-              "PiP Chat không được trình duyệt này hỗ trợ đầy đủ.";
-            elements.pipChatBtn.disabled = true;
-        }
-      }
-    } else if (elements.pipChatBtn) {
-      elements.pipChatBtn.style.display = "none";
-    }
-    elements.toggleQuizPanelBtn?.addEventListener("click", () => {
-        playButtonFeedback(elements.toggleQuizPanelBtn);
-        if (elements.streamerQuizPanel) {
-            const isPanelVisible = elements.streamerQuizPanel.style.display === 'block' || elements.streamerQuizPanel.style.display === '';
-            // Animate quiz panel toggle
-            const quizIcon = elements.toggleQuizPanelBtn.querySelector('i');
-             gsap.to(quizIcon, { rotation: isPanelVisible ? 0 : 180, duration: 0.3, ease: "power1.inOut" });
-
-            if(isPanelVisible) {
-                 gsap.to(elements.streamerQuizPanel, { duration: 0.3, height: 0, autoAlpha: 0, ease: 'power1.in', onComplete: () => {
-                    elements.streamerQuizPanel.style.display = 'none';
-                 }});
-                elements.toggleQuizPanelBtn.classList.remove('active');
-            } else {
-                gsap.set(elements.streamerQuizPanel, { display: 'block', height: 'auto', autoAlpha: 0 });
-                const targetHeight = elements.streamerQuizPanel.scrollHeight;
-                gsap.fromTo(elements.streamerQuizPanel, { height: 0, autoAlpha: 0 }, { duration: 0.4, height: targetHeight, autoAlpha: 1, ease: 'power2.out', onComplete: () => {
-                    gsap.set(elements.streamerQuizPanel, {height: 'auto'}); // allow dynamic content later
-                }});
-                elements.toggleQuizPanelBtn.classList.add('active');
-                initializeQuizOptionFields(); 
-                updateQuizCorrectAnswerSelect(); 
-            }
-        }
-    });
-
-    elements.addQuizOptionBtn?.addEventListener("click", () => {
-        playButtonFeedback(elements.addQuizOptionBtn);
+function initializeQuizOptionFields() {
+    if (quizOptionsStreamer.length === 0 && elements.quizOptionsContainer) { // Check container exists
         addQuizOptionInput();
-    });
-
-    elements.startQuizBtn?.addEventListener("click", handleStartQuiz);
-    elements.showQuizAnswerBtn?.addEventListener("click", handleShowQuizAnswer);
-    elements.nextQuizQuestionBtn?.addEventListener("click", handleNextQuizQuestion);
-    elements.endQuizBtn?.addEventListener("click", handleEndQuiz);
-
-  } // End initUIEventListeners
-
-  // ==================================
-  // START INITIALIZATION
-  // ==================================
-  initializeStreamer();
-}); // End DOMContentLoaded
+        addQuizOptionInput();
+    }
+}
+    
