@@ -77,7 +77,7 @@ document.addEventListener("DOMContentLoaded", () => {
     wbEraserModeBtn: document.getElementById("wbEraserModeBtnV2"),
     pipChatVideoPlayer: document.getElementById("pipChatVideoPlayer"),
     // ---- Start: Quiz Elements Streamer ----
-    toggleQuizPanelBtn: document.getElementById("toggleQuizPanelBtn"), 
+    toggleQuizPanelBtn: document.getElementById("toggleQuizPanelBtn"),
     streamerQuizPanel: document.getElementById("streamerQuizPanel"),
     quizQuestionText: document.getElementById("quizQuestionText"),
     quizOptionsContainer: document.getElementById("quizOptionsContainer"),
@@ -88,7 +88,7 @@ document.addEventListener("DOMContentLoaded", () => {
     nextQuizQuestionBtn: document.getElementById("nextQuizQuestionBtn"),
     endQuizBtn: document.getElementById("endQuizBtn"),
     quizStreamerStatus: document.getElementById("quizStreamerStatus"),
-    quizStreamerResults: document.getElementById("quizStreamerResults")
+    quizStreamerResults: document.getElementById("quizStreamerResults"),
     // ---- End: Quiz Elements Streamer ----
   };
 
@@ -97,7 +97,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let currentMode = null;
   let peerInstance = null;
   let currentCalls = {};
-  let viewerDrawPermissions = {}; // Stores { username: canDraw_boolean }
+  let viewerDrawPermissions = {};
   let pendingViewers = [];
   let allJoinedViewers = new Set();
   let isMicEnabled = true;
@@ -114,14 +114,14 @@ document.addEventListener("DOMContentLoaded", () => {
   let wbDrawingHistory = [];
   let wbEventThrottleTimer = null;
   let wbIsEraserMode = false;
-  const WB_ERASER_COLOR = "#222639"; // Should match canvas background from CSS
+  const WB_ERASER_COLOR = "#222639";
   const WB_THROTTLE_INTERVAL = 16;
 
   let pipChatNeedsUpdate = false;
   let pipChatCanvas = null;
   let pipChatCtx = null;
   let pipChatStream = null;
-  let pipChatUpdateRequestId = null; // For requestAnimationFrame
+  let pipChatUpdateRequestId = null;
   let isPipChatActive = false;
   const PIP_CANVAS_WIDTH = 400;
   const PIP_CANVAS_HEIGHT = 600;
@@ -130,6 +130,12 @@ document.addEventListener("DOMContentLoaded", () => {
   const PIP_LINE_HEIGHT = 18;
   const PIP_PADDING = 10;
   const PIP_MSG_MAX_LINES = 3;
+
+  // ---- Start: Quiz State Streamer ----
+  let quizOptionsStreamer = [];
+  let currentQuizQuestionIdStreamer = null;
+  let isQuizActiveStreamer = false;
+  // ---- End: Quiz State Streamer ----
 
   // --- DECLARE SOCKET VARIABLE AT HIGHER SCOPE ---
   let socket = null;
@@ -143,7 +149,7 @@ document.addEventListener("DOMContentLoaded", () => {
     initPeer();
     initAnimations();
     initWhiteboard();
-    initPipChatCanvas(); // Khởi tạo canvas cho PiP
+    initPipChatCanvas(); 
     initUIEventListeners();
     updateStreamDuration();
     if (durationInterval) clearInterval(durationInterval);
@@ -151,6 +157,9 @@ document.addEventListener("DOMContentLoaded", () => {
     checkMediaPermissions();
     isPanelCollapsed =
       elements.controlPanel?.classList.contains("collapsed") || false;
+    
+    resetQuizUIStreamer(); 
+
     console.log(
       "Streamer Initialization Complete. Panel collapsed:",
       isPanelCollapsed
@@ -217,7 +226,6 @@ document.addEventListener("DOMContentLoaded", () => {
       console.log("Socket received new viewer:", viewerId);
       allJoinedViewers.add(viewerId);
       callViewer(viewerId);
-      // Server will handle viewer's wb:requestInitialState and tell streamer via wb:viewerRequestState
     });
     socket.on("viewerDisconnected", ({ viewerId }) => {
       if (!viewerId) return;
@@ -248,9 +256,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
     socket.on("viewerBanned", (msg) => addChatMessage(msg, "system", "ban"));
 
-    // --- Whiteboard Socket Events ---
     socket.on("wb:draw", (data) => {
-      // Received from other users (viewers with permission)
       if (data && data.drawData) {
         drawOnWhiteboard(
           data.drawData.x0,
@@ -266,7 +272,6 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     });
     socket.on("wb:clear", () => {
-      // Received from other users (viewers with permission, if allowed)
       clearWhiteboard(false);
     });
     socket.on("wb:initState", (state) => {
@@ -277,7 +282,7 @@ document.addEventListener("DOMContentLoaded", () => {
       }
       if (state && state.history && Array.isArray(state.history)) {
         if (!isWhiteboardActive) showWhiteboard();
-        else resizeWhiteboardCanvas(); // Ensure canvas is sized and clear for redraw
+        else resizeWhiteboardCanvas(); 
 
         whiteboardCtx.clearRect(
           0,
@@ -357,17 +362,94 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     });
     socket.on("wb:toggleVisibility", ({ isVisible }) => {
-      // This event is mainly for viewers, but streamer might receive it
-      // if server broadcasts to whole room including sender.
-      // Streamer's local state `isWhiteboardActive` should already be set
-      // by its own action that triggered this server event.
-      // However, this ensures consistency if streamer reconnects or similar.
       if (isVisible) {
-        if (!isWhiteboardActive) showWhiteboard(); // Show if not already locally active
+        if (!isWhiteboardActive) showWhiteboard(); 
       } else {
-        if (isWhiteboardActive) hideWhiteboard(); // Hide if locally active
+        if (isWhiteboardActive) hideWhiteboard(); 
       }
     });
+    // ---- Start: Streamer Quiz Socket Listeners ----
+    socket.on("quiz:newQuestion", ({ questionId }) => { 
+        currentQuizQuestionIdStreamer = questionId;
+        if (elements.showQuizAnswerBtn) elements.showQuizAnswerBtn.disabled = false;
+        if (elements.nextQuizQuestionBtn) elements.nextQuizQuestionBtn.disabled = false;
+        if (elements.endQuizBtn) elements.endQuizBtn.disabled = false;
+        if (elements.startQuizBtn) elements.startQuizBtn.disabled = true; 
+        if (elements.quizStreamerStatus) {
+            const qText = elements.quizQuestionText.value.trim();
+            elements.quizStreamerStatus.innerHTML = `<p>Trạng thái: Đang hỏi: "${qText.substring(0,50)}..." (ID: ${questionId.substring(0,6)})</p>`;
+        }
+    });
+
+    socket.on("quiz:resultsUpdate", ({ questionId, results }) => {
+        if (elements.quizStreamerResults && questionId === currentQuizQuestionIdStreamer) {
+            let resultsHtml = "<h4>Kết quả hiện tại:</h4><ul>";
+            const options = quizOptionsStreamer.map(opt => opt.inputElement.value.trim());
+            let totalVotes = 0;
+            Object.values(results).forEach(count => totalVotes += count);
+
+            for (const optionIndex in results) {
+                const count = results[optionIndex];
+                const percentage = totalVotes > 0 ? ((count / totalVotes) * 100).toFixed(1) : 0;
+                const optionText = options[optionIndex] || `Lựa chọn ${parseInt(optionIndex)+1}`;
+                resultsHtml += `<li>${optionText}: ${count} (${percentage}%)</li>`;
+            }
+            resultsHtml += `</ul><p>Tổng số phiếu: ${totalVotes}</p>`;
+            elements.quizStreamerResults.innerHTML = resultsHtml;
+        }
+    });
+    
+    socket.on("quiz:correctAnswer", ({ questionId, correctAnswerIndex, results }) => {
+        if (questionId === currentQuizQuestionIdStreamer) {
+            if (elements.showQuizAnswerBtn) elements.showQuizAnswerBtn.disabled = true;
+            if (elements.quizStreamerStatus) {
+                 const qText = elements.quizQuestionText ? elements.quizQuestionText.value.trim() : "Câu hỏi";
+                 const options = quizOptionsStreamer.map(opt => opt.inputElement.value.trim());
+                 const correctOptText = options[correctAnswerIndex] || `Lựa chọn ${correctAnswerIndex+1}`;
+                 elements.quizStreamerStatus.innerHTML = `<p>Trạng thái: Đã hiển thị đáp án cho "${qText.substring(0,50)}...". Đáp án đúng: <strong>${correctOptText}</strong></p>`;
+            }
+            if (elements.quizStreamerResults) {
+                let resultsHtml = "<h4>Kết quả cuối cùng:</h4><ul>";
+                const options = quizOptionsStreamer.map(opt => opt.inputElement.value.trim());
+                let totalVotes = 0;
+                Object.values(results).forEach(count => totalVotes += count);
+
+                for (const optionIndex in results) {
+                    const count = results[optionIndex];
+                    const percentage = totalVotes > 0 ? ((count / totalVotes) * 100).toFixed(1) : 0;
+                    const optionText = options[optionIndex] || `Lựa chọn ${parseInt(optionIndex)+1}`;
+                    const isCorrect = parseInt(optionIndex) === correctAnswerIndex;
+                    resultsHtml += `<li ${isCorrect ? 'style="font-weight:bold; color:var(--success-color);"' : ''}>${optionText}: ${count} (${percentage}%) ${isCorrect ? ' (ĐÚNG)' : ''}</li>`;
+                }
+                resultsHtml += `</ul><p>Tổng số phiếu: ${totalVotes}</p>`;
+                elements.quizStreamerResults.innerHTML = resultsHtml;
+            }
+        }
+    });
+
+    socket.on("quiz:ended", () => {
+        isQuizActiveStreamer = false;
+        resetQuizUIStreamer(); 
+        if (elements.quizStreamerStatus) elements.quizStreamerStatus.innerHTML = `<p>Trạng thái: Trắc nghiệm đã kết thúc.</p>`;
+    });
+
+    socket.on("quiz:clearCurrent", () => {
+        if (elements.quizStreamerStatus) elements.quizStreamerStatus.innerHTML = `<p>Trạng thái: Chờ câu hỏi mới...</p>`;
+        if (elements.quizStreamerResults) elements.quizStreamerResults.innerHTML = "";
+        currentQuizQuestionIdStreamer = null;
+    });
+
+    socket.on("quiz:error", (errorMessage) => {
+        if(typeof showAlert === 'function') showAlert(errorMessage, "error");
+        if (elements.startQuizBtn && elements.startQuizBtn.disabled && !isQuizActiveStreamer) {
+            elements.startQuizBtn.disabled = false;
+            if (elements.quizQuestionText) elements.quizQuestionText.disabled = false;
+            quizOptionsStreamer.forEach(opt => { if(opt.inputElement) opt.inputElement.disabled = false; });
+            if (elements.addQuizOptionBtn) elements.addQuizOptionBtn.disabled = false;
+            if (elements.quizCorrectAnswerSelect) elements.quizCorrectAnswerSelect.disabled = false;
+        }
+    });
+    // ---- End: Streamer Quiz Socket Listeners ----
   } // End initSocket
 
   // ==================================
@@ -2095,17 +2177,274 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
+  function addQuizOptionInput(optionText = "") {
+    if (!elements.quizOptionsContainer || !elements.quizCorrectAnswerSelect)
+      return;
+    if (quizOptionsStreamer.length >= 6) {
+      // Max 6 options for example
+      if (typeof showAlert === "function")
+        showAlert("Tối đa 6 lựa chọn cho một câu hỏi.", "warning");
+      return;
+    }
+
+    const optionId = `quizOption_${Date.now()}_${quizOptionsStreamer.length}`;
+    const wrapper = document.createElement("div");
+    wrapper.className = "quiz-option-input-wrapper";
+    wrapper.style.display = "flex";
+    wrapper.style.alignItems = "center";
+    wrapper.style.marginBottom = "8px";
+
+    const input = document.createElement("input");
+    input.type = "text";
+    input.placeholder = `Lựa chọn ${quizOptionsStreamer.length + 1}`;
+    input.value = optionText;
+    input.dataset.optionId = optionId;
+    input.style.flexGrow = "1";
+    input.style.padding = "8px";
+    input.style.border = "1px solid var(--border-color)";
+    input.style.borderRadius = "var(--border-radius-small)";
+    input.style.backgroundColor = "rgba(var(--bg-dark-rgb), 0.7)";
+    input.style.color = "var(--text-light)";
+
+    const removeBtn = document.createElement("button");
+    removeBtn.innerHTML = '<i class="fas fa-times"></i>';
+    removeBtn.className = "quiz-option-remove-btn";
+    removeBtn.title = "Xóa lựa chọn này";
+    removeBtn.style.marginLeft = "8px";
+    removeBtn.style.background = "var(--danger-color)";
+    removeBtn.style.color = "white";
+    removeBtn.style.border = "none";
+    removeBtn.style.borderRadius = "50%";
+    removeBtn.style.width = "24px";
+    removeBtn.style.height = "24px";
+    removeBtn.style.cursor = "pointer";
+    removeBtn.style.display = "flex";
+    removeBtn.style.alignItems = "center";
+    removeBtn.style.justifyContent = "center";
+
+    removeBtn.onclick = () => {
+      quizOptionsStreamer = quizOptionsStreamer.filter(
+        (opt) => opt.id !== optionId
+      );
+      wrapper.remove();
+      updateQuizCorrectAnswerSelect();
+    };
+
+    wrapper.appendChild(input);
+    wrapper.appendChild(removeBtn);
+    elements.quizOptionsContainer.appendChild(wrapper);
+    quizOptionsStreamer.push({ id: optionId, inputElement: input });
+    updateQuizCorrectAnswerSelect();
+  }
+
+  // Function to update the "correct answer" dropdown
+  function updateQuizCorrectAnswerSelect() {
+    if (!elements.quizCorrectAnswerSelect) return;
+    elements.quizCorrectAnswerSelect.innerHTML = "";
+    if (quizOptionsStreamer.length === 0) {
+      elements.quizCorrectAnswerSelect.style.display = "none";
+      return;
+    }
+    elements.quizCorrectAnswerSelect.style.display = "block";
+
+    quizOptionsStreamer.forEach((option, index) => {
+      const optElement = document.createElement("option");
+      const currentText =
+        option.inputElement.value.trim() || `Lựa chọn ${index + 1}`;
+      optElement.value = index.toString();
+      optElement.textContent = `Đáp án ${index + 1}: ${currentText.substring(
+        0,
+        30
+      )}${currentText.length > 30 ? "..." : ""}`;
+      elements.quizCorrectAnswerSelect.appendChild(optElement);
+    });
+
+    quizOptionsStreamer.forEach((option, index) => {
+      option.inputElement.oninput = () => {
+        const selectOption = elements.quizCorrectAnswerSelect.options[index];
+        if (selectOption) {
+          const inputText =
+            option.inputElement.value.trim() || `Lựa chọn ${index + 1}`;
+          selectOption.textContent = `Đáp án ${
+            index + 1
+          }: ${inputText.substring(0, 30)}${
+            inputText.length > 30 ? "..." : ""
+          }`;
+        }
+      };
+    });
+  }
+
+  function handleStartQuiz() {
+    if (
+      !socket ||
+      !elements.quizQuestionText ||
+      !elements.quizCorrectAnswerSelect
+    )
+      return;
+    playButtonFeedback(elements.startQuizBtn);
+
+    const questionText = elements.quizQuestionText.value.trim();
+    const options = quizOptionsStreamer
+      .map((opt) => opt.inputElement.value.trim())
+      .filter((optText) => optText.length > 0);
+    const correctAnswerIndex = parseInt(
+      elements.quizCorrectAnswerSelect.value,
+      10
+    );
+
+    if (!questionText) {
+      if (typeof showAlert === "function")
+        showAlert("Vui lòng nhập nội dung câu hỏi.", "warning");
+      return;
+    }
+    if (options.length < 2) {
+      if (typeof showAlert === "function")
+        showAlert("Cần ít nhất 2 lựa chọn cho câu hỏi.", "warning");
+      return;
+    }
+    if (
+      isNaN(correctAnswerIndex) ||
+      correctAnswerIndex < 0 ||
+      correctAnswerIndex >= options.length
+    ) {
+      if (typeof showAlert === "function")
+        showAlert("Vui lòng chọn đáp án đúng hợp lệ.", "warning");
+      return;
+    }
+
+    socket.emit("quiz:start", {
+      roomId: streamerConfig.roomId,
+      questionText: questionText,
+      options: options,
+      correctAnswerIndex: correctAnswerIndex,
+    });
+
+    elements.startQuizBtn.disabled = true;
+    elements.quizQuestionText.disabled = true;
+    quizOptionsStreamer.forEach((opt) => (opt.inputElement.disabled = true));
+    elements.addQuizOptionBtn.disabled = true;
+    elements.quizCorrectAnswerSelect.disabled = true;
+
+    elements.showQuizAnswerBtn.disabled = false;
+    elements.nextQuizQuestionBtn.disabled = false;
+    elements.endQuizBtn.disabled = false;
+    if (elements.quizStreamerStatus)
+      elements.quizStreamerStatus.innerHTML = `<p>Trạng thái: Đang hỏi: "${questionText.substring(
+        0,
+        50
+      )}..."</p>`;
+    if (elements.quizStreamerResults)
+      elements.quizStreamerResults.innerHTML = "";
+    isQuizActiveStreamer = true;
+  }
+
+  function handleShowQuizAnswer() {
+    if (!socket || !currentQuizQuestionIdStreamer) return;
+    playButtonFeedback(elements.showQuizAnswerBtn);
+    socket.emit("quiz:showAnswer", {
+      roomId: streamerConfig.roomId,
+      questionId: currentQuizQuestionIdStreamer,
+    });
+    elements.showQuizAnswerBtn.disabled = true;
+  }
+
+  function handleNextQuizQuestion() {
+    if (!socket) return;
+    playButtonFeedback(elements.nextQuizQuestionBtn);
+    socket.emit("quiz:nextQuestion", { roomId: streamerConfig.roomId });
+
+    if (elements.quizQuestionText) {
+      elements.quizQuestionText.value = "";
+      elements.quizQuestionText.disabled = false;
+    }
+    if (elements.quizOptionsContainer)
+      elements.quizOptionsContainer.innerHTML = "";
+    quizOptionsStreamer = [];
+    addQuizOptionInput();
+    addQuizOptionInput();
+    if (elements.quizCorrectAnswerSelect) {
+      elements.quizCorrectAnswerSelect.innerHTML = "";
+      elements.quizCorrectAnswerSelect.disabled = false;
+      updateQuizCorrectAnswerSelect();
+    }
+    if (elements.addQuizOptionBtn) elements.addQuizOptionBtn.disabled = false;
+    if (elements.startQuizBtn) elements.startQuizBtn.disabled = false;
+    if (elements.showQuizAnswerBtn) elements.showQuizAnswerBtn.disabled = true;
+    if (elements.nextQuizQuestionBtn)
+      elements.nextQuizQuestionBtn.disabled = true;
+    if (elements.quizStreamerStatus)
+      elements.quizStreamerStatus.innerHTML = `<p>Trạng thái: Chờ câu hỏi mới...</p>`;
+    if (elements.quizStreamerResults)
+      elements.quizStreamerResults.innerHTML = "";
+    currentQuizQuestionIdStreamer = null;
+  }
+
+  function handleEndQuiz() {
+    if (!socket) return;
+    playButtonFeedback(elements.endQuizBtn);
+    socket.emit("quiz:end", { roomId: streamerConfig.roomId });
+    isQuizActiveStreamer = false;
+    resetQuizUIStreamer();
+    if (elements.quizStreamerStatus)
+      elements.quizStreamerStatus.innerHTML = `<p>Trạng thái: Đã kết thúc.</p>`;
+  }
+
+  function resetQuizUIStreamer() {
+    if (elements.quizQuestionText) {
+      elements.quizQuestionText.value = "";
+      elements.quizQuestionText.disabled = false;
+    }
+    if (elements.quizOptionsContainer)
+      elements.quizOptionsContainer.innerHTML = "";
+    quizOptionsStreamer = [];
+    addQuizOptionInput();
+    addQuizOptionInput();
+    if (elements.quizCorrectAnswerSelect) {
+      elements.quizCorrectAnswerSelect.innerHTML = "";
+      elements.quizCorrectAnswerSelect.disabled = false;
+      updateQuizCorrectAnswerSelect();
+    }
+
+    if (elements.addQuizOptionBtn) elements.addQuizOptionBtn.disabled = false;
+    if (elements.startQuizBtn) elements.startQuizBtn.disabled = false;
+    if (elements.showQuizAnswerBtn) elements.showQuizAnswerBtn.disabled = true;
+    if (elements.nextQuizQuestionBtn)
+      elements.nextQuizQuestionBtn.disabled = true;
+    if (elements.endQuizBtn) elements.endQuizBtn.disabled = true;
+    if (elements.quizStreamerResults)
+      elements.quizStreamerResults.innerHTML = "";
+    currentQuizQuestionIdStreamer = null;
+    isQuizActiveStreamer = false; // Ensure this is also reset
+    if (
+      elements.streamerQuizPanel &&
+      elements.streamerQuizPanel.style.display !== "none"
+    ) {
+      // Only hide if it was open and now quiz is fully reset/ended, or keep it if user explicitly opened it
+      // elements.streamerQuizPanel.style.display = 'none';
+      // if(elements.toggleQuizPanelBtn) elements.toggleQuizPanelBtn.classList.remove('active');
+    }
+    if (elements.quizStreamerStatus)
+      elements.quizStreamerStatus.innerHTML = `<p>Trạng thái: Chưa bắt đầu.</p>`;
+  }
+
+  function initializeQuizOptionFields() {
+    if (quizOptionsStreamer.length === 0 && elements.quizOptionsContainer) {
+      // Check container exists
+      addQuizOptionInput();
+      addQuizOptionInput();
+    }
+  }
+
   // ==================================
   // UI EVENT LISTENERS SETUP
   // ==================================
   function initUIEventListeners() {
-    // --- Control Panel Toggle ---
     elements.togglePanelBtn?.addEventListener("click", () => {
-      isPanelCollapsed = elements.controlPanel.classList.toggle("collapsed"); // Toggle class first
+      isPanelCollapsed = elements.controlPanel.classList.toggle("collapsed");
       const icon = elements.togglePanelBtn.querySelector("i");
       if (!elements.panelContent) return;
 
-      // Animate icon rotation
       gsap.to(icon, {
         rotation: isPanelCollapsed ? 180 : 0,
         duration: 0.4,
@@ -2114,14 +2453,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
       if (!prefersReducedMotion) {
         if (isPanelCollapsed) {
-          // --- Collapse Animation ---
           gsap.to(elements.controlButtons, {
-            duration: 0.25, // Faster fade out
+            duration: 0.25,
             autoAlpha: 0,
-            y: 10, // Move down slightly
+            y: 10,
             stagger: 0.04,
             ease: "power1.in",
-            overwrite: true, // Ensure it stops any 'from' animation
+            overwrite: true,
           });
           gsap.to(elements.panelContent, {
             duration: 0.4,
@@ -2131,15 +2469,14 @@ document.addEventListener("DOMContentLoaded", () => {
             marginTop: 0,
             autoAlpha: 0,
             ease: "power2.inOut",
-            delay: 0.1, // Delay slightly after buttons start fading
+            delay: 0.1,
           });
         } else {
-          // --- Expand Animation ---
           gsap.set(elements.panelContent, {
             display: "block",
             height: "auto",
             autoAlpha: 0,
-          }); // Start invisible for height calc
+          });
           const targetPanelStyles = {
             height: elements.panelContent.scrollHeight,
             paddingTop: 20,
@@ -2157,7 +2494,7 @@ document.addEventListener("DOMContentLoaded", () => {
               marginTop: 0,
             },
             {
-              duration: 0.5, // Slightly longer expand
+              duration: 0.5,
               ...targetPanelStyles,
               ease: "power3.out",
               onComplete: () => {
@@ -2165,7 +2502,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 if (elements.controlButtons.length > 0) {
                   gsap.fromTo(
                     elements.controlButtons,
-                    { y: 15, autoAlpha: 0 }, // Start from slightly below
+                    { y: 15, autoAlpha: 0 },
                     {
                       duration: 0.5,
                       y: 0,
@@ -2181,16 +2518,14 @@ document.addEventListener("DOMContentLoaded", () => {
           );
         }
       } else {
-        // Reduced motion toggle
         elements.panelContent.style.display = isPanelCollapsed
           ? "none"
           : "block";
         gsap.set(elements.controlButtons, {
           autoAlpha: isPanelCollapsed ? 0 : 1,
-        }); // Instantly show/hide buttons
+        });
       }
     });
-    // --- Stream Control Buttons ---
     elements.shareScreenBtn?.addEventListener("click", () => {
       playButtonFeedback(elements.shareScreenBtn);
       startScreenShare();
@@ -2221,7 +2556,6 @@ document.addEventListener("DOMContentLoaded", () => {
         window.location.href = "https://hoctap-9a3.glitch.me/live";
       }
     });
-    // --- Modal Buttons ---
     elements.viewersListBtn?.addEventListener("click", () => {
       if (!socket) return;
       playButtonFeedback(elements.viewersListBtn);
@@ -2247,7 +2581,6 @@ document.addEventListener("DOMContentLoaded", () => {
         }
       });
     });
-    // --- Chat Input ---
     elements.sendChatBtn?.addEventListener("click", sendChatMessage);
     elements.chatInputArea?.addEventListener("keydown", (e) => {
       if (e.key === "Enter" && !e.shiftKey) {
@@ -2268,7 +2601,6 @@ document.addEventListener("DOMContentLoaded", () => {
         }
       }
     });
-    // --- Search Filter ---
     elements.viewersSearchInput?.addEventListener("input", function () {
       const q = this.value.toLowerCase();
       const li = elements.viewersModalList?.querySelectorAll("li");
@@ -2279,7 +2611,6 @@ document.addEventListener("DOMContentLoaded", () => {
       });
     });
 
-    // --- Whiteboard Controls ---
     elements.toggleWhiteboardBtn?.addEventListener("click", () => {
       playButtonFeedback(elements.toggleWhiteboardBtn);
       const newVisibility = !isWhiteboardActive;
@@ -2298,7 +2629,6 @@ document.addEventListener("DOMContentLoaded", () => {
     });
     elements.closeWhiteboardBtn?.addEventListener("click", () => {
       playButtonFeedback(elements.closeWhiteboardBtn);
-      // Streamer explicitly closing their view of whiteboard, also signals to others
       if (socket && socket.connected) {
         socket.emit("wb:toggleGlobalVisibility", {
           roomId: streamerConfig.roomId,
@@ -2334,27 +2664,25 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     });
 
-    // --- PiP Button ---
     if (elements.pipChatBtn && elements.pipChatVideoPlayer && pipChatCanvas) {
       const isPiPSupportedByBrowser =
         typeof elements.pipChatVideoPlayer.requestPictureInPicture ===
           "function" && typeof pipChatCanvas.captureStream === "function";
 
       if (isPiPSupportedByBrowser) {
-        elements.pipChatBtn.style.display = "flex"; // Hoặc 'inline-flex' / 'block'
+        elements.pipChatBtn.style.display = "flex";
         elements.pipChatBtn.disabled = false;
         elements.pipChatBtn.addEventListener("click", () => {
           playButtonFeedback(elements.pipChatBtn);
           togglePipChat();
         });
 
-        // Bên trong initUIEventListeners(), trong phần if (isPiPSupportedByBrowser)
         elements.pipChatVideoPlayer.addEventListener(
           "enterpictureinpicture",
           () => {
             console.log(
               "PiP Chat: Sự kiện 'enterpictureinpicture' đã kích hoạt."
-            ); // Log này phải xuất hiện
+            );
             isPipChatActive = true;
             pipChatNeedsUpdate = true;
             if (elements.pipChatBtn) {
@@ -2373,7 +2701,7 @@ document.addEventListener("DOMContentLoaded", () => {
           () => {
             console.log("Đã thoát chế độ PiP Chat.");
             isPipChatActive = false;
-            pipChatNeedsUpdate = false; // Không cần update nữa
+            pipChatNeedsUpdate = false;
             if (pipChatUpdateRequestId) {
               cancelAnimationFrame(pipChatUpdateRequestId);
               pipChatUpdateRequestId = null;
@@ -2400,11 +2728,41 @@ document.addEventListener("DOMContentLoaded", () => {
         elements.pipChatBtn.disabled = true;
       }
     } else if (elements.pipChatBtn) {
-      // Nếu video player hoặc canvas không có, vẫn ẩn/disable nút
       elements.pipChatBtn.style.display = "none";
     }
-  } // End initUIEventListeners
+    // ---- Start: Quiz Panel UI Listeners Streamer ----
+    elements.toggleQuizPanelBtn?.addEventListener("click", () => {
+      playButtonFeedback(elements.toggleQuizPanelBtn);
+      if (elements.streamerQuizPanel) {
+        const isPanelVisible =
+          elements.streamerQuizPanel.style.display === "block" ||
+          elements.streamerQuizPanel.style.display === "";
+        if (isPanelVisible) {
+          elements.streamerQuizPanel.style.display = "none";
+          elements.toggleQuizPanelBtn.classList.remove("active");
+        } else {
+          elements.streamerQuizPanel.style.display = "block";
+          elements.toggleQuizPanelBtn.classList.add("active");
+          initializeQuizOptionFields();
+          updateQuizCorrectAnswerSelect();
+        }
+      }
+    });
 
+    elements.addQuizOptionBtn?.addEventListener("click", () => {
+      playButtonFeedback(elements.addQuizOptionBtn);
+      addQuizOptionInput();
+    });
+
+    elements.startQuizBtn?.addEventListener("click", handleStartQuiz);
+    elements.showQuizAnswerBtn?.addEventListener("click", handleShowQuizAnswer);
+    elements.nextQuizQuestionBtn?.addEventListener(
+      "click",
+      handleNextQuizQuestion
+    );
+    elements.endQuizBtn?.addEventListener("click", handleEndQuiz);
+    // ---- End: Quiz Panel UI Listeners Streamer ----
+  }
   // ==================================
   // START INITIALIZATION
   // ==================================

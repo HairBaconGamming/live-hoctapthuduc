@@ -63,6 +63,52 @@
                              <div class="stream-status-indicator" id="streamStatusIndicator">OFF AIR</div>
                          </div>
                     </div>
+                   <div class="control-panel-section" id="quizCreatorSection" style="margin-top: 20px; border-top: 1px solid var(--border-color); padding-top: 20px;">
+                        <div style="display:flex; justify-content: space-between; align-items:center; margin-bottom:15px;">
+                            <h4 style="font-size: 1.1rem; color: var(--accent-color); margin:0;"><i class="fas fa-question-circle" style="margin-right:8px;"></i>Tạo Trắc Nghiệm</h4>
+                            <button id="toggleQuizPanelBtn" class="control-btn control-btn-small" title="Ẩn/Hiện Bảng Tạo Trắc Nghiệm" style="flex-grow:0; min-width:auto; padding: 6px 10px !important;">
+                                <i class="fas fa-chevron-down"></i>
+                            </button>
+                        </div>
+                        <div id="streamerQuizPanel" style="display: none;">
+                            <div class="quiz-question-creator">
+                                <label for="quizQuestionText" style="display:block; margin-bottom:5px; font-size:0.9em; color: var(--text-medium);">Nội dung câu hỏi:</label>
+                                <textarea id="quizQuestionText" placeholder="Nhập câu hỏi trắc nghiệm tại đây..."></textarea>
+                                
+                                <label style="display:block; margin-bottom:5px; font-size:0.9em; color: var(--text-medium);">Các lựa chọn (tối đa 6):</label>
+                                <div id="quizOptionsContainer">
+                                    <!-- Option inputs will be added here by JS -->
+                                </div>
+                                <button id="addQuizOptionBtn" class="control-btn control-btn-small">
+                                    <i class="fas fa-plus-circle"></i> Thêm lựa chọn
+                                </button>
+
+                                <label for="quizCorrectAnswerSelect" style="display:block; margin-top:10px; margin-bottom:5px; font-size:0.9em; color: var(--text-medium);">Chọn đáp án đúng:</label>
+                                <select id="quizCorrectAnswerSelect" style="display:none;"></select>
+                            </div>
+
+                            <div class="quiz-controls-streamer">
+                                <button id="startQuizBtn" class="control-btn" title="Bắt đầu câu hỏi này">
+                                    <i class="fas fa-play-circle"></i><span class="btn-label">Bắt đầu</span>
+                                </button>
+                                <button id="showQuizAnswerBtn" class="control-btn" title="Hiển thị đáp án đúng cho câu hỏi hiện tại" disabled>
+                                    <i class="fas fa-eye"></i><span class="btn-label">Xem đáp án</span>
+                                </button>
+                                <button id="nextQuizQuestionBtn" class="control-btn" title="Xóa câu hỏi hiện tại, chuẩn bị câu mới" disabled>
+                                    <i class="fas fa-forward"></i><span class="btn-label">Câu tiếp</span>
+                                </button>
+                                <button id="endQuizBtn" class="control-btn" title="Kết thúc phiên trắc nghiệm" style="background-color: rgba(var(--danger-color),0.15); border-color: rgba(var(--danger-color),0.4);" disabled>
+                                    <i class="fas fa-stop-circle"></i><span class="btn-label">Kết thúc</span>
+                                </button>
+                            </div>
+                            <div id="quizStreamerStatus" style="margin-top:10px;">
+                                <p>Trạng thái: Chưa bắt đầu.</p>
+                            </div>
+                            <div id="quizStreamerResults" style="margin-top:10px;">
+                                <!-- Results will be displayed here by JS -->
+                            </div>
+                        </div>
+                    </div>
                      <div class="control-section primary-controls">
                           <button id="shareScreenBtnV2" class="control-btn screen-share" data-tooltip="Chia sẻ Màn hình">
                               <i class="fas fa-desktop"></i> <span class="btn-label">Màn hình</span>

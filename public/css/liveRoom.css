@@ -398,3 +398,134 @@ html, body.live-room-body {
 .wb-viewer-toggle-btn i {
     margin-right: 6px;
 }
+
+/* --- Viewer Quiz Overlay Styles --- */
+#viewerQuizOverlay {
+    position: fixed;
+    bottom: 20px;
+    left: 50%; /* Center horizontally */
+    transform: translateX(-50%); /* Adjust for centering */
+    width: calc(100% - 40px); 
+    max-width: 480px;
+    background: var(--bg-panel-translucent, rgba(26, 26, 46, 0.92));
+    backdrop-filter: blur(10px) saturate(120%);
+    -webkit-backdrop-filter: blur(10px) saturate(120%);
+    padding: 25px;
+    border-radius: var(--border-radius-large, 12px);
+    border: 1px solid var(--border-highlight, rgba(138, 127, 251, 0.5));
+    z-index: 1010; 
+    box-shadow: var(--shadow-dark, 0 10px 30px rgba(0,0,0,0.3));
+    color: var(--text-light, #e8eaf6);
+    display: none; 
+    opacity: 0; 
+}
+
+#viewerQuizOverlay h4#quizQuestionViewerText {
+    font-size: 1.2rem; /* Adjusted from 1.25rem */
+    font-weight: 600;
+    margin-bottom: 20px;
+    line-height: 1.4;
+    color: var(--text-light); /* Ensure text color */
+}
+
+#quizOptionsViewerContainer .quiz-option-btn-viewer {
+    display: block;
+    width: 100%;
+    margin-bottom: 10px;
+    padding: 12px 15px;
+    text-align: left;
+    font-size: 0.95rem; /* Adjusted from 1rem */
+    background-color: rgba(var(--primary-color-rgb, 138, 127, 251), 0.15);
+    border: 1px solid rgba(var(--primary-color-rgb, 138, 127, 251), 0.4);
+    color: var(--text-light);
+    border-radius: var(--border-radius-medium, 8px);
+    cursor: pointer;
+    transition: background-color 0.2s ease, border-color 0.2s ease, transform 0.1s ease;
+    box-sizing: border-box; /* Ensure padding doesn't make it overflow */
+}
+#quizOptionsViewerContainer .quiz-option-btn-viewer:hover:not(:disabled) {
+    background-color: rgba(var(--primary-color-rgb, 138, 127, 251), 0.25);
+    border-color: var(--primary-color, #8a7ffb);
+    transform: translateY(-2px);
+}
+#quizOptionsViewerContainer .quiz-option-btn-viewer:active:not(:disabled) {
+    transform: translateY(0px);
+}
+#quizOptionsViewerContainer .quiz-option-btn-viewer.selected { /* When viewer clicks an option */
+    background-color: rgba(var(--secondary-color-rgb, 255, 126, 185), 0.3) !important; /* Use !important to override hover if needed */
+    border-color: var(--secondary-color, #ff7eb9) !important;
+    font-weight: bold;
+}
+#quizOptionsViewerContainer .quiz-option-btn-viewer:disabled {
+    opacity: 0.8; /* Slightly less faded when disabled for readability of results */
+    cursor: not-allowed;
+}
+#quizOptionsViewerContainer .quiz-option-btn-viewer:disabled:hover {
+    transform: none; /* No hover effect when disabled */
+}
+/* Styling for correct/incorrect after answer is revealed */
+#quizOptionsViewerContainer .quiz-option-btn-viewer.correct-answer {
+    border-color: var(--success-color, green) !important;
+    background-color: rgba(var(--success-color-rgb, 80, 250, 123), 0.25) !important;
+}
+#quizOptionsViewerContainer .quiz-option-btn-viewer.incorrect-answer {
+    border-color: var(--danger-color, red) !important;
+    background-color: rgba(var(--danger-color-rgb, 255, 85, 85), 0.15) !important;
+    opacity: 0.7;
+}
+
+
+#quizViewerFeedback {
+    margin-top: 15px; /* Adjusted from 20px */
+    font-style: italic;
+    font-size: 0.9rem; /* Adjusted from 0.95rem */
+    color: var(--text-medium, #a0a0c0);
+    min-height: 1.5em; 
+    text-align: center;
+}
+
+#closeQuizOverlayBtn {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    background: none;
+    border: none;
+    color: var(--text-medium, #a0a0c0);
+    font-size: 1.6rem; /* Adjusted from 1.8rem */
+    font-weight: lighter;
+    cursor: pointer;
+    padding: 5px;
+    line-height: 1;
+    transition: color 0.2s ease, transform 0.2s ease;
+}
+#closeQuizOverlayBtn:hover {
+    color: var(--text-light, #e8eaf6);
+    transform: scale(1.1);
+}
+
+@media (max-width: 600px) {
+    #viewerQuizOverlay {
+        bottom: 10px;
+        left: 10px;
+        transform: translateX(0); /* Reset transform for full width */
+        width: calc(100% - 20px);
+        padding: 15px; /* Reduced padding */
+    }
+    #viewerQuizOverlay h4#quizQuestionViewerText {
+        font-size: 1.05rem; /* Further adjust */
+        margin-bottom: 15px;
+    }
+    #quizOptionsViewerContainer .quiz-option-btn-viewer {
+        padding: 10px 12px;
+        font-size: 0.85rem; /* Further adjust */
+    }
+    #quizViewerFeedback {
+        font-size: 0.85rem; /* Further adjust */
+        margin-top: 12px; /* Reduced margin */
+    }
+    #closeQuizOverlayBtn {
+        top: 8px;
+        right: 8px;
+        font-size: 1.5rem;
+    }
+}
