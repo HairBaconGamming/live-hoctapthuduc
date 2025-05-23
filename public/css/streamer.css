@@ -111,12 +111,15 @@
 
 /* Collapsible Content Area */
 .panel-content-collapsible {
-    overflow-y: auto; /* Allow scrolling within content if needed */
+    /* overflow-y: auto; */ /* Managed by JS for animation, set to auto when expanded */
     overflow-x: hidden;
-    padding: 20px 20px 20px; /* Consistent padding */
-    margin-top: 0; /* Reset margin */
-    flex-grow: 1; /* Allow content to take space if panel isn't fixed height */
-     /* Height/opacity/padding/margin controlled by JS */
+    padding: 0 20px; /* Padding will be animated by JS */
+    margin-top: 0; 
+    /* Height/opacity/padding/margin controlled by JS */
+    /* Add max-height if you want a scrollable panel */
+    max-height: calc(100vh - 250px); /* Example: Adjust based on header, other fixed elements */
+                                     /* Or a fixed pixel value like 400px */
+    /* The overflow-y will be set to 'auto' by GSAP onComplete of expand animation */
 }
 
 /* Stream Preview */

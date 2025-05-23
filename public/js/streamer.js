@@ -2022,34 +2022,48 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function initAnimations() {
-    gsap.set(elements.panelContent, {
-      height: elements.controlPanel?.classList.contains("collapsed")
-        ? 0
-        : "auto",
-      autoAlpha: elements.controlPanel?.classList.contains("collapsed") ? 0 : 1,
-      paddingTop: elements.controlPanel?.classList.contains("collapsed")
-        ? 0
-        : 20,
-      paddingBottom: elements.controlPanel?.classList.contains("collapsed")
-        ? 0
-        : 20,
-      marginTop: 0,
-    });
-    gsap.set(elements.controlButtons, {
-      autoAlpha: elements.controlPanel?.classList.contains("collapsed") ? 0 : 1,
-    });
+    // Check if panelContent exists and determine initial state
+    const initialPanelContentHeight = elements.panelContent 
+        ? (elements.controlPanel?.classList.contains("collapsed") ? 0 : "auto") 
+        : 0;
+    const initialPanelContentAlpha = elements.panelContent
+        ? (elements.controlPanel?.classList.contains("collapsed") ? 0 : 1)
+        : 0;
+    const initialPanelContentPadding = elements.panelContent 
+        ? (elements.controlPanel?.classList.contains("collapsed") ? 0 : 20) 
+        : 0;
+
+    if (elements.panelContent) {
+        gsap.set(elements.panelContent, {
+          height: initialPanelContentHeight,
+          autoAlpha: initialPanelContentAlpha,
+          paddingTop: initialPanelContentPadding,
+          paddingBottom: initialPanelContentPadding,
+          marginTop: 0,
+          // overflowY: "hidden" // Ensure overflow is hidden initially for height animation
+        });
+    }
+    
+    if (elements.controlButtons) {
+        gsap.set(elements.controlButtons, {
+          autoAlpha: elements.controlPanel?.classList.contains("collapsed") ? 0 : 1,
+        });
+    }
+
 
     if (prefersReducedMotion) {
       gsap.set(
         "[data-animate], .streamer-main-header, .streamer-sidebar, .streamer-chat-area, .panel-header h3, .control-btn",
         { autoAlpha: 1 }
       );
-      if (elements.panelContent)
+      if (elements.panelContent) {
         elements.panelContent.style.display =
           elements.controlPanel?.classList.contains("collapsed")
             ? "none"
             : "block";
-      if (!elements.controlPanel?.classList.contains("collapsed")) {
+        // elements.panelContent.style.overflowY = elements.controlPanel?.classList.contains("collapsed") ? "hidden" : "auto";
+      }
+      if (!elements.controlPanel?.classList.contains("collapsed") && elements.controlButtons) {
         gsap.set(elements.controlButtons, { autoAlpha: 1 });
       }
       initBackgroundParticles();
@@ -2084,7 +2098,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     if (
       !elements.controlPanel?.classList.contains("collapsed") &&
-      elements.controlButtons.length > 0
+      elements.controlButtons && elements.controlButtons.length > 0
     ) {
       gsap.from(elements.controlButtons, {
         duration: 0.6,
@@ -2092,7 +2106,7 @@ document.addEventListener("DOMContentLoaded", () => {
         autoAlpha: 0,
         stagger: 0.06,
         ease: "power2.out",
-        delay: tl.duration() - 0.2,
+        delay: tl.duration() - 0.2, // Ensure buttons animate after panel is somewhat visible
       });
     }
     tl.from(
@@ -2440,8 +2454,9 @@ document.addEventListener("DOMContentLoaded", () => {
   // UI EVENT LISTENERS SETUP
   // ==================================
   function initUIEventListeners() {
+    // --- Control Panel Toggle ---
     elements.togglePanelBtn?.addEventListener("click", () => {
-      isPanelCollapsed = elements.controlPanel.classList.toggle("collapsed");
+      isPanelCollapsed = elements.controlPanel.classList.toggle("collapsed"); 
       const icon = elements.togglePanelBtn.querySelector("i");
       if (!elements.panelContent) return;
 
@@ -2451,58 +2466,64 @@ document.addEventListener("DOMContentLoaded", () => {
         ease: "power2.inOut",
       });
 
+      // GSAP can't directly animate to 'auto' for height with overflow changes.
+      // We'll handle overflow after the animation.
       if (!prefersReducedMotion) {
         if (isPanelCollapsed) {
           gsap.to(elements.controlButtons, {
-            duration: 0.25,
+            duration: 0.25, 
             autoAlpha: 0,
-            y: 10,
+            y: 10, 
             stagger: 0.04,
             ease: "power1.in",
-            overwrite: true,
+            overwrite: true, 
           });
           gsap.to(elements.panelContent, {
             duration: 0.4,
             height: 0,
             paddingTop: 0,
             paddingBottom: 0,
-            marginTop: 0,
+            marginTop: 0, // Keep this if it's part of the collapsed style
             autoAlpha: 0,
             ease: "power2.inOut",
-            delay: 0.1,
+            delay: 0.1, 
+            onComplete: () => {
+              // elements.panelContent.style.overflowY = "hidden"; // Hide scrollbar when collapsed
+            }
           });
         } else {
+          // elements.panelContent.style.overflowY = "hidden"; // Keep hidden during expansion animation
           gsap.set(elements.panelContent, {
-            display: "block",
-            height: "auto",
-            autoAlpha: 0,
+            display: "block", // Make it block to calculate scrollHeight
+            height: "auto",   // Temporarily set to auto to get scrollHeight
+            autoAlpha: 0,     // Keep it invisible
           });
-          const targetPanelStyles = {
-            height: elements.panelContent.scrollHeight,
-            paddingTop: 20,
-            paddingBottom: 20,
-            marginTop: 0,
-            autoAlpha: 1,
-          };
+          const targetHeight = elements.panelContent.scrollHeight; // Get the natural height
+          
           gsap.fromTo(
             elements.panelContent,
-            {
+            { // From:
               height: 0,
               autoAlpha: 0,
               paddingTop: 0,
               paddingBottom: 0,
-              marginTop: 0,
+              // marginTop: 0 // if it's part of the collapsed style
             },
-            {
-              duration: 0.5,
-              ...targetPanelStyles,
+            { // To:
+              duration: 0.5, 
+              height: targetHeight, // Animate to the calculated height
+              paddingTop: 20,    // Restore padding
+              paddingBottom: 20,
+              // marginTop: 0,    // Restore margin if needed
+              autoAlpha: 1,
               ease: "power3.out",
               onComplete: () => {
-                gsap.set(elements.panelContent, { height: "auto" });
-                if (elements.controlButtons.length > 0) {
+                gsap.set(elements.panelContent, { height: "auto" }); // Set to auto for dynamic content
+                // elements.panelContent.style.overflowY = "auto"; // Allow scrollbar now
+                if (elements.controlButtons && elements.controlButtons.length > 0) {
                   gsap.fromTo(
                     elements.controlButtons,
-                    { y: 15, autoAlpha: 0 },
+                    { y: 15, autoAlpha: 0 }, 
                     {
                       duration: 0.5,
                       y: 0,
@@ -2517,15 +2538,19 @@ document.addEventListener("DOMContentLoaded", () => {
             }
           );
         }
-      } else {
+      } else { // Reduced motion
         elements.panelContent.style.display = isPanelCollapsed
           ? "none"
           : "block";
-        gsap.set(elements.controlButtons, {
-          autoAlpha: isPanelCollapsed ? 0 : 1,
-        });
+        // elements.panelContent.style.overflowY = isPanelCollapsed ? "hidden" : "auto";
+        if(elements.controlButtons) {
+            gsap.set(elements.controlButtons, {
+              autoAlpha: isPanelCollapsed ? 0 : 1,
+            }); 
+        }
       }
     });
+
     elements.shareScreenBtn?.addEventListener("click", () => {
       playButtonFeedback(elements.shareScreenBtn);
       startScreenShare();
@@ -2654,9 +2679,11 @@ document.addEventListener("DOMContentLoaded", () => {
       playButtonFeedback(elements.wbEraserModeBtn);
       wbIsEraserMode = !wbIsEraserMode;
       elements.wbEraserModeBtn.classList.toggle("active", wbIsEraserMode);
-      elements.whiteboardCanvas.style.cursor = wbIsEraserMode
-        ? "cell"
-        : "crosshair";
+      if(elements.whiteboardCanvas){
+          elements.whiteboardCanvas.style.cursor = wbIsEraserMode
+            ? "cell"
+            : "crosshair";
+      }
       if (wbIsEraserMode) {
         console.log("Eraser mode ON");
       } else {
@@ -2670,7 +2697,7 @@ document.addEventListener("DOMContentLoaded", () => {
           "function" && typeof pipChatCanvas.captureStream === "function";
 
       if (isPiPSupportedByBrowser) {
-        elements.pipChatBtn.style.display = "flex";
+        elements.pipChatBtn.style.display = "flex"; 
         elements.pipChatBtn.disabled = false;
         elements.pipChatBtn.addEventListener("click", () => {
           playButtonFeedback(elements.pipChatBtn);
@@ -2682,7 +2709,7 @@ document.addEventListener("DOMContentLoaded", () => {
           () => {
             console.log(
               "PiP Chat: Sự kiện 'enterpictureinpicture' đã kích hoạt."
-            );
+            ); 
             isPipChatActive = true;
             pipChatNeedsUpdate = true;
             if (elements.pipChatBtn) {
@@ -2701,7 +2728,7 @@ document.addEventListener("DOMContentLoaded", () => {
           () => {
             console.log("Đã thoát chế độ PiP Chat.");
             isPipChatActive = false;
-            pipChatNeedsUpdate = false;
+            pipChatNeedsUpdate = false; 
             if (pipChatUpdateRequestId) {
               cancelAnimationFrame(pipChatUpdateRequestId);
               pipChatUpdateRequestId = null;
@@ -2721,48 +2748,55 @@ document.addEventListener("DOMContentLoaded", () => {
         console.warn(
           "PiP Chat (Canvas Capture or Video PiP) is not fully supported by this browser."
         );
-        elements.pipChatBtn.style.display = "flex";
-        elements.pipChatBtn.classList.add("control-btn-disabled-visual");
-        elements.pipChatBtn.title =
-          "PiP Chat không được trình duyệt này hỗ trợ đầy đủ.";
-        elements.pipChatBtn.disabled = true;
+        if (elements.pipChatBtn) {
+            elements.pipChatBtn.style.display = "flex";
+            elements.pipChatBtn.classList.add("control-btn-disabled-visual");
+            elements.pipChatBtn.title =
+              "PiP Chat không được trình duyệt này hỗ trợ đầy đủ.";
+            elements.pipChatBtn.disabled = true;
+        }
       }
     } else if (elements.pipChatBtn) {
       elements.pipChatBtn.style.display = "none";
     }
-    // ---- Start: Quiz Panel UI Listeners Streamer ----
     elements.toggleQuizPanelBtn?.addEventListener("click", () => {
-      playButtonFeedback(elements.toggleQuizPanelBtn);
-      if (elements.streamerQuizPanel) {
-        const isPanelVisible =
-          elements.streamerQuizPanel.style.display === "block" ||
-          elements.streamerQuizPanel.style.display === "";
-        if (isPanelVisible) {
-          elements.streamerQuizPanel.style.display = "none";
-          elements.toggleQuizPanelBtn.classList.remove("active");
-        } else {
-          elements.streamerQuizPanel.style.display = "block";
-          elements.toggleQuizPanelBtn.classList.add("active");
-          initializeQuizOptionFields();
-          updateQuizCorrectAnswerSelect();
+        playButtonFeedback(elements.toggleQuizPanelBtn);
+        if (elements.streamerQuizPanel) {
+            const isPanelVisible = elements.streamerQuizPanel.style.display === 'block' || elements.streamerQuizPanel.style.display === '';
+            // Animate quiz panel toggle
+            const quizIcon = elements.toggleQuizPanelBtn.querySelector('i');
+             gsap.to(quizIcon, { rotation: isPanelVisible ? 0 : 180, duration: 0.3, ease: "power1.inOut" });
+
+            if(isPanelVisible) {
+                 gsap.to(elements.streamerQuizPanel, { duration: 0.3, height: 0, autoAlpha: 0, ease: 'power1.in', onComplete: () => {
+                    elements.streamerQuizPanel.style.display = 'none';
+                 }});
+                elements.toggleQuizPanelBtn.classList.remove('active');
+            } else {
+                gsap.set(elements.streamerQuizPanel, { display: 'block', height: 'auto', autoAlpha: 0 });
+                const targetHeight = elements.streamerQuizPanel.scrollHeight;
+                gsap.fromTo(elements.streamerQuizPanel, { height: 0, autoAlpha: 0 }, { duration: 0.4, height: targetHeight, autoAlpha: 1, ease: 'power2.out', onComplete: () => {
+                    gsap.set(elements.streamerQuizPanel, {height: 'auto'}); // allow dynamic content later
+                }});
+                elements.toggleQuizPanelBtn.classList.add('active');
+                initializeQuizOptionFields(); 
+                updateQuizCorrectAnswerSelect(); 
+            }
         }
-      }
     });
 
     elements.addQuizOptionBtn?.addEventListener("click", () => {
-      playButtonFeedback(elements.addQuizOptionBtn);
-      addQuizOptionInput();
+        playButtonFeedback(elements.addQuizOptionBtn);
+        addQuizOptionInput();
     });
 
     elements.startQuizBtn?.addEventListener("click", handleStartQuiz);
     elements.showQuizAnswerBtn?.addEventListener("click", handleShowQuizAnswer);
-    elements.nextQuizQuestionBtn?.addEventListener(
-      "click",
-      handleNextQuizQuestion
-    );
+    elements.nextQuizQuestionBtn?.addEventListener("click", handleNextQuizQuestion);
     elements.endQuizBtn?.addEventListener("click", handleEndQuiz);
-    // ---- End: Quiz Panel UI Listeners Streamer ----
-  }
+
+  } // End initUIEventListeners
+
   // ==================================
   // START INITIALIZATION
   // ==================================
