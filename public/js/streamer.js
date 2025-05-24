@@ -76,6 +76,7 @@ document.addEventListener("DOMContentLoaded", () => {
     wbLineWidthValueDisplay: document.getElementById("wbLineWidthValueV2"),
     wbEraserModeBtn: document.getElementById("wbEraserModeBtnV2"),
     pipChatVideoPlayer: document.getElementById("pipChatVideoPlayer"),
+    streamerCoordsDisplay: document.getElementById("streamerCoordsDisplay"), // Thêm ID này vào HTML
     // ---- Start: Quiz Elements Streamer ----
     toggleQuizPanelBtn: document.getElementById("toggleQuizPanelBtn"),
     streamerQuizPanel: document.getElementById("streamerQuizPanel"),
@@ -731,8 +732,6 @@ document.addEventListener("DOMContentLoaded", () => {
     isEraser = false
   ) {
     if (!whiteboardCtx || !isWhiteboardActive) {
-      // Check isWhiteboardActive
-      // console.warn("Attempted to draw on whiteboard while not active or no context.");
       return;
     }
 
@@ -741,43 +740,42 @@ document.addEventListener("DOMContentLoaded", () => {
       ? (lineWidth || wbCurrentLineWidth) + 10
       : lineWidth || wbCurrentLineWidth;
 
-    // Draw directly onto the viewport using transformed world coordinates
-    // The redrawWhiteboardFull function handles the actual context transform for display
-    // For a single new line, we can draw it immediately if we apply the transform here too.
-    // However, it's often simpler to just add to history and call redraw.
-    // For responsiveness, let's draw it directly and then it will be part of the next full redraw.
-
-    whiteboardCtx.save();
-    whiteboardCtx.scale(wbCamera.scale, wbCamera.scale);
-    whiteboardCtx.translate(-wbCamera.x, -wbCamera.y);
-
-    whiteboardCtx.beginPath();
-    whiteboardCtx.moveTo(worldX0, worldY0);
-    whiteboardCtx.lineTo(worldX1, worldY1);
-    whiteboardCtx.strokeStyle = actualColor;
-    whiteboardCtx.lineWidth = actualLineWidth; // Use lineWidth directly, scaling is handled by context
-    whiteboardCtx.globalCompositeOperation = isEraser
-      ? "destination-out"
-      : "source-over";
-    whiteboardCtx.stroke();
-    whiteboardCtx.closePath();
-    whiteboardCtx.globalCompositeOperation = "source-over"; // Reset
-    whiteboardCtx.restore();
-
+    // If not redrawing the entire canvas from history, draw the new line immediately
     if (!isRedrawing) {
-      // Add to history using world coordinates
+      whiteboardCtx.save();
+      whiteboardCtx.scale(wbCamera.scale, wbCamera.scale);
+      whiteboardCtx.translate(-wbCamera.x, -wbCamera.y);
+
+      whiteboardCtx.beginPath();
+      whiteboardCtx.moveTo(worldX0, worldY0);
+      whiteboardCtx.lineTo(worldX1, worldY1);
+      whiteboardCtx.strokeStyle = actualColor;
+      whiteboardCtx.lineWidth = actualLineWidth;
+      whiteboardCtx.globalCompositeOperation = isEraser
+        ? "destination-out"
+        : "source-over";
+      whiteboardCtx.lineCap = "round"; // Ensure these are set for direct drawing too
+      whiteboardCtx.lineJoin = "round";
+      whiteboardCtx.stroke();
+      whiteboardCtx.closePath();
+
+      whiteboardCtx.globalCompositeOperation = "source-over"; // Reset
+      whiteboardCtx.restore();
+    }
+
+    // Always add to history if it's a new draw action (not a replay from history itself)
+    if (!isRedrawing) {
       wbDrawingHistory.push({
         type: "draw",
         x0: worldX0,
         y0: worldY0,
         x1: worldX1,
         y1: worldY1,
-        color: color, // Store original color for pen
-        lineWidth: lineWidth || wbCurrentLineWidth, // Store original line width for pen
+        color: color,
+        lineWidth: lineWidth || wbCurrentLineWidth,
         isEraser,
       });
       if (wbDrawingHistory.length > 500) {
-        // Increased history limit
         wbDrawingHistory.splice(0, wbDrawingHistory.length - 500);
       }
     }
@@ -786,7 +784,6 @@ document.addEventListener("DOMContentLoaded", () => {
       socket.emit("wb:draw", {
         roomId: streamerConfig.roomId,
         drawData: {
-          // Send world coordinates
           x0: worldX0,
           y0: worldY0,
           x1: worldX1,
@@ -984,10 +981,11 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!whiteboardCtx || !elements.whiteboardCanvas) return;
 
     const canvas = elements.whiteboardCanvas;
-    whiteboardCtx.clearRect(0, 0, canvas.width, canvas.height); // Clear viewport
+    // Clear the entire viewport before redrawing
+    whiteboardCtx.clearRect(0, 0, canvas.width, canvas.height);
 
     whiteboardCtx.save();
-    // Apply camera transformations
+    // Apply camera transformations: scale first, then translate
     whiteboardCtx.scale(wbCamera.scale, wbCamera.scale);
     whiteboardCtx.translate(-wbCamera.x, -wbCamera.y);
 
@@ -1006,20 +1004,15 @@ document.addEventListener("DOMContentLoaded", () => {
           : item.color;
         whiteboardCtx.lineWidth = item.isEraser
           ? item.lineWidth + 10
-          : item.lineWidth; // Eraser slightly larger
+          : item.lineWidth;
         whiteboardCtx.globalCompositeOperation = item.isEraser
           ? "destination-out"
           : "source-over";
         whiteboardCtx.stroke();
-        whiteboardCtx.closePath();
-      } else if (item.type === "clear") {
-        // This is tricky with a panned/zoomed canvas.
-        // A 'clear' in history means clear everything *at that point in time*.
-        // For simplicity now, a 'clear' event from server will just clear the history array
-        // and then this redraw will effectively clear the canvas.
-        // If clear events are stored and need to be replayed, they should clear the *entire* world.
-        // This is handled by wbDrawingHistory = [] before redraw on server 'wb:clear' event.
+        // No need for closePath() here for line segments if not filling
       }
+      // 'clear' events from history are handled by clearing wbDrawingHistory array itself
+      // before calling redrawWhiteboardFull, if a full clear is intended.
     });
     whiteboardCtx.globalCompositeOperation = "source-over"; // Reset composite op
     whiteboardCtx.restore();
@@ -1065,44 +1058,39 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!isWhiteboardActive || !elements.whiteboardCanvas) return;
     event.preventDefault();
 
+    const worldCoords = getCanvasWorldCoordinates(event.clientX, event.clientY); 
+    updateCoordsDisplay(worldCoords.x, worldCoords.y, event.clientX, event.clientY); // Update display
+
     if (wbCamera.isPanning) {
-      const dx = event.clientX - wbCamera.lastPanMouseX;
-      const dy = event.clientY - wbCamera.lastPanMouseY;
+        const dx = event.clientX - wbCamera.lastPanMouseX;
+        const dy = event.clientY - wbCamera.lastPanMouseY;
+        
+        wbCamera.x -= dx / wbCamera.scale; 
+        wbCamera.y -= dy / wbCamera.scale;
 
-      wbCamera.x -= dx / wbCamera.scale; // Pan in world coordinates
-      wbCamera.y -= dy / wbCamera.scale;
-
-      // Clamp panning to keep some part of the virtual canvas visible (optional)
-      // wbCamera.x = Math.max(0, Math.min(wbCamera.x, WB_MAX_WIDTH - elements.whiteboardCanvas.width / wbCamera.scale));
-      // wbCamera.y = Math.max(0, Math.min(wbCamera.y, WB_MAX_HEIGHT - elements.whiteboardCanvas.height / wbCamera.scale));
-
-      wbCamera.lastPanMouseX = event.clientX;
-      wbCamera.lastPanMouseY = event.clientY;
-      redrawWhiteboardFull();
+        wbCamera.lastPanMouseX = event.clientX;
+        wbCamera.lastPanMouseY = event.clientY;
+        redrawWhiteboardFull();
     } else if (isDrawingOnWhiteboard && userCanDrawOnWhiteboard()) {
-      if (wbEventThrottleTimer) return;
-      wbEventThrottleTimer = setTimeout(() => {
-        const worldCoords = getCanvasWorldCoordinates(
-          event.clientX,
-          event.clientY
-        );
-        drawOnWhiteboard(
-          wbLastWorldX,
-          wbLastWorldY,
-          worldCoords.x,
-          worldCoords.y,
-          wbCurrentColor,
-          wbCurrentLineWidth,
-          true,
-          false,
-          wbIsEraserMode
-        );
-        wbLastWorldX = worldCoords.x;
-        wbLastWorldY = worldCoords.y;
-        wbEventThrottleTimer = null;
-      }, WB_THROTTLE_INTERVAL);
+        if (wbEventThrottleTimer) return; 
+        
+        const currentWorldX = worldCoords.x;
+        const currentWorldY = worldCoords.y;
+
+        wbEventThrottleTimer = setTimeout(() => {
+            drawOnWhiteboard(
+                wbLastWorldX, wbLastWorldY, 
+                currentWorldX, currentWorldY, 
+                wbCurrentColor, wbCurrentLineWidth,
+                true, false, wbIsEraserMode
+            );
+            wbLastWorldX = currentWorldX; 
+            wbLastWorldY = currentWorldY;
+            
+            wbEventThrottleTimer = null;
+        }, WB_THROTTLE_INTERVAL);
     }
-  }
+}
 
   function handleWhiteboardMouseUp(event) {
     if (wbCamera.isPanning) {
@@ -1119,19 +1107,16 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function handleWhiteboardMouseOut(event) {
-    // Similar to mouseup, stop current operations
-    if (wbCamera.isPanning) {
-      // Keep panning if mouse button is still held, but it left the canvas
-      // For simplicity, we can stop panning. More complex logic would track global mouse up.
-      // wbCamera.isPanning = false;
-      // elements.whiteboardCanvas.style.cursor = wbCamera.isPanToolActive ? 'grab' : 'crosshair';
-    }
     if (isDrawingOnWhiteboard) {
-      isDrawingOnWhiteboard = false;
-      clearTimeout(wbEventThrottleTimer);
-      wbEventThrottleTimer = null;
+        isDrawingOnWhiteboard = false;
+        clearTimeout(wbEventThrottleTimer);
+        wbEventThrottleTimer = null;
     }
-  }
+    // Do not stop panning if mouse leaves, user might still be holding button
+    // wbCamera.isPanning = false;
+    // elements.whiteboardCanvas.style.cursor = wbCamera.isPanToolActive ? 'grab' : 'crosshair';
+    hideCoordsDisplay(); // Hide coordinates when mouse leaves canvas
+}
 
   function handleWhiteboardWheelZoom(event) {
     if (!isWhiteboardActive || !elements.whiteboardCanvas) return;
@@ -1222,119 +1207,99 @@ document.addEventListener("DOMContentLoaded", () => {
   function handleWhiteboardTouchMove(event) {
     if (!isWhiteboardActive || !elements.whiteboardCanvas) return;
     event.preventDefault();
-
+    
     const touches = event.touches;
+    // For coordinate display, use the first touch point if available
+    if (touches.length > 0) {
+        const firstTouch = touches[0];
+        const worldCoords = getCanvasWorldCoordinates(firstTouch.clientX, firstTouch.clientY);
+        updateCoordsDisplay(worldCoords.x, worldCoords.y, firstTouch.clientX, firstTouch.clientY);
+    }
+
+
     const currentTouchCache = [];
-    for (let i = 0; i < touches.length; i++) {
-      // Update touch cache
-      const idx = getTouchIndexById(touches[i].identifier);
-      if (idx >= 0) {
-        touchCache[idx] = copyTouch(touches[i]); // Update existing touch
-        currentTouchCache.push(touchCache[idx]);
-      } else {
-        // This case should ideally not happen if start correctly caches
-        // console.warn("Touch move for unknown touch ID");
-      }
+     for (let i = 0; i < touches.length; i++) { 
+        const idx = getTouchIndexById(touches[i].identifier);
+        if (idx >= 0) {
+            touchCache[idx] = copyTouch(touches[i]); 
+            currentTouchCache.push(touchCache[idx]);
+        }
     }
 
-    if (touchCache.length === 1 && !wbCamera.isPinching) {
-      // Single touch movement
-      const touch = touchCache[0];
-      if (wbCamera.isPanning) {
-        const dx = touch.clientX - wbCamera.lastPanMouseX;
-        const dy = touch.clientY - wbCamera.lastPanMouseY;
-        wbCamera.x -= dx / wbCamera.scale;
-        wbCamera.y -= dy / wbCamera.scale;
-        wbCamera.lastPanMouseX = touch.clientX;
-        wbCamera.lastPanMouseY = touch.clientY;
+
+    if (touchCache.length === 1 && !wbCamera.isPinching) { 
+        const touch = touchCache[0];
+        if (wbCamera.isPanning) {
+            const dx = touch.clientX - wbCamera.lastPanMouseX;
+            const dy = touch.clientY - wbCamera.lastPanMouseY;
+            wbCamera.x -= dx / wbCamera.scale;
+            wbCamera.y -= dy / wbCamera.scale;
+            wbCamera.lastPanMouseX = touch.clientX;
+            wbCamera.lastPanMouseY = touch.clientY;
+            redrawWhiteboardFull();
+        } else if (isDrawingOnWhiteboard && userCanDrawOnWhiteboard()) {
+            if (wbEventThrottleTimer) return;
+            
+            const worldCoords = getCanvasWorldCoordinates(touch.clientX, touch.clientY); // Get current coords for this touch
+            const currentWorldX = worldCoords.x;
+            const currentWorldY = worldCoords.y;
+
+            wbEventThrottleTimer = setTimeout(() => {
+                drawOnWhiteboard(wbLastWorldX, wbLastWorldY, currentWorldX, currentWorldY,
+                                 wbCurrentColor, wbCurrentLineWidth, true, false, wbIsEraserMode);
+                wbLastWorldX = currentWorldX; // Update last for next segment
+                wbLastWorldY = currentWorldY;
+                wbEventThrottleTimer = null;
+            }, WB_THROTTLE_INTERVAL);
+        }
+    } else if (touchCache.length === 2 && wbCamera.isPinching) { 
+        const newDist = getPinchDistance(touchCache[0], touchCache[1]);
+        const oldScale = wbCamera.scale;
+        
+        wbCamera.scale *= (newDist / wbCamera.lastPinchDistance);
+        wbCamera.scale = Math.max(WB_MIN_SCALE, Math.min(WB_MAX_SCALE, wbCamera.scale));
+
+        const pinchCenterX = (touchCache[0].clientX + touchCache[1].clientX) / 2;
+        const pinchCenterY = (touchCache[0].clientY + touchCache[1].clientY) / 2;
+        const worldPinchCenter = getCanvasWorldCoordinates(pinchCenterX, pinchCenterY);
+
+        wbCamera.x = worldPinchCenter.x - (worldPinchCenter.x - wbCamera.x) * (oldScale / wbCamera.scale);
+        wbCamera.y = worldPinchCenter.y - (worldPinchCenter.y - wbCamera.y) * (oldScale / wbCamera.scale);
+        
+        wbCamera.lastPinchDistance = newDist;
         redrawWhiteboardFull();
-      } else if (isDrawingOnWhiteboard && userCanDrawOnWhiteboard()) {
-        if (wbEventThrottleTimer) return;
-        wbEventThrottleTimer = setTimeout(() => {
-          const worldCoords = getCanvasWorldCoordinates(
-            touch.clientX,
-            touch.clientY
-          );
-          drawOnWhiteboard(
-            wbLastWorldX,
-            wbLastWorldY,
-            worldCoords.x,
-            worldCoords.y,
-            wbCurrentColor,
-            wbCurrentLineWidth,
-            true,
-            false,
-            wbIsEraserMode
-          );
-          wbLastWorldX = worldCoords.x;
-          wbLastWorldY = worldCoords.y;
-          wbEventThrottleTimer = null;
-        }, WB_THROTTLE_INTERVAL);
-      }
-    } else if (touchCache.length === 2 && wbCamera.isPinching) {
-      // Pinch-zoom movement
-      const newDist = getPinchDistance(touchCache[0], touchCache[1]);
-      const oldScale = wbCamera.scale;
-
-      wbCamera.scale *= newDist / wbCamera.lastPinchDistance;
-      wbCamera.scale = Math.max(
-        WB_MIN_SCALE,
-        Math.min(WB_MAX_SCALE, wbCamera.scale)
-      );
-
-      // Zoom towards the pinch center
-      const pinchCenterX = (touchCache[0].clientX + touchCache[1].clientX) / 2;
-      const pinchCenterY = (touchCache[0].clientY + touchCache[1].clientY) / 2;
-      const worldPinchCenter = getCanvasWorldCoordinates(
-        pinchCenterX,
-        pinchCenterY
-      );
-
-      wbCamera.x =
-        worldPinchCenter.x -
-        (worldPinchCenter.x - wbCamera.x) * (oldScale / wbCamera.scale);
-      wbCamera.y =
-        worldPinchCenter.y -
-        (worldPinchCenter.y - wbCamera.y) * (oldScale / wbCamera.scale);
-
-      wbCamera.lastPinchDistance = newDist;
-      redrawWhiteboardFull();
     }
-  }
+}
 
-  function handleWhiteboardTouchEnd(event) {
+function handleWhiteboardTouchEnd(event) {
     if (!isWhiteboardActive) return;
-    // event.preventDefault(); // Not always needed for touchend, but good practice if other handlers use it
+    // event.preventDefault(); // Usually not needed for touchend
 
-    removeTouches(event.changedTouches); // Remove ended touches from cache
+    removeTouches(event.changedTouches);
 
     if (isDrawingOnWhiteboard) {
-      isDrawingOnWhiteboard = false;
-      clearTimeout(wbEventThrottleTimer);
-      wbEventThrottleTimer = null;
+        isDrawingOnWhiteboard = false;
+        clearTimeout(wbEventThrottleTimer);
+        wbEventThrottleTimer = null;
     }
     if (wbCamera.isPanning) {
-      wbCamera.isPanning = false;
-      elements.whiteboardCanvas.style.cursor = wbCamera.isPanToolActive
-        ? "grab"
-        : "crosshair";
+        wbCamera.isPanning = false;
+        elements.whiteboardCanvas.style.cursor = wbCamera.isPanToolActive ? 'grab' : 'crosshair';
     }
     if (wbCamera.isPinching && touchCache.length < 2) {
-      wbCamera.isPinching = false;
-      wbCamera.lastPinchDistance = 0;
+        wbCamera.isPinching = false;
+        wbCamera.lastPinchDistance = 0;
     }
-
-    // If all touches are up, reset state
-    if (event.touches.length === 0) {
-      touchCache = [];
-      isDrawingOnWhiteboard = false;
-      wbCamera.isPanning = false;
-      wbCamera.isPinching = false;
-      elements.whiteboardCanvas.style.cursor = wbCamera.isPanToolActive
-        ? "grab"
-        : "crosshair";
+    
+    if (event.touches.length === 0) { // All touches are up
+        touchCache = [];
+        isDrawingOnWhiteboard = false;
+        wbCamera.isPanning = false;
+        wbCamera.isPinching = false;
+        elements.whiteboardCanvas.style.cursor = wbCamera.isPanToolActive ? 'grab' : 'crosshair';
+        hideCoordsDisplay(); // Hide coords when no touches active
     }
-  }
+}
 
   // --- Touch Helper Functions ---
   function copyTouch(touch) {
@@ -1365,6 +1330,20 @@ document.addEventListener("DOMContentLoaded", () => {
     const dy = touch1.clientY - touch2.clientY;
     return Math.sqrt(dx * dx + dy * dy);
   }
+  
+  function updateCoordsDisplay(worldX, worldY, screenX, screenY) {
+    if (elements.streamerCoordsDisplay) {
+        elements.streamerCoordsDisplay.innerHTML = 
+            `World: (${Math.round(worldX)}, ${Math.round(worldY)}) | Screen: (${Math.round(screenX)}, ${Math.round(screenY)}) | Zoom: ${wbCamera.scale.toFixed(2)} | Pan: (${Math.round(wbCamera.x)}, ${Math.round(wbCamera.y)})`;
+        elements.streamerCoordsDisplay.style.display = 'block'; // Make sure it's visible
+    }
+}
+
+function hideCoordsDisplay() {
+    if (elements.streamerCoordsDisplay) {
+        elements.streamerCoordsDisplay.style.display = 'none';
+    }
+}
 
   // ==================================
   // PICTURE-IN-PICTURE CHAT LOGIC
