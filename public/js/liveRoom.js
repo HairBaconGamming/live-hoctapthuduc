@@ -42,25 +42,35 @@ document.addEventListener("DOMContentLoaded", () => {
     exitButton: document.getElementById("exitRoomBtnLive"),
     liveIndicator: document.getElementById("liveIndicator"),
     // --- Whiteboard Elements for Shared Module (Viewer) ---
-    whiteboardOverlayViewer: document.getElementById("whiteboardContainerOverlayViewer"), // The main overlay div
+    whiteboardOverlayViewer: document.getElementById(
+      "whiteboardContainerOverlayViewer"
+    ), // The main overlay div
     whiteboardCanvasViewer: document.getElementById("whiteboardCanvasViewer"), // The <canvas>
     // Toolbar elements to pass to shared module
-    whiteboardToolbarViewerMain: document.getElementById("whiteboardToolbarViewer"),
+    whiteboardToolbarViewerMain: document.getElementById(
+      "whiteboardToolbarViewer"
+    ),
     wbColorPickerViewer: document.getElementById("wbColorPickerViewer"),
     wbLineWidthRangeViewer: document.getElementById("wbLineWidthRangeViewer"),
-    wbLineWidthValueDisplayViewer: document.getElementById("wbLineWidthValueDisplayViewer"),
+    wbLineWidthValueDisplayViewer: document.getElementById(
+      "wbLineWidthValueDisplayViewer"
+    ),
     wbEraserModeBtnViewer: document.getElementById("wbEraserModeBtnViewer"),
     // Viewers typically don't have clear, pan, zoom, grid, shape, select, delete buttons in their default toolbar.
     // If they are granted drawing rights and these tools, these elements would need to be present in liveRoom.ejs
     // and passed here. For now, assuming a simpler viewer toolbar.
     // Streamer's coords display is not for viewers.
-    toggleViewerWhiteboardDisplayBtn: document.getElementById("toggleViewerWhiteboardDisplayBtn"), // Viewer's local show/hide
+    toggleViewerWhiteboardDisplayBtn: document.getElementById(
+      "toggleViewerWhiteboardDisplayBtn"
+    ), // Viewer's local show/hide
     // --- End Whiteboard Elements ---
 
     // ---- Start: Quiz Elements Viewer ----
     viewerQuizOverlay: document.getElementById("viewerQuizOverlay"),
     quizQuestionViewerText: document.getElementById("quizQuestionViewerText"),
-    quizOptionsViewerContainer: document.getElementById("quizOptionsViewerContainer"),
+    quizOptionsViewerContainer: document.getElementById(
+      "quizOptionsViewerContainer"
+    ),
     quizViewerFeedback: document.getElementById("quizViewerFeedback"),
     closeQuizOverlayBtn: document.getElementById("closeQuizOverlayBtn"),
     // ---- End: Quiz Elements Viewer ----
@@ -103,42 +113,103 @@ document.addEventListener("DOMContentLoaded", () => {
   // ==================================
   function initPageAnimations() {
     if (prefersReducedMotion) {
-      gsap.set("[data-animate], .live-room-main-header, .live-video-area, .live-chat-area", { autoAlpha: 1 });
+      gsap.set(
+        "[data-animate], .live-room-main-header, .live-video-area, .live-chat-area",
+        { autoAlpha: 1 }
+      );
       return;
     }
     const tl = gsap.timeline({ delay: 0.1 });
-    tl.from(".live-room-main-header", { duration: 0.7, y: -60, autoAlpha: 0, ease: "power2.out" })
-      .from(".live-video-area", { duration: 0.9, x: -50, autoAlpha: 0, ease: "power3.out" }, "-=0.4")
-      .from(".live-chat-area", { duration: 0.9, x: 50, autoAlpha: 0, ease: "power3.out" }, "<")
-      .from(".live-room-main-header .header-info > *", { duration: 0.5, y: -10, autoAlpha: 0, stagger: 0.1, ease: "power1.out" }, "-=0.7")
-      .from(".live-room-main-header .header-stats > *", { duration: 0.5, y: -10, autoAlpha: 0, stagger: 0.1, ease: "power1.out" }, "<");
+    tl.from(".live-room-main-header", {
+      duration: 0.7,
+      y: -60,
+      autoAlpha: 0,
+      ease: "power2.out",
+    })
+      .from(
+        ".live-video-area",
+        { duration: 0.9, x: -50, autoAlpha: 0, ease: "power3.out" },
+        "-=0.4"
+      )
+      .from(
+        ".live-chat-area",
+        { duration: 0.9, x: 50, autoAlpha: 0, ease: "power3.out" },
+        "<"
+      )
+      .from(
+        ".live-room-main-header .header-info > *",
+        {
+          duration: 0.5,
+          y: -10,
+          autoAlpha: 0,
+          stagger: 0.1,
+          ease: "power1.out",
+        },
+        "-=0.7"
+      )
+      .from(
+        ".live-room-main-header .header-stats > *",
+        {
+          duration: 0.5,
+          y: -10,
+          autoAlpha: 0,
+          stagger: 0.1,
+          ease: "power1.out",
+        },
+        "<"
+      );
   }
 
   function initBackgroundParticles() {
     if (prefersReducedMotion && liveRoomConfig.reduceMotionParticles) return;
     const targetEl = document.getElementById("live-particles-bg");
     if (!targetEl) return;
-    tsParticles.load("live-particles-bg", {
+    tsParticles
+      .load("live-particles-bg", {
         fpsLimit: prefersReducedMotion ? 20 : 45,
         particles: {
-            number: { value: prefersReducedMotion ? 15 : 30, density: { enable: true, value_area: 800 } },
-            color: { value: ["#a0a0c0", "#8a7ffb", "#6a6a8a"] },
-            shape: { type: "circle" },
-            opacity: { value: {min:0.05, max:0.15}, animation: { enable: !prefersReducedMotion, speed: 0.5, minimumValue: 0.05 } },
-            size: { value: {min:1,max:3} },
-            links: { enable: false },
-            move: { enable: true, speed: prefersReducedMotion ? 0.1 : 0.2, direction: "none", random: true, straight: false, outModes: { default: "out" } },
+          number: {
+            value: prefersReducedMotion ? 15 : 30,
+            density: { enable: true, value_area: 800 },
+          },
+          color: { value: ["#a0a0c0", "#8a7ffb", "#6a6a8a"] },
+          shape: { type: "circle" },
+          opacity: {
+            value: { min: 0.05, max: 0.15 },
+            animation: {
+              enable: !prefersReducedMotion,
+              speed: 0.5,
+              minimumValue: 0.05,
+            },
+          },
+          size: { value: { min: 1, max: 3 } },
+          links: { enable: false },
+          move: {
+            enable: true,
+            speed: prefersReducedMotion ? 0.1 : 0.2,
+            direction: "none",
+            random: true,
+            straight: false,
+            outModes: { default: "out" },
+          },
         },
         interactivity: { enabled: false },
         background: { color: "transparent" },
-    }).catch(error => console.error("tsParticles background error:", error));
+      })
+      .catch((error) => console.error("tsParticles background error:", error));
   }
 
   function animateViewerCount(element) {
     if (!element || prefersReducedMotion) return;
-    gsap.fromTo(element,
-        { scale: 1.3, color: "var(--accent-color)" },
-        { scale: 1, color: "var(--text-light)", duration: 0.5, ease: "back.out(2)" }
+    gsap.fromTo(
+      element,
+      { scale: 1.3, color: "var(--accent-color)" },
+      {
+        scale: 1,
+        color: "var(--text-light)",
+        duration: 0.5,
+        ease: "back.out(2)",
+      }
     );
   }
 
@@ -155,24 +226,28 @@ document.addEventListener("DOMContentLoaded", () => {
     socket.on("connect", () => {
       console.log("Viewer socket connected:", socket.id);
       if (viewerPeer && viewerPeer.id) {
-        socket.emit("joinRoom", { // Viewer now also sends peerId on joinRoom for simplicity if Peer is ready
+        socket.emit("joinRoom", {
+          // Viewer now also sends peerId on joinRoom for simplicity if Peer is ready
           roomId: liveRoomConfig.roomId,
           username: liveRoomConfig.username,
-          peerId: viewerPeer.id // Send PeerJS ID here
+          peerId: viewerPeer.id, // Send PeerJS ID here
         });
         // No need for separate 'newViewer' from viewer side IF joinRoom includes peerId
       } else {
-        socket.emit("joinRoom", { // Join without peerId if PeerJS not ready yet
+        socket.emit("joinRoom", {
+          // Join without peerId if PeerJS not ready yet
           roomId: liveRoomConfig.roomId,
           username: liveRoomConfig.username,
         });
-        console.log("Viewer socket connected, waiting for PeerJS to send its ID via newViewer event.");
+        console.log(
+          "Viewer socket connected, waiting for PeerJS to send its ID via newViewer event."
+        );
       }
       socket.emit("getInitialData", { roomId: liveRoomConfig.roomId }); // For chat history, pinned msg etc.
       if (sharedWhiteboardInstance) {
         sharedWhiteboardInstance.forceRequestInitialState();
       } else {
-         // If sharedWB not init yet, it will request state upon its own initialization
+        // If sharedWB not init yet, it will request state upon its own initialization
       }
     });
     socket.on("disconnect", (reason) => {
@@ -181,7 +256,9 @@ document.addEventListener("DOMContentLoaded", () => {
       // Redirecting immediately might be too abrupt, consider a modal or countdown
       // location.href = liveRoomConfig.glitchProjectUrl + "/live";
     });
-    socket.on("connect_error", (err) => console.error("Viewer Socket Error:", err.message));
+    socket.on("connect_error", (err) =>
+      console.error("Viewer Socket Error:", err.message)
+    );
 
     socket.on("userJoined", (msg) => addChatMessage(msg, "system", "join"));
     socket.on("viewerLeft", (msg) => addChatMessage(msg, "system", "left"));
@@ -204,11 +281,16 @@ document.addEventListener("DOMContentLoaded", () => {
     socket.on("commentUnpinned", () => displayPinnedComment(null));
 
     socket.on("hostJoined", () => {
-        hideOverlay(elements.waitingOverlay);
-        if(sharedWhiteboardInstance && sharedWhiteboardInstance.isGloballyVisible() && !isWhiteboardLocallyVisible){
-            // If WB was supposed to be visible and we were waiting, try showing it.
-             if (elements.toggleViewerWhiteboardDisplayBtn) elements.toggleViewerWhiteboardDisplayBtn.disabled = false;
-        }
+      hideOverlay(elements.waitingOverlay);
+      if (
+        sharedWhiteboardInstance &&
+        sharedWhiteboardInstance.isGloballyVisible() &&
+        !isWhiteboardLocallyVisible
+      ) {
+        // If WB was supposed to be visible and we were waiting, try showing it.
+        if (elements.toggleViewerWhiteboardDisplayBtn)
+          elements.toggleViewerWhiteboardDisplayBtn.disabled = false;
+      }
     });
     socket.on("roomEnded", () => {
       showOverlay(elements.endedOverlay);
@@ -216,8 +298,9 @@ document.addEventListener("DOMContentLoaded", () => {
         sharedWhiteboardInstance.hide(); // Hide it locally
       }
       if (elements.toggleViewerWhiteboardDisplayBtn) {
-         elements.toggleViewerWhiteboardDisplayBtn.disabled = true;
-         elements.toggleViewerWhiteboardDisplayBtn.innerHTML = '<i class="fas fa-chalkboard"></i> Hiện Bảng Vẽ';
+        elements.toggleViewerWhiteboardDisplayBtn.disabled = true;
+        elements.toggleViewerWhiteboardDisplayBtn.innerHTML =
+          '<i class="fas fa-chalkboard"></i> Hiện Bảng Vẽ';
       }
       if (currentCall) {
         currentCall.close();
@@ -230,10 +313,12 @@ document.addEventListener("DOMContentLoaded", () => {
       window.location.href = liveRoomConfig.glitchProjectUrl + "/live";
     });
     socket.on("screenShareEnded", () => handleStreamEnd()); // Streamer stopped sharing
-    socket.on("initialRoomState", (state) => { // For chat history, pinned msg etc.
+    socket.on("initialRoomState", (state) => {
+      // For chat history, pinned msg etc.
       console.log("Received initial room state:", state);
       if (state.pinnedComment) displayPinnedComment(state.pinnedComment);
-      if (state.viewerCount) elements.viewerCount.textContent = state.viewerCount;
+      if (state.viewerCount)
+        elements.viewerCount.textContent = state.viewerCount;
       if (!state.isHostPresent) showOverlay(elements.waitingOverlay);
       else hideOverlay(elements.waitingOverlay);
       // Whiteboard initial state is handled by wb:initState via sharedWhiteboardInstance
@@ -247,20 +332,28 @@ document.addEventListener("DOMContentLoaded", () => {
       // The sharedWhiteboardInstance's internal listener will also get this.
       // This is mostly for updating the viewer's local show/hide button state.
       if (elements.toggleViewerWhiteboardDisplayBtn) {
-          elements.toggleViewerWhiteboardDisplayBtn.disabled = !isVisible;
-          if (isVisible && isWhiteboardLocallyVisible) {
-               elements.toggleViewerWhiteboardDisplayBtn.innerHTML = '<i class="fas fa-eye-slash"></i> Ẩn Bảng Vẽ';
-               elements.toggleViewerWhiteboardDisplayBtn.title = "Ẩn bảng vẽ (cục bộ)";
-          } else {
-               elements.toggleViewerWhiteboardDisplayBtn.innerHTML = '<i class="fas fa-chalkboard"></i> Hiện Bảng Vẽ';
-               elements.toggleViewerWhiteboardDisplayBtn.title = "Hiện bảng vẽ (nếu streamer đang bật)";
-          }
+        elements.toggleViewerWhiteboardDisplayBtn.disabled = !isVisible;
+        if (isVisible && isWhiteboardLocallyVisible) {
+          elements.toggleViewerWhiteboardDisplayBtn.innerHTML =
+            '<i class="fas fa-eye-slash"></i> Ẩn Bảng Vẽ';
+          elements.toggleViewerWhiteboardDisplayBtn.title =
+            "Ẩn bảng vẽ (cục bộ)";
+        } else {
+          elements.toggleViewerWhiteboardDisplayBtn.innerHTML =
+            '<i class="fas fa-chalkboard"></i> Hiện Bảng Vẽ';
+          elements.toggleViewerWhiteboardDisplayBtn.title =
+            "Hiện bảng vẽ (nếu streamer đang bật)";
+        }
       }
       // If streamer turned it off, and viewer had it locally visible, the shared instance's handler should hide it.
       // If streamer turned it on, and viewer had it locally hidden, viewer can choose to show it.
-      if (!isVisible && sharedWhiteboardInstance && sharedWhiteboardInstance.isActive()) {
-          sharedWhiteboardInstance.hide(); // Force hide if globally off
-          isWhiteboardLocallyVisible = false; // Update local flag
+      if (
+        !isVisible &&
+        sharedWhiteboardInstance &&
+        sharedWhiteboardInstance.isActive()
+      ) {
+        sharedWhiteboardInstance.hide(); // Force hide if globally off
+        isWhiteboardLocallyVisible = false; // Update local flag
       }
     });
 
@@ -271,51 +364,84 @@ document.addEventListener("DOMContentLoaded", () => {
     socket.on("quiz:answerSubmitted", ({ questionId, answerIndex }) => {
       if (questionId === currentQuizIdViewer) {
         selectedAnswerIndexViewer = answerIndex;
-        if (elements.quizViewerFeedback) elements.quizViewerFeedback.textContent = "Đã ghi nhận câu trả lời của bạn.";
-        const optionButtons = elements.quizOptionsViewerContainer.querySelectorAll(".quiz-option-btn-viewer");
-        optionButtons.forEach(button => {
+        if (elements.quizViewerFeedback)
+          elements.quizViewerFeedback.textContent =
+            "Đã ghi nhận câu trả lời của bạn.";
+        const optionButtons =
+          elements.quizOptionsViewerContainer.querySelectorAll(
+            ".quiz-option-btn-viewer"
+          );
+        optionButtons.forEach((button) => {
           const optIdx = parseInt(button.dataset.optionIndex, 10);
           if (optIdx !== answerIndex) {
-            button.disabled = true; button.style.opacity = "0.7";
+            button.disabled = true;
+            button.style.opacity = "0.7";
           } else {
             button.classList.add("selected"); // Highlight selection
           }
         });
       }
     });
-    socket.on("quiz:correctAnswer", ({ questionId, correctAnswerIndex, results }) => {
-      if (questionId === currentQuizIdViewer) {
-        showQuizResultViewer(questionId, correctAnswerIndex, results);
+    socket.on(
+      "quiz:correctAnswer",
+      ({ questionId, correctAnswerIndex, results }) => {
+        if (questionId === currentQuizIdViewer) {
+          showQuizResultViewer(questionId, correctAnswerIndex, results);
+        }
       }
-    });
+    );
     socket.on("quiz:clearCurrent", () => {
-      if (elements.viewerQuizOverlay && elements.quizQuestionViewerText && elements.quizOptionsViewerContainer) {
-        elements.quizQuestionViewerText.textContent = "Chờ câu hỏi tiếp theo...";
+      if (
+        elements.viewerQuizOverlay &&
+        elements.quizQuestionViewerText &&
+        elements.quizOptionsViewerContainer
+      ) {
+        elements.quizQuestionViewerText.textContent =
+          "Chờ câu hỏi tiếp theo...";
         elements.quizOptionsViewerContainer.innerHTML = "";
-        if (elements.quizViewerFeedback) elements.quizViewerFeedback.textContent = "";
+        if (elements.quizViewerFeedback)
+          elements.quizViewerFeedback.textContent = "";
       }
-      currentQuizIdViewer = null; selectedAnswerIndexViewer = null;
+      currentQuizIdViewer = null;
+      selectedAnswerIndexViewer = null;
     });
     socket.on("quiz:ended", () => {
       clearQuizOverlayViewer();
-      if (typeof showAlert === "function") showAlert("Phiên trắc nghiệm đã kết thúc.", "info", 3000);
+      if (typeof showAlert === "function")
+        showAlert("Phiên trắc nghiệm đã kết thúc.", "info", 3000);
     });
     socket.on("quiz:error", (errorMessage) => {
       if (typeof showAlert === "function") showAlert(errorMessage, "error");
       // More robust error handling if an answer submission failed before results shown
-      if (elements.quizOptionsViewerContainer && currentQuizIdViewer && selectedAnswerIndexViewer !== null) {
-        const optionButtons = elements.quizOptionsViewerContainer.querySelectorAll(".quiz-option-btn-viewer");
+      if (
+        elements.quizOptionsViewerContainer &&
+        currentQuizIdViewer &&
+        selectedAnswerIndexViewer !== null
+      ) {
+        const optionButtons =
+          elements.quizOptionsViewerContainer.querySelectorAll(
+            ".quiz-option-btn-viewer"
+          );
         let answerAlreadyShown = false;
-        optionButtons.forEach(btn => { if (btn.classList.contains('correct-answer') || btn.classList.contains('incorrect-answer')) answerAlreadyShown = true; });
-        
-        if (!answerAlreadyShown) { // Only re-enable if results not yet shown
-            optionButtons.forEach(button => {
-                button.disabled = false;
-                button.style.opacity = "1";
-                button.classList.remove("selected");
-            });
-            if (elements.quizViewerFeedback) elements.quizViewerFeedback.textContent = "Có lỗi xảy ra, vui lòng thử chọn lại.";
-            selectedAnswerIndexViewer = null;
+        optionButtons.forEach((btn) => {
+          if (
+            btn.classList.contains("correct-answer") ||
+            btn.classList.contains("incorrect-answer")
+          )
+            answerAlreadyShown = true;
+        });
+
+        if (!answerAlreadyShown) {
+          // Only re-enable if results not yet shown
+          optionButtons.forEach((button) => {
+            button.disabled = false;
+            button.style.opacity = "1";
+            button.classList.remove("selected");
+          });
+          if (elements.quizViewerFeedback)
+            elements.quizViewerFeedback.textContent =
+              "Có lỗi xảy ra, vui lòng thử chọn lại.";
+          selectedAnswerIndexViewer = null;
         }
       }
     });
@@ -337,15 +463,19 @@ document.addEventListener("DOMContentLoaded", () => {
         // A more robust way is to ensure 'joinRoom' always sends peerId if available,
         // or a separate 'viewerPeerReady' event.
         // For now, let's use a specific event if 'joinRoom' didn't have it.
-        if(!socket.peerIdForStreamer) { // Check if joinRoom already sent it
-             socket.emit("newViewer", { // 'newViewer' is listened to by streamer's socket handler
-                viewerId: id,
-                roomId: liveRoomConfig.roomId,
-                username: liveRoomConfig.username
-            });
+        if (!socket.peerIdForStreamer) {
+          // Check if joinRoom already sent it
+          socket.emit("newViewer", {
+            // 'newViewer' is listened to by streamer's socket handler
+            viewerId: id,
+            roomId: liveRoomConfig.roomId,
+            username: liveRoomConfig.username,
+          });
         }
       } else {
-        console.log("Viewer PeerJS opened, waiting for socket connection to send its ID.");
+        console.log(
+          "Viewer PeerJS opened, waiting for socket connection to send its ID."
+        );
       }
     });
 
@@ -368,14 +498,28 @@ document.addEventListener("DOMContentLoaded", () => {
           });
         }
       });
-      call.on("close", () => { console.log("Call closed by host."); handleStreamEnd(); });
-      call.on("error", (err) => { console.error("Call error on viewer side:", err); handleStreamEnd(); showAlert("Lỗi kết nối stream.", "error"); });
+      call.on("close", () => {
+        console.log("Call closed by host.");
+        handleStreamEnd();
+      });
+      call.on("error", (err) => {
+        console.error("Call error on viewer side:", err);
+        handleStreamEnd();
+        showAlert("Lỗi kết nối stream.", "error");
+      });
       if (currentCall) currentCall.close();
       currentCall = call;
     });
-    viewerPeer.on("error", (err) => { console.error("Viewer PeerJS Error:", err); showAlert(`Lỗi Peer: ${err.type}`, "error");});
-    viewerPeer.on("disconnected", () => console.warn("Viewer PeerJS disconnected."));
-    viewerPeer.on("close", () => console.log("Viewer PeerJS connection closed."));
+    viewerPeer.on("error", (err) => {
+      console.error("Viewer PeerJS Error:", err);
+      showAlert(`Lỗi Peer: ${err.type}`, "error");
+    });
+    viewerPeer.on("disconnected", () =>
+      console.warn("Viewer PeerJS disconnected.")
+    );
+    viewerPeer.on("close", () =>
+      console.log("Viewer PeerJS connection closed.")
+    );
   }
 
   // ==================================
@@ -383,14 +527,18 @@ document.addEventListener("DOMContentLoaded", () => {
   // ==================================
   function initViewerWhiteboardModule() {
     if (!elements.whiteboardCanvasViewer || !socket) {
-      console.error("Cannot initialize viewer whiteboard: canvas or socket missing.");
-      if(elements.toggleViewerWhiteboardDisplayBtn) elements.toggleViewerWhiteboardDisplayBtn.disabled = true;
+      console.error(
+        "Cannot initialize viewer whiteboard: canvas or socket missing."
+      );
+      if (elements.toggleViewerWhiteboardDisplayBtn)
+        elements.toggleViewerWhiteboardDisplayBtn.disabled = true;
       return;
     }
 
     const wbConfig = {
       canvasElement: elements.whiteboardCanvasViewer,
-      toolbarElements: { // Viewer toolbar might be simpler or non-existent if no draw permission
+      toolbarElements: {
+        // Viewer toolbar might be simpler or non-existent if no draw permission
         mainToolbar: elements.whiteboardToolbarViewerMain,
         colorPicker: elements.wbColorPickerViewer,
         lineWidthRange: elements.wbLineWidthRangeViewer,
@@ -406,11 +554,16 @@ document.addEventListener("DOMContentLoaded", () => {
       showNotificationCallback: showAlert, // Use global showAlert
       // Viewers don't typically confirm actions on the WB unless they are drawing
       confirmActionCallback: (message, confirmText, cancelText, iconClass) => {
-         // Use showArtisticConfirm if available, else window.confirm
-         if (typeof showArtisticConfirm === 'function') {
-             return showArtisticConfirm(message, confirmText, cancelText, iconClass);
-         }
-         return Promise.resolve(window.confirm(message));
+        // Use showArtisticConfirm if available, else window.confirm
+        if (typeof showArtisticConfirm === "function") {
+          return showArtisticConfirm(
+            message,
+            confirmText,
+            cancelText,
+            iconClass
+          );
+        }
+        return Promise.resolve(window.confirm(message));
       },
       onVisibilityChangeCallback: (isVisibleAndGlobal) => {
         // This callback is when the SHARED module's own visibility changes (show/hide called on it)
@@ -418,44 +571,56 @@ document.addEventListener("DOMContentLoaded", () => {
         // We use `isWhiteboardLocallyVisible` for the viewer's own toggle button.
         isWhiteboardLocallyVisible = isVisibleAndGlobal; // Update local state based on shared module
         if (elements.toggleViewerWhiteboardDisplayBtn) {
-            elements.toggleViewerWhiteboardDisplayBtn.innerHTML = isVisibleAndGlobal
-                ? '<i class="fas fa-eye-slash"></i> Ẩn Bảng Vẽ'
-                : '<i class="fas fa-chalkboard"></i> Hiện Bảng Vẽ';
-            elements.toggleViewerWhiteboardDisplayBtn.title = isVisibleAndGlobal
-                ? "Ẩn bảng vẽ (cục bộ)"
-                : "Hiện bảng vẽ (nếu streamer đang bật)";
-            // Disable button if WB is not globally available, handled by 'wb:toggleVisibility' from server too
-             elements.toggleViewerWhiteboardDisplayBtn.disabled = !sharedWhiteboardInstance?.isGloballyVisible();
+          elements.toggleViewerWhiteboardDisplayBtn.innerHTML =
+            isVisibleAndGlobal
+              ? '<i class="fas fa-eye-slash"></i> Ẩn Bảng Vẽ'
+              : '<i class="fas fa-chalkboard"></i> Hiện Bảng Vẽ';
+          elements.toggleViewerWhiteboardDisplayBtn.title = isVisibleAndGlobal
+            ? "Ẩn bảng vẽ (cục bộ)"
+            : "Hiện bảng vẽ (nếu streamer đang bật)";
+          // Disable button if WB is not globally available, handled by 'wb:toggleVisibility' from server too
+          elements.toggleViewerWhiteboardDisplayBtn.disabled =
+            !sharedWhiteboardInstance?.isGloballyVisible();
         }
-         if (elements.whiteboardToolbarViewerMain) {
-            elements.whiteboardToolbarViewerMain.style.display = (isVisibleAndGlobal && sharedWhiteboardInstance?.isGloballyVisible()) ? 'flex' : 'none';
+        if (elements.whiteboardToolbarViewerMain) {
+          elements.whiteboardToolbarViewerMain.style.display =
+            isVisibleAndGlobal && sharedWhiteboardInstance?.isGloballyVisible()
+              ? "flex"
+              : "none";
         }
       },
       onPermissionChangeCallback: (canDraw) => {
         // Update viewer's drawing tools' enabled state
         const drawingTools = [
-            elements.wbColorPickerViewer, elements.wbLineWidthRangeViewer, elements.wbEraserModeBtnViewer
+          elements.wbColorPickerViewer,
+          elements.wbLineWidthRangeViewer,
+          elements.wbEraserModeBtnViewer,
         ];
-        drawingTools.forEach(tool => { if(tool) tool.disabled = !canDraw; });
+        drawingTools.forEach((tool) => {
+          if (tool) tool.disabled = !canDraw;
+        });
 
         if (elements.whiteboardToolbarViewerMain) {
-            let permissionMsgEl = elements.whiteboardToolbarViewerMain.querySelector(".wb-permission-msg");
-            if (!canDraw && !permissionMsgEl) {
-                permissionMsgEl = document.createElement("span");
-                permissionMsgEl.className = "wb-permission-msg";
-                permissionMsgEl.textContent = "Bạn chưa có quyền vẽ";
-                permissionMsgEl.style.color = "var(--warning-color)";
-                permissionMsgEl.style.fontStyle = "italic";
-                permissionMsgEl.style.fontSize = "0.8em";
-                permissionMsgEl.style.marginLeft = "auto";
-                elements.whiteboardToolbarViewerMain.appendChild(permissionMsgEl);
-            } else if (canDraw && permissionMsgEl) {
-                permissionMsgEl.remove();
-            }
+          let permissionMsgEl =
+            elements.whiteboardToolbarViewerMain.querySelector(
+              ".wb-permission-msg"
+            );
+          if (!canDraw && !permissionMsgEl) {
+            permissionMsgEl = document.createElement("span");
+            permissionMsgEl.className = "wb-permission-msg";
+            permissionMsgEl.textContent = "Bạn chưa có quyền vẽ";
+            permissionMsgEl.style.color = "var(--warning-color)";
+            permissionMsgEl.style.fontStyle = "italic";
+            permissionMsgEl.style.fontSize = "0.8em";
+            permissionMsgEl.style.marginLeft = "auto";
+            elements.whiteboardToolbarViewerMain.appendChild(permissionMsgEl);
+          } else if (canDraw && permissionMsgEl) {
+            permissionMsgEl.remove();
+          }
         }
-         if (elements.whiteboardCanvasViewer) {
-            elements.whiteboardCanvasViewer.classList.toggle("can-draw", canDraw);
-            // Cursor will be managed by shared module's setActiveTool based on currentTool
+        if (elements.whiteboardCanvasViewer) {
+          elements.whiteboardCanvasViewer.classList.toggle("can-draw", canDraw);
+          // Cursor will be managed by shared module's setActiveTool based on currentTool
         }
       },
       getRoomOwnerUsername: () => liveRoomConfig.roomOwner, // Function to get owner
@@ -470,15 +635,22 @@ document.addEventListener("DOMContentLoaded", () => {
       // The shared module's show/hide will be called by event listeners.
     } else {
       console.error("Failed to initialize Shared Whiteboard for Viewer.");
-       if(elements.toggleViewerWhiteboardDisplayBtn) elements.toggleViewerWhiteboardDisplayBtn.disabled = true;
+      if (elements.toggleViewerWhiteboardDisplayBtn)
+        elements.toggleViewerWhiteboardDisplayBtn.disabled = true;
     }
   }
 
-
   // ---- Start: Viewer Quiz Functions (Unchanged) ----
   function displayQuizQuestion(questionId, text, options) {
-    if (!elements.viewerQuizOverlay || !elements.quizQuestionViewerText || !elements.quizOptionsViewerContainer || !elements.quizViewerFeedback) return;
-    currentQuizIdViewer = questionId; selectedAnswerIndexViewer = null;
+    if (
+      !elements.viewerQuizOverlay ||
+      !elements.quizQuestionViewerText ||
+      !elements.quizOptionsViewerContainer ||
+      !elements.quizViewerFeedback
+    )
+      return;
+    currentQuizIdViewer = questionId;
+    selectedAnswerIndexViewer = null;
     elements.quizQuestionViewerText.textContent = text;
     elements.quizOptionsViewerContainer.innerHTML = "";
     options.forEach((optionText, index) => {
@@ -488,64 +660,105 @@ document.addEventListener("DOMContentLoaded", () => {
       button.dataset.optionIndex = index;
       // CSS in liveRoom.css will style .quiz-option-btn-viewer specifically
       button.onclick = () => {
-        if (!socket || elements.quizOptionsViewerContainer.querySelector("button:disabled")) {
-             if (elements.quizViewerFeedback && elements.quizViewerFeedback.textContent.includes("Đáp án đúng là")) return;
+        if (
+          !socket ||
+          elements.quizOptionsViewerContainer.querySelector("button:disabled")
+        ) {
+          if (
+            elements.quizViewerFeedback &&
+            elements.quizViewerFeedback.textContent.includes("Đáp án đúng là")
+          )
+            return;
         }
-        const allOptionBtns = elements.quizOptionsViewerContainer.querySelectorAll(".quiz-option-btn-viewer");
-        allOptionBtns.forEach(btn => btn.classList.remove("selected"));
+        const allOptionBtns =
+          elements.quizOptionsViewerContainer.querySelectorAll(
+            ".quiz-option-btn-viewer"
+          );
+        allOptionBtns.forEach((btn) => btn.classList.remove("selected"));
         button.classList.add("selected");
-        socket.emit("quiz:submitAnswer", { roomId: liveRoomConfig.roomId, questionId: currentQuizIdViewer, answerIndex: index });
-        if(elements.quizViewerFeedback) elements.quizViewerFeedback.textContent = "Đã gửi câu trả lời của bạn...";
+        socket.emit("quiz:submitAnswer", {
+          roomId: liveRoomConfig.roomId,
+          questionId: currentQuizIdViewer,
+          answerIndex: index,
+        });
+        if (elements.quizViewerFeedback)
+          elements.quizViewerFeedback.textContent =
+            "Đã gửi câu trả lời của bạn...";
       };
       elements.quizOptionsViewerContainer.appendChild(button);
     });
-    if(elements.quizViewerFeedback) elements.quizViewerFeedback.textContent = "Chọn một câu trả lời.";
-    elements.viewerQuizOverlay.style.display = "block"; quizOverlayVisible = true;
+    if (elements.quizViewerFeedback)
+      elements.quizViewerFeedback.textContent = "Chọn một câu trả lời.";
+    elements.viewerQuizOverlay.style.display = "block";
+    quizOverlayVisible = true;
     if (!prefersReducedMotion) {
-      gsap.fromTo(elements.viewerQuizOverlay, { autoAlpha: 0, y: 50 }, { duration: 0.5, autoAlpha: 1, y: 0, ease: "back.out(1.7)" });
+      gsap.fromTo(
+        elements.viewerQuizOverlay,
+        { autoAlpha: 0, y: 50 },
+        { duration: 0.5, autoAlpha: 1, y: 0, ease: "back.out(1.7)" }
+      );
     } else {
       gsap.set(elements.viewerQuizOverlay, { autoAlpha: 1, y: 0 });
     }
   }
 
   function showQuizResultViewer(questionId, correctAnswerIndex, results) {
-    if (!elements.viewerQuizOverlay || !elements.quizOptionsViewerContainer || !elements.quizViewerFeedback || questionId !== currentQuizIdViewer) return;
-    const optionButtons = elements.quizOptionsViewerContainer.querySelectorAll(".quiz-option-btn-viewer");
+    if (
+      !elements.viewerQuizOverlay ||
+      !elements.quizOptionsViewerContainer ||
+      !elements.quizViewerFeedback ||
+      questionId !== currentQuizIdViewer
+    )
+      return;
+    const optionButtons = elements.quizOptionsViewerContainer.querySelectorAll(
+      ".quiz-option-btn-viewer"
+    );
     let totalVotes = 0;
-    if (results) Object.values(results).forEach(count => totalVotes += (count || 0));
+    if (results)
+      Object.values(results).forEach((count) => (totalVotes += count || 0));
 
     let feedbackText = "Đã hiển thị đáp án.";
-    optionButtons.forEach(button => {
+    optionButtons.forEach((button) => {
       const optionIndex = parseInt(button.dataset.optionIndex, 10);
       button.disabled = true; // Disable after showing results
       let resultText = "";
       if (results && results[optionIndex] !== undefined) {
         const count = results[optionIndex] || 0;
-        const percentage = totalVotes > 0 ? ((count / totalVotes) * 100).toFixed(0) : 0;
+        const percentage =
+          totalVotes > 0 ? ((count / totalVotes) * 100).toFixed(0) : 0;
         resultText = ` (${count} phiếu, ${percentage}%)`;
       }
       // Clear existing content before adding new, to avoid appending icons multiple times
-      const originalButtonText = button.textContent.replace(/\s*<i.*<\/i>\s*\(ĐÚNG\).*|\s*\(\d+ phiếu, \d+%\)/g, "").trim();
+      const originalButtonText = button.textContent
+        .replace(/\s*<i.*<\/i>\s*\(ĐÚNG\).*|\s*\(\d+ phiếu, \d+%\)/g, "")
+        .trim();
 
       if (optionIndex === correctAnswerIndex) {
         button.classList.add("correct-answer"); // Use class for styling from CSS
         button.classList.remove("incorrect-answer", "selected");
         button.innerHTML = `${originalButtonText} <i class="fas fa-check"></i> (ĐÚNG)${resultText}`;
-        if (selectedAnswerIndexViewer === optionIndex) feedbackText = "Chính xác! ";
+        if (selectedAnswerIndexViewer === optionIndex)
+          feedbackText = "Chính xác! ";
       } else {
         button.classList.add("incorrect-answer");
         button.classList.remove("correct-answer", "selected");
         button.innerHTML = `${originalButtonText}${resultText}`;
-        if (selectedAnswerIndexViewer === optionIndex) feedbackText = "Sai rồi! ";
+        if (selectedAnswerIndexViewer === optionIndex)
+          feedbackText = "Sai rồi! ";
       }
     });
     if (elements.quizViewerFeedback) {
-      if (selectedAnswerIndexViewer === null && feedbackText.startsWith("Đã hiển thị đáp án.")) {
+      if (
+        selectedAnswerIndexViewer === null &&
+        feedbackText.startsWith("Đã hiển thị đáp án.")
+      ) {
         feedbackText = "Bạn chưa chọn đáp án. ";
       }
       const correctButton = optionButtons[correctAnswerIndex];
       if (correctButton) {
-        const correctButtonText = correctButton.textContent.replace(/\s*<i.*<\/i>\s*\(ĐÚNG\).*|\s*\(\d+ phiếu, \d+%\)/g, "").trim();
+        const correctButtonText = correctButton.textContent
+          .replace(/\s*<i.*<\/i>\s*\(ĐÚNG\).*|\s*\(\d+ phiếu, \d+%\)/g, "")
+          .trim();
         feedbackText += `Đáp án đúng là: ${correctButtonText}`;
       }
       elements.quizViewerFeedback.textContent = feedbackText;
@@ -555,21 +768,32 @@ document.addEventListener("DOMContentLoaded", () => {
   function clearQuizOverlayViewer() {
     if (!elements.viewerQuizOverlay) return;
     const onHideComplete = () => {
-      if (elements.quizQuestionViewerText) elements.quizQuestionViewerText.textContent = "";
-      if (elements.quizOptionsViewerContainer) elements.quizOptionsViewerContainer.innerHTML = "";
-      if (elements.quizViewerFeedback) elements.quizViewerFeedback.textContent = "";
-      if (elements.viewerQuizOverlay) elements.viewerQuizOverlay.style.display = "none";
-      currentQuizIdViewer = null; selectedAnswerIndexViewer = null; quizOverlayVisible = false;
+      if (elements.quizQuestionViewerText)
+        elements.quizQuestionViewerText.textContent = "";
+      if (elements.quizOptionsViewerContainer)
+        elements.quizOptionsViewerContainer.innerHTML = "";
+      if (elements.quizViewerFeedback)
+        elements.quizViewerFeedback.textContent = "";
+      if (elements.viewerQuizOverlay)
+        elements.viewerQuizOverlay.style.display = "none";
+      currentQuizIdViewer = null;
+      selectedAnswerIndexViewer = null;
+      quizOverlayVisible = false;
     };
     if (quizOverlayVisible && !prefersReducedMotion) {
-      gsap.to(elements.viewerQuizOverlay, { duration: 0.4, autoAlpha: 0, y: 50, ease: "power1.in", onComplete: onHideComplete });
+      gsap.to(elements.viewerQuizOverlay, {
+        duration: 0.4,
+        autoAlpha: 0,
+        y: 50,
+        ease: "power1.in",
+        onComplete: onHideComplete,
+      });
     } else {
-      gsap.set(elements.viewerQuizOverlay, { autoAlpha: 0, display: 'none' });
+      gsap.set(elements.viewerQuizOverlay, { autoAlpha: 0, display: "none" });
       onHideComplete();
     }
   }
   // ---- End: Viewer Quiz Functions ----
-
 
   // ==================================
   // UI & CHAT FUNCTIONS (Mostly Unchanged)
@@ -579,7 +803,11 @@ document.addEventListener("DOMContentLoaded", () => {
     if (chatMessagesContainer) {
       setTimeout(() => {
         const scrollThreshold = 50;
-        const isScrolledUp = chatMessagesContainer.scrollHeight - chatMessagesContainer.scrollTop - chatMessagesContainer.clientHeight > scrollThreshold;
+        const isScrolledUp =
+          chatMessagesContainer.scrollHeight -
+            chatMessagesContainer.scrollTop -
+            chatMessagesContainer.clientHeight >
+          scrollThreshold;
         if (!isScrolledUp) {
           chatMessagesContainer.scrollTop = chatMessagesContainer.scrollHeight;
         }
@@ -587,7 +815,13 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  function addChatMessage(content, type = "guest", username = "System", timestamp = new Date(), originalMessage = null) {
+  function addChatMessage(
+    content,
+    type = "guest",
+    username = "System",
+    timestamp = new Date(),
+    originalMessage = null
+  ) {
     const li = document.createElement("li");
     li.className = `chat-message-item message-${type}`;
     const iconSpan = document.createElement("span");
@@ -610,21 +844,30 @@ document.addEventListener("DOMContentLoaded", () => {
     msgHeader.appendChild(userSpan);
     const timeSpan = document.createElement("span");
     timeSpan.className = "msg-timestamp";
-    timeSpan.textContent = new Date(timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    timeSpan.textContent = new Date(timestamp).toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
     msgHeader.appendChild(timeSpan);
     contentContainer.appendChild(msgHeader);
     const bodySpan = document.createElement("span");
     bodySpan.className = "msg-body prose-styling";
     let finalHtml = content || "";
-    if (type !== "system" && typeof marked !== "undefined" && typeof katex !== "undefined") {
+    if (
+      type !== "system" &&
+      typeof marked !== "undefined" &&
+      typeof katex !== "undefined"
+    ) {
       try {
         finalHtml = marked.parse(content || "");
         const tempDiv = document.createElement("div");
         tempDiv.innerHTML = finalHtml;
         renderMathInElement(tempDiv, {
           delimiters: [
-            { left: "$$", right: "$$", display: true }, { left: "$", right: "$", display: false },
-            { left: "\\(", right: "\\)", display: false }, { left: "\\[", right: "\\]", display: true }
+            { left: "$$", right: "$$", display: true },
+            { left: "$", right: "$", display: false },
+            { left: "\\(", right: "\\)", display: false },
+            { left: "\\[", right: "\\]", display: true },
           ],
           throwOnError: false,
         });
@@ -642,4 +885,467 @@ document.addEventListener("DOMContentLoaded", () => {
       // Using GSAP for entrance animation from CSS keyframes
       // The class chat-message-item has an animation: messageFadeIn
       // If you want JS-controlled animation instead:
-      //
+      // gsap.from(li, { duration: 0.5, autoAlpha: 0, x: -20, ease: 'power2.out' });
+    } else {
+      gsap.set(li, { autoAlpha: 1, x: 0 }); // Ensure visible if reduced motion
+    }
+
+    elements.chatMessagesList?.appendChild(li);
+    scrollChatToBottom();
+  }
+
+  function displayPinnedComment(message) {
+    const container = elements.pinnedCommentContainer;
+    if (!container) return;
+
+    const existingBox = container.querySelector(".pinned-box");
+
+    if (!message || !message.content) {
+      // Unpinning
+      if (existingBox && !prefersReducedMotion) {
+        gsap.to(existingBox, {
+          duration: 0.3,
+          height: 0,
+          autoAlpha: 0,
+          padding: 0,
+          margin: 0,
+          ease: "power1.in",
+          onComplete: () => existingBox.remove(),
+        });
+      } else if (existingBox) {
+        existingBox.remove();
+      }
+      container.classList.remove("has-content"); // CSS handles height via this class
+      return;
+    }
+
+    // Pinning or Updating
+    let pinnedBox = existingBox;
+    if (!pinnedBox) {
+      pinnedBox = document.createElement("div");
+      pinnedBox.className = "pinned-box";
+      // Animation for new box will be handled by has-content class transition if defined in CSS for container
+      container.appendChild(pinnedBox);
+    }
+
+    let contentHtml = message.content || "";
+    if (typeof marked !== "undefined" && typeof katex !== "undefined") {
+      try {
+        contentHtml = marked.parse(contentHtml);
+        const tempDiv = document.createElement("div");
+        tempDiv.innerHTML = contentHtml;
+        renderMathInElement(tempDiv, {
+          /* KaTeX options */ throwOnError: false,
+        });
+        contentHtml = tempDiv.innerHTML;
+      } catch (e) {
+        console.error("Marked/Katex Error in pinned:", e);
+      }
+    }
+
+    pinnedBox.innerHTML = `
+        <span class="pin-icon"><i class="fas fa-thumbtack"></i></span>
+        <div class="pinned-content">
+            <span class="pinned-user">${message.username || "Host"}</span>
+            <span class="pinned-text prose-styling">${contentHtml}</span>
+        </div>
+        <span class="pinned-timestamp">${new Date(
+          message.timestamp
+        ).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+        ${
+          liveRoomConfig.username === liveRoomConfig.roomOwner
+            ? '<button class="unpin-btn" title="Bỏ ghim"><i class="fas fa-times"></i></button>'
+            : ""
+        }
+    `;
+    // Add unpin listener if host (though this is viewer.js, host logic would be in streamer.js)
+    // For viewer, this button won't exist or won't have a listener.
+
+    if (!container.classList.contains("has-content")) {
+      container.classList.add("has-content"); // Trigger CSS transition for height/opacity
+      if (!existingBox && !prefersReducedMotion) {
+        // Additional animation for the box content itself if new
+        gsap.from(pinnedBox, {
+          duration: 0.5,
+          y: -10,
+          autoAlpha: 0,
+          ease: "power2.out",
+          delay: 0.1,
+        });
+      }
+    } else if (existingBox && !prefersReducedMotion) {
+      // If box existed and content changed, could add a subtle fade in/out for content
+      gsap.fromTo(
+        pinnedBox.querySelector(".pinned-content"),
+        { autoAlpha: 0.5 },
+        { autoAlpha: 1, duration: 0.3 }
+      );
+    }
+  }
+
+  function sendChatMessage() {
+    if (!socket) {
+      console.error("Socket not initialized.");
+      return;
+    }
+    const messageContent = elements.chatInputArea.value.trim();
+    if (!messageContent) return;
+
+    let messageType = liveRoomConfig.userIsPro ? "pro" : "guest";
+    const messageObj = {
+      username: liveRoomConfig.username,
+      content: messageContent,
+      messageType: messageType,
+      timestamp: new Date().toISOString(),
+    };
+    socket.emit("chatMessage", {
+      roomId: liveRoomConfig.roomId,
+      message: messageObj,
+    });
+    elements.chatInputArea.value = "";
+    elements.chatPreview.innerHTML = "";
+    elements.chatInputArea.style.height = "auto";
+  }
+
+  // ==================================
+  // OVERLAY & STREAM STATE HANDLING (Mostly Unchanged)
+  // ==================================
+  function showOverlay(overlayElement) {
+    if (!overlayElement) return;
+    console.log(`Showing overlay: ${overlayElement.id}`);
+
+    overlayElement.style.cursor =
+      overlayElement.id === "playOverlayLive" ||
+      overlayElement.id === "roomEndedOverlayLive"
+        ? "pointer"
+        : "default";
+    overlayElement.style.pointerEvents = "auto";
+
+    if (!prefersReducedMotion) {
+      gsap
+        .timeline()
+        .set(overlayElement, { display: "flex", autoAlpha: 0 })
+        .to(overlayElement, { duration: 0.5, autoAlpha: 1, ease: "power2.out" })
+        .from(
+          overlayElement.querySelector(".overlay-content"),
+          { duration: 0.6, scale: 0.9, autoAlpha: 0, ease: "back.out(1.7)" },
+          "-=0.3"
+        );
+    } else {
+      gsap.set(overlayElement, { display: "flex", autoAlpha: 1 });
+    }
+    overlayElement.classList.add("active");
+  }
+
+  function hideOverlay(overlayElement) {
+    if (!overlayElement || gsap.getProperty(overlayElement, "autoAlpha") === 0)
+      return;
+    console.log(`Hiding overlay: ${overlayElement.id}`);
+
+    overlayElement.style.cursor = "default";
+
+    const onComplete = () => {
+      gsap.set(overlayElement, { display: "none" });
+      overlayElement.classList.remove("active");
+    };
+
+    if (!prefersReducedMotion) {
+      gsap
+        .timeline({ onComplete })
+        .to(overlayElement.querySelector(".overlay-content"), {
+          duration: 0.3,
+          scale: 0.9,
+          autoAlpha: 0,
+          ease: "power1.in",
+        })
+        .to(overlayElement, { duration: 0.4, autoAlpha: 0 }, "-=0.2");
+    } else {
+      gsap.set(overlayElement, { display: "none", autoAlpha: 0 });
+      onComplete();
+    }
+  }
+
+  function handleStreamStart() {
+    console.log("Handling stream start UI");
+    if (elements.placeholder) elements.placeholder.classList.remove("active");
+    if (elements.liveIndicator) elements.liveIndicator.classList.add("active");
+    hideOverlay(elements.waitingOverlay);
+    hideOverlay(elements.playOverlay);
+  }
+
+  function handleStreamEnd() {
+    console.log("Handling stream end UI");
+    if (elements.liveVideo && elements.liveVideo.srcObject) {
+      elements.liveVideo.srcObject.getTracks().forEach((track) => track.stop());
+      elements.liveVideo.srcObject = null;
+    }
+    if (elements.placeholder) elements.placeholder.classList.add("active");
+    if (elements.liveIndicator)
+      elements.liveIndicator.classList.remove("active");
+  }
+
+  // ==================================
+  // UI EVENT LISTENERS SETUP
+  // ==================================
+  async function askExit() {
+    // Ensure showArtisticConfirm is available (loaded by index.ejs or similar)
+    let confirmed = false;
+    if (typeof showArtisticConfirm === "function") {
+      confirmed = await showArtisticConfirm(
+        "Bạn có chắc muốn rời khỏi phòng live?",
+        "Tôi Chắc Chắn",
+        "Để Sau",
+        "fas fa-exclamation-triangle"
+      );
+    } else {
+      console.warn(
+        "showArtisticConfirm not found, using window.confirm as fallback."
+      );
+      confirmed = window.confirm("Bạn có chắc muốn rời khỏi phòng live?");
+    }
+
+    if (confirmed) {
+      if (socket) {
+        socket.emit("viewerLeaving", {
+          roomId: liveRoomConfig.roomId,
+          username: liveRoomConfig.username,
+        });
+        socket.disconnect();
+      }
+      if (viewerPeer) viewerPeer.destroy();
+      if (sharedWhiteboardInstance) sharedWhiteboardInstance.destroy();
+      window.location.href = liveRoomConfig.glitchProjectUrl + "/live"; // Use config URL
+    } else {
+      console.log("User cancelled exit.");
+    }
+  }
+
+  function initUIEventListeners() {
+    elements.exitButton?.addEventListener("click", askExit);
+
+    elements.sendChatBtn?.addEventListener("click", sendChatMessage);
+    elements.chatInputArea?.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        sendChatMessage();
+      }
+    });
+    elements.chatInputArea?.addEventListener("input", function () {
+      this.style.height = "auto";
+      this.style.height = this.scrollHeight + "px";
+      const rawText = this.value || "";
+      if (
+        elements.chatPreview &&
+        typeof marked !== "undefined" &&
+        typeof katex !== "undefined"
+      ) {
+        try {
+          let html = marked.parse(rawText);
+          const tempDiv = document.createElement("div");
+          tempDiv.innerHTML = html;
+          renderMathInElement(tempDiv, {
+            /* KaTeX options */ throwOnError: false,
+          });
+          elements.chatPreview.innerHTML = tempDiv.innerHTML;
+        } catch (e) {
+          elements.chatPreview.textContent = "Lỗi preview markdown/KaTeX";
+        }
+      }
+    });
+
+    elements.playButton?.addEventListener("click", (e) => {
+      e.stopPropagation(); // Prevent overlay click if button is directly clicked
+      elements.liveVideo
+        ?.play()
+        .then(() => {
+          hideOverlay(elements.playOverlay);
+        })
+        .catch((err) => {
+          console.error("Manual play failed from button:", err);
+          showAlert(
+            "Không thể phát video tự động. Hãy thử tương tác với trang.",
+            "warning"
+          );
+        });
+    });
+
+    elements.playOverlay?.addEventListener("click", () => {
+      // Only trigger if the overlay itself (not a button on it) is clicked
+      if (elements.playOverlay.classList.contains("active")) {
+        elements.liveVideo
+          ?.play()
+          .then(() => {
+            hideOverlay(elements.playOverlay);
+          })
+          .catch((err) => {
+            console.error("Manual play failed from overlay click:", err);
+            showAlert(
+              "Không thể phát video. Vui lòng kiểm tra kết nối hoặc thử lại sau.",
+              "error"
+            );
+          });
+      }
+    });
+
+    // Prevent click action on waiting overlay unless specific buttons are added later
+    elements.waitingOverlay?.addEventListener("click", (e) => {
+      if (
+        elements.waitingOverlay.classList.contains("active") &&
+        e.target === elements.waitingOverlay
+      ) {
+        console.log("Waiting overlay clicked - no default action.");
+      }
+    });
+
+    // Specific handling for ended overlay if it contains actionable buttons
+    elements.endedOverlay?.addEventListener("click", (e) => {
+      if (elements.endedOverlay.classList.contains("active")) {
+        if (e.target.closest(".overlay-action-btn")) {
+          // Example class for a button on this overlay
+          // Button logic handled by its own listener
+          return;
+        }
+        // Default action for clicking overlay background (if any)
+        // For ended overlay, typically it's just informational or redirects.
+        // window.location.href = liveRoomConfig.glitchProjectUrl + "/live"; // Example redirect
+      }
+    });
+
+    // Autoplay dance for browsers
+    const startPlay = () => {
+      if (
+        elements.liveVideo &&
+        elements.liveVideo.paused &&
+        elements.liveVideo.srcObject &&
+        !elements.playOverlay.classList.contains("active")
+      ) {
+        elements.liveVideo
+          .play()
+          .then(() => hideOverlay(elements.playOverlay))
+          .catch(() => {
+            if (!elements.playOverlay.classList.contains("active")) {
+              showOverlay(elements.playOverlay);
+            }
+          });
+      }
+      document.body.removeEventListener("click", startPlay, { once: true });
+      document.body.removeEventListener("keydown", startPlay, { once: true });
+    };
+    document.body.addEventListener("click", startPlay, { once: true });
+    document.body.addEventListener("keydown", startPlay, { once: true });
+
+    // Viewer's Whiteboard Show/Hide Button
+    elements.toggleViewerWhiteboardDisplayBtn?.addEventListener("click", () => {
+      if (!sharedWhiteboardInstance) {
+        showAlert("Bảng vẽ chưa sẵn sàng.", "warning");
+        return;
+      }
+      if (!sharedWhiteboardInstance.isGloballyVisible()) {
+        showAlert("Bảng vẽ chưa được streamer bật.", "info");
+        return;
+      }
+      if (sharedWhiteboardInstance.isActive()) {
+        // If locally visible, hide it
+        sharedWhiteboardInstance.hide();
+        isWhiteboardLocallyVisible = false; // Update explicit local state tracker
+      } else {
+        // If locally hidden (but globally available), show it
+        sharedWhiteboardInstance.show();
+        isWhiteboardLocallyVisible = true;
+      }
+      // The onVisibilityChangeCallback in sharedWB config will update button text/title
+    });
+
+    // Event listeners for viewer's drawing tools (color, line width, eraser)
+    // These should only take effect if the viewer has drawing permission.
+    // The sharedWhiteboard module's internal logic should ideally check `canDraw`
+    // before processing these inputs or emitting draw events.
+    // For UI, disable these if !canDraw. This is handled by onPermissionChangeCallback.
+
+    if (elements.wbColorPickerViewer) {
+      elements.wbColorPickerViewer.addEventListener("input", (e) => {
+        if (sharedWhiteboardInstance) {
+          sharedWhiteboardInstance.setCurrentColor(e.target.value); // Assuming a method like this exists
+        }
+      });
+    }
+    if (elements.wbLineWidthRangeViewer) {
+      elements.wbLineWidthRangeViewer.addEventListener("input", (e) => {
+        const newWidth = parseInt(e.target.value, 10);
+        if (elements.wbLineWidthValueDisplayViewer)
+          elements.wbLineWidthValueDisplayViewer.textContent = newWidth;
+        if (sharedWhiteboardInstance) {
+          sharedWhiteboardInstance.setCurrentLineWidth(newWidth); // Assuming method exists
+        }
+      });
+    }
+    if (elements.wbEraserModeBtnViewer) {
+      elements.wbEraserModeBtnViewer.addEventListener("click", () => {
+        if (sharedWhiteboardInstance) {
+          sharedWhiteboardInstance.toggleEraserMode(); // Assuming method exists
+          // Visual update of button state should be handled by onToolChangeCallback or similar
+          const isEraser = sharedWhiteboardInstance.isEraserActive(); // Assuming method exists
+          elements.wbEraserModeBtnViewer.classList.toggle("active", isEraser);
+          if (elements.whiteboardCanvasViewer)
+            elements.whiteboardCanvasViewer.style.cursor = isEraser
+              ? "cell"
+              : sharedWhiteboardInstance.canDrawCurrentuser()
+              ? "crosshair"
+              : "default";
+        }
+      });
+    }
+
+    // ---- Start: Quiz Viewer Listeners (Unchanged) ----
+    elements.closeQuizOverlayBtn?.addEventListener("click", () => {
+      if (!elements.viewerQuizOverlay) return;
+      if (!prefersReducedMotion && quizOverlayVisible) {
+        gsap.to(elements.viewerQuizOverlay, {
+          duration: 0.3,
+          autoAlpha: 0,
+          y: 30,
+          ease: "power1.in",
+          onComplete: () => {
+            elements.viewerQuizOverlay.style.display = "none";
+            quizOverlayVisible = false;
+          },
+        });
+      } else {
+        gsap.set(elements.viewerQuizOverlay, { autoAlpha: 0, display: "none" });
+        quizOverlayVisible = false;
+      }
+    });
+    // ---- End: Quiz Viewer Listeners ----
+  }
+
+  // ==================================
+  // START INITIALIZATION
+  // ==================================
+  initializeViewer();
+
+  // Graceful disconnect on page unload
+  window.addEventListener("beforeunload", () => {
+    if (socket && socket.connected) {
+      // Send a specific "leaving" event if your server handles it for faster cleanup
+      socket.emit("viewerLeaving", {
+        roomId: liveRoomConfig.roomId,
+        username: liveRoomConfig.username,
+      });
+      socket.disconnect();
+    }
+    if (viewerPeer) viewerPeer.destroy();
+    if (sharedWhiteboardInstance) sharedWhiteboardInstance.destroy();
+  });
+  window.addEventListener("pagehide", () => {
+    // For mobile Safari
+    if (socket && socket.connected) {
+      socket.emit("viewerLeaving", {
+        roomId: liveRoomConfig.roomId,
+        username: liveRoomConfig.username,
+      });
+      socket.disconnect();
+    }
+    if (viewerPeer) viewerPeer.destroy();
+    if (sharedWhiteboardInstance) sharedWhiteboardInstance.destroy();
+  });
+}); // End DOMContentLoaded
