@@ -83,6 +83,11 @@ document.addEventListener("DOMContentLoaded", () => {
     wbDrawRectangleBtn: document.getElementById('wbDrawRectangleBtnV2Streamer'),
     wbDrawCircleBtn: document.getElementById('wbDrawCircleBtnV2Streamer'),
     wbDrawLineBtn: document.getElementById('wbDrawLineBtnV2Streamer'),
+    wbSelectToolBtn: document.getElementById('wbSelectToolBtnV2Streamer'), // Main select tool toggle
+    wbSnipModeOptionsContainer: document.getElementById('wbSnipModeOptionsContainerV2Streamer'), // For snip modes
+    wbRectangularSnipBtn: document.getElementById('wbRectangularSnipBtnV2Streamer'),
+    wbFreedomSnipBtn: document.getElementById('wbFreedomSnipBtnV2Streamer'),
+    wbDeleteSelectedBtn: document.getElementById('wbDeleteSelectedBtnV2Streamer'), // Appears when something is selected
     // ---- Start: Quiz Elements Streamer ----
     toggleQuizPanelBtn: document.getElementById("toggleQuizPanelBtn"),
     streamerQuizPanel: document.getElementById("streamerQuizPanel"),
