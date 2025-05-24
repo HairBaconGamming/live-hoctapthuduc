@@ -5446,20 +5446,31 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Ensure eraser mode also respects pan tool for cursor
     if (elements.wbEraserModeBtn) {
-      const originalEraserClickHandler = elements.wbEraserModeBtn.onclick;
-      elements.wbEraserModeBtn.onclick = function (e) {
-        if (originalEraserClickHandler)
-          originalEraserClickHandler.call(this, e); // Call original if exists
-        // After original logic, set cursor based on pan tool
-        if (elements.whiteboardCanvas) {
-          elements.whiteboardCanvas.style.cursor = wbCamera.isPanToolActive
-            ? "grab"
-            : wbIsEraserMode
-            ? "cell"
-            : "crosshair";
-        }
-      };
+        elements.wbEraserModeBtn.addEventListener('click', () => {
+            // wbIsEraserMode is toggled inside its own handler now in the provided code
+            // Just need to deactivate shape mode here
+            if (wbIsEraserMode) { // If eraser was just activated
+                wbCurrentShapeMode = null;
+                shapeButtons.forEach(s => s.btn?.classList.remove('active'));
+                if (shapeOptionsContainer) shapeOptionsContainer.style.display = 'none';
+                if (shapeToolBtn) shapeToolBtn.classList.remove('active');
+            }
+        });
     }
+    if (elements.wbPanToolBtnV2Streamer) {
+         elements.wbPanToolBtnV2Streamer.addEventListener('click', () => {
+            // wbCamera.isPanToolActive is toggled inside its own handler
+            if (wbCamera.isPanToolActive) { // If pan tool was just activated
+                wbCurrentShapeMode = null;
+                shapeButtons.forEach(s => s.btn?.classList.remove('active'));
+                 if (shapeOptionsContainer) shapeOptionsContainer.style.display = 'none';
+                 if (shapeToolBtn) shapeToolBtn.classList.remove('active');
+                wbIsEraserMode = false;
+                if(elements.wbEraserModeBtn) elements.wbEraserModeBtn.classList.remove('active');
+            }
+         });
+    }
+
     const gridToolBtn = elements.wbToggleGridBtn;
     if (gridToolBtn) {
       gridToolBtn.addEventListener("click", () => {

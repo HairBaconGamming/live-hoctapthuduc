@@ -680,3 +680,52 @@
 #toggleQuizPanelBtn.control-btn .btn-label { /* Ensure label is visible */
     display: inline-block !important;
 }
+
+/* --- Whiteboard Shape Tools --- */
+.wb-tool-dropdown-container {
+    position: relative;
+    display: inline-block; /* Or flex-item if toolbar is flex */
+}
+
+.wb-tool-options {
+    display: none; /* Initially hidden, JS toggles */
+    position: absolute;
+    top: 100%; /* Position above the main button */
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: var(--bg-panel); /* Match toolbar bg */
+    border: 1px solid var(--border-highlight);
+    border-radius: var(--border-radius-base);
+    padding: 8px;
+    box-shadow: 0 -4px 15px rgba(0,0,0,0.2);
+    z-index: 10; /* Above canvas, below modal */
+    display: flex; /* Arrange shape buttons horizontally */
+    gap: 8px;
+    margin-bottom: 5px; /* Space between options and main button */
+}
+
+.wb-tool-options .wb-option-btn {
+    padding: 6px 8px !important; /* Smaller padding for option buttons */
+    min-width: auto; /* Allow buttons to be smaller */
+}
+.wb-tool-options .wb-option-btn i {
+    font-size: 0.9rem !important;
+    margin: 0 !important; /* Remove default margins/paddings from .control-btn */
+}
+
+/* Active state for shape selection */
+#wbShapeToolBtnV2Streamer.active {
+    background-color: rgba(var(--accent-color-rgb), 0.2) !important;
+    border-color: var(--accent-color) !important;
+}
+#wbShapeToolBtnV2Streamer.active i {
+    color: var(--accent-color) !important;
+}
+
+.wb-tool-options .wb-option-btn.active {
+    background-color: rgba(var(--primary-color-rgb), 0.3) !important;
+    border-color: var(--primary-color) !important;
+}
+.wb-tool-options .wb-option-btn.active i {
+    color: var(--primary-color) !important;
+}
