@@ -135,114 +135,64 @@
     </div>
 
     <script>
-        // Basic client-side logic for /live page
-        const roomList = document.getElementById('roomList');
-        const noRoomsMessage = document.getElementById('noRoomsMessage');
-        const createStreamBtn = document.getElementById('createStreamBtn');
-        const streamTitleInput = document.getElementById('streamTitleInput');
-        const projectUrl = "<%= projectUrl %>"; // Passed from server
+    // Basic client-side logic for /live page
+    const roomList = document.getElementById('roomList');
+    const noRoomsMessage = document.getElementById('noRoomsMessage');
+    const createStreamBtn = document.getElementById('createStreamBtn');
+    // const streamTitleInput = document.getElementById('streamTitleInput'); // No longer needed here for direct creation logic
+    const projectUrl = "<%= projectUrl %>"; 
 
-        async function fetchRooms() {
-            try {
-                const response = await fetch('/api/rooms');
-                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-                const rooms = await response.json();
-                renderRooms(rooms);
-            } catch (error) {
-                console.error("Failed to fetch rooms:", error);
-                roomList.innerHTML = '<p style="color: var(--danger-color);">Lỗi tải danh sách phòng.</p>';
-            }
+    async function fetchRooms() {
+        try {
+            const response = await fetch('/api/rooms');
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            const rooms = await response.json();
+            renderRooms(rooms);
+        } catch (error) {
+            console.error("Failed to fetch rooms:", error);
+            roomList.innerHTML = '<p style="color: var(--danger-color);">Lỗi tải danh sách phòng.</p>';
         }
+    }
 
-        function renderRooms(rooms) {
-            if (rooms.length === 0) {
-                noRoomsMessage.style.display = 'block';
-                roomList.innerHTML = '';
-                return;
-            }
-            noRoomsMessage.style.display = 'none';
-            roomList.innerHTML = rooms.map(room => `
-                <div class="room-card">
-                    <h3><a href="${projectUrl}${room.liveStreamUrl}?token=${localStorage.getItem('authToken') || ''}" style="color: var(--accent-color); text-decoration: none;">${room.title || 'Live Stream'}</a></h3>
-                    <p><span class="live-indicator-dot"></span><strong>Chủ phòng:</strong> <span class="owner">${room.owner}</span></p>
-                    <p><strong>Người xem:</strong> ${room.viewers}</p>
-                    <p><strong>Thời gian live:</strong> ${room.onlineTime}</p>
-                    <a href="${projectUrl}${room.liveStreamUrl}?token=${localStorage.getItem('authToken') || ''}" class="btn btn-secondary" style="margin-top: 10px; display: inline-block;">Vào Phòng</a>
-                </div>
-            `).join('');
+    function renderRooms(rooms) {
+        if (rooms.length === 0) {
+            noRoomsMessage.style.display = 'block';
+            roomList.innerHTML = '';
+            return;
         }
+        noRoomsMessage.style.display = 'none';
+        roomList.innerHTML = rooms.map(room => `
+            <div class="room-card">
+                <h3><a href="${projectUrl}${room.liveStreamUrl}?token=${localStorage.getItem('authToken') || ''}" style="color: var(--accent-color); text-decoration: none;">${room.title || 'Live Stream'}</a></h3>
+                <p><span class="live-indicator-dot"></span><strong>Chủ phòng:</strong> <span class="owner">${room.owner}</span></p>
+                <p><strong>Người xem:</strong> ${room.viewers}</p>
+                <p><strong>Thời gian live:</strong> ${room.onlineTime}</p>
+                <a href="${projectUrl}${room.liveStreamUrl}?token=${localStorage.getItem('authToken') || ''}" class="btn btn-secondary" style="margin-top: 10px; display: inline-block;">Vào Phòng</a>
+            </div>
+        `).join('');
+    }
 
-        createStreamBtn.addEventListener('click', async () => {
-            // In a real app, get roomOwnerId and roomOwnerName from an authenticated session.
-            // For this demo, we'll use prompt or hardcode if needed.
-            // We need to get a token first to simulate a logged-in user for creation
-            // This is a simplified flow for Glitch demo.
+    createStreamBtn.addEventListener('click', () => {
+        // Simply redirect to the create stream page
+        // The token for authentication to *create* a stream should be handled
+        // on the /live/create page itself, perhaps by requiring login before accessing it.
+        // Or, if you need to pass a token for the creation page itself, append it here.
+        // For simplicity, assuming /live/create handles its own auth.
+        
+        // Get current auth token if it exists, it might be useful for the /live/create page
+        // to pre-fill user info or validate if the user is allowed to create.
+        const authToken = localStorage.getItem('authToken');
+        let createUrl = `${projectUrl}/live/create`;
+        if (authToken) {
+            // You might want to pass the token to the create page if it needs to
+            // identify the user immediately for pre-filling forms or auth.
+            // createUrl += `?token=${authToken}`; // Uncomment if needed
+        }
+        window.location.href = createUrl; 
+    });
 
-            // Simulate getting user info (replace with actual auth)
-            const userId = localStorage.getItem("userId") || prompt("Nhập User ID của bạn:", "user_streamer_123");
-            const username = localStorage.getItem("username") || prompt("Nhập Tên hiển thị của bạn:", "StreamerPro");
-            const title = streamTitleInput.value.trim() || `Live của ${username}`;
-
-            if (!userId || !username) {
-                alert("Cần User ID và Tên hiển thị để tạo phòng.");
-                return;
-            }
-            // Store for potential reuse if redirection happens
-            localStorage.setItem("userId", userId);
-            localStorage.setItem("username", username);
-
-
-            try {
-                // First, create the stream room
-                const createResponse = await fetch('/api/createStream', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ roomOwnerId: userId, roomOwnerName: username, title: title })
-                });
-                const createData = await createResponse.json();
-
-                if (createData.success) {
-                    alert(`Phòng live "${title}" đã được tạo!`);
-                     // Generate a token specifically for this room access
-                    const tokenResponse = await fetch(`/api/generateRoomToken`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json'},
-                        body: JSON.stringify({userId, username, roomIdToAccess: createData.roomId})
-                    });
-                    const tokenData = await tokenResponse.json();
-
-                    if (tokenData.token) {
-                        localStorage.setItem('authToken', tokenData.token); // Store token
-                        window.location.href = `${projectUrl}${createData.liveStreamUrl}?token=${tokenData.token}`;
-                    } else {
-                        alert('Lỗi tạo token truy cập phòng.');
-                    }
-                } else if (createData.existingRoomUrl) {
-                    alert(`Bạn đã có phòng: ${createData.existingRoomUrl}. Chuyển hướng...`);
-                     const tokenResponse = await fetch(`/api/generateRoomToken`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json'},
-                        body: JSON.stringify({userId, username, roomIdToAccess: createData.roomId})
-                    });
-                    const tokenData = await tokenResponse.json();
-                     if (tokenData.token) {
-                        localStorage.setItem('authToken', tokenData.token); // Store token
-                        window.location.href = `${projectUrl}${createData.existingRoomUrl}?token=${tokenData.token}`;
-                    } else {
-                        alert('Lỗi tạo token truy cập phòng hiện tại.');
-                    }
-                }
-                else {
-                    alert('Lỗi tạo phòng live: ' + (createData.error || 'Unknown error'));
-                }
-            } catch (error) {
-                console.error("Error creating stream:", error);
-                alert('Lỗi tạo phòng live phía client.');
-            }
-        });
-
-        fetchRooms();
-        setInterval(fetchRooms, 15000); // Refresh room list every 15 seconds
-    </script>
+    fetchRooms();
+    setInterval(fetchRooms, 15000);
+</script>
 </body>
 </html>

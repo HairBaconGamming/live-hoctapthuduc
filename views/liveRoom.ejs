@@ -1,173 +1,172 @@
+<%# File: views/liveRoom.ejs %>
 <!DOCTYPE html>
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no"> <%# Added user-scalable=no for mobile focus %>
-    <title><%= room.title %> - Live Stream</title>
-    <link rel="stylesheet" href="/css/liveRoom.css"> <%# Assume styles are here %>
-      <link rel="stylesheet" href="/styles.css"> <%# Assume styles are here %>
-    <link rel="icon" type="image/png" href="https://cdn.glitch.global/71030012-56ea-4d26-a426-e0099201df1c/823029_library_512x512.png?v=1741523759119">
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <%# Marked & KaTeX - Load if needed for chat rendering (defer is okay) %>
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js" defer></script>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.js" defer></script>
-    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/contrib/auto-render.min.js" defer></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live: <%= roomTitle %></title>
+    <link rel="stylesheet" href="/styles.css">
+    <link rel="stylesheet" href="/css/liveRoom.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tsparticles@2.12.0/tsparticles.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
 </head>
 <body class="live-room-body">
-    <input type="hidden" id="viewerUsername" value="<%= user.username %>">
-
-    <!-- Background Effects -->
     <div class="live-room-background">
-        <div id="live-particles-bg"></div> <%# tsparticles background %>
+        <div id="live-particles-bg"></div>
         <div class="gradient-flare flare-1"></div>
         <div class="gradient-flare flare-2"></div>
     </div>
 
-    <!-- Main Header -->
-    <header class="live-room-main-header" data-animate="header-slide-down">
+    <header class="live-room-main-header">
         <div class="header-info">
-            <i class="fas fa-broadcast-tower stream-live-icon"></i>
-             <h1 class="live-room-title">
-                Live: <span class="stream-title-text"><%= room.title %></span>
-             </h1>
-             <span class="host-info">(Host: <%= room.owner %>)</span>
+            <i class="fas fa-podcast stream-live-icon"></i>
+            <h1 class="live-room-title">
+                <span class="stream-title-text"><%= roomTitle %></span>
+                <span class="host-info">Host: <%= roomOwner %></span>
+            </h1>
         </div>
         <div class="header-stats">
-            <!-- Trong .live-room-main-header .header-stats hoặc một vị trí tương tự -->
-            <button id="toggleViewerWhiteboardDisplayBtn" class="control-btn wb-viewer-toggle-btn" title="Hiện bảng vẽ (nếu streamer đang bật)" style="padding: 6px 10px; font-size:0.8rem;" disabled>
-                <i class="fas fa-chalkboard"></i> Hiện Bảng Vẽ
-            </button>
             <div class="viewer-count-widget">
                 <i class="fas fa-eye"></i>
                 <span id="viewerCountLive" class="viewer-count-live">0</span>
             </div>
-             <button id="exitRoomBtnLive" class="exit-room-btn-v2" title="Rời khỏi phòng">
-                 <i class="fas fa-sign-out-alt"></i>
-             </button>
+            <button id="toggleViewerWhiteboardDisplayBtn" class="control-btn wb-viewer-toggle-btn" title="Hiện bảng vẽ (nếu streamer đang bật)" disabled>
+                <i class="fas fa-chalkboard"></i> Hiện Bảng Vẽ
+            </button>
+            <button id="exitRoomBtnLive" class="exit-room-btn-v2" title="Rời phòng">
+                <i class="fas fa-times"></i>
+            </button>
         </div>
     </header>
 
-    <!-- Main Content Layout (Video + Chat) -->
-    <div class="live-room-main-content" id="mainContentLive">
-
-        <!-- Video Area -->
-        <section class="live-video-area" data-animate="video-fade-in">
+    <main class="live-room-main-content">
+        <section class="live-video-area">
             <div class="video-player-wrapper">
-                <video id="liveVideoFeed" class="live-video-element" autoplay playsinline muted></video> <%# Added muted for better autoplay %>
-                 <%# Placeholder shown when no stream %>
-                 <div id="streamPlaceholder" class="stream-video-placeholder active"> <%# Start active %>
-                     <div class="placeholder-content">
-                         <i class="fas fa-spinner fa-spin placeholder-icon"></i>
-                         <p>Đang chờ tín hiệu từ Host...</p>
-                         <span>(<%= room.title %>)</span>
-                     </div>
-                 </div>
-                 <%# Live status indicator %>
-                 <div class="stream-live-indicator" id="liveIndicator">LIVE</div> <%# JS controls 'active' class %>
+                <video id="liveVideoFeed" class="live-video-element" playsinline autoplay></video>
+                <div id="streamPlaceholder" class="stream-video-placeholder <%= isHostPresent ? '' : 'active' %>">
+                    <div class="placeholder-content">
+                        <i class="fas fa-photo-video placeholder-icon"></i>
+                        <p>Stream đang chờ hoặc đã kết thúc.</p>
+                        <span>Vui lòng chờ đợi hoặc thử lại sau.</span>
+                    </div>
+                </div>
+                <span id="liveIndicator" class="stream-live-indicator <%= isHostPresent ? 'active' : '' %>">LIVE</span>
             </div>
         </section>
 
-        <!-- Chat Area -->
-        <aside class="live-chat-area" data-animate="chat-slide-in">
+        <aside class="live-chat-area">
             <div class="live-chat-container">
-                <header class="chat-area-header">
-                    <h3><i class="far fa-comments"></i> Chat Trực Tiếp</h3>
-                </header>
-                 <div id="pinnedCommentLive" class="pinned-comment-live">
-                     <%# Pinned comment injected by JS %>
-                 </div>
-                 <div class="chat-messages-container">
-                    <ul class="chat-messages-list-v2" id="chatMessagesLive"></ul>
-                 </div>
-                <footer class="chat-input-footer">
-                     <div id="chatPreviewLive" class="chat-preview-live"></div>
-                     <div class="chat-input-wrapper">
-                        <%# Use contenteditable div for more flexibility? Or stick with textarea %>
-                        <textarea id="chatInputAreaLive" placeholder="Nhập tin nhắn (Ctrl+Enter để gửi)" rows="1"></textarea>
-                        <button id="sendChatBtnLive" class="send-chat-btn-v2" aria-label="Gửi">
+                <div class="chat-area-header">
+                    <i class="fas fa-comments"></i>
+                    <span>Live Chat</span>
+                </div>
+                <div id="pinnedCommentLive" class="pinned-comment-live">
+                    <%# Pinned comment injected by JS %>
+                </div>
+                <div class="chat-messages-container">
+                    <ul id="chatMessagesLive" class="chat-messages-list-v2">
+                        <%# Chat messages appended here %>
+                    </ul>
+                </div>
+                <div class="chat-input-footer">
+                    <div id="chatPreviewLive" class="chat-preview-live prose-styling"></div>
+                    <div class="chat-input-wrapper">
+                        <textarea id="chatInputAreaLive" placeholder="Nhập tin nhắn..." rows="1"></textarea>
+                        <button id="sendChatBtnLive" class="send-chat-btn-v2" title="Gửi">
                             <i class="fas fa-paper-plane"></i>
                         </button>
-                     </div>
-                 </footer>
+                    </div>
+                </div>
             </div>
         </aside>
+    </main>
 
-    </div> <!-- End .live-room-main-content -->
-          
-    <!-- Whiteboard Container for Viewer -->
-    <div id="whiteboardContainerOverlayViewer" class="whiteboard-container-overlay viewer-wb" style="display: none; opacity: 0;">
-        <div id="whiteboardToolbarViewer" class="whiteboard-toolbar" style="display: none;"> <!-- Initially hidden, shown if permission granted -->
-            <span style="font-weight: bold; color: var(--text-light); margin-right:15px;">Bảng Vẽ</span>
+    <!-- Overlays -->
+    <div id="waitingOverlayLive" class="live-status-overlay <%= isHostPresent ? '' : 'active' %>">
+        <div class="overlay-content">
+            <div class="overlay-spinner"><div></div><div></div><div></div></div>
+            <h2>Đang chờ Streamer...</h2>
+            <p>Buổi live sẽ sớm bắt đầu. Vui lòng chờ trong giây lát.</p>
+        </div>
+    </div>
+
+    <div id="playOverlayLive" class="live-status-overlay play-overlay">
+        <div class="overlay-content">
+            <button id="playButtonLive" class="play-action-btn" title="Phát Video">
+                <i class="fas fa-play"></i>
+            </button>
+            <p>Nhấn để bắt đầu xem stream</p>
+        </div>
+    </div>
+
+    <div id="roomEndedOverlayLive" class="live-status-overlay ended-overlay">
+        <div class="overlay-content">
+            <span class="overlay-icon"><i class="fas fa-sad-tear"></i></span>
+            <h2>Buổi Live Đã Kết Thúc</h2>
+            <p>Cảm ơn bạn đã tham gia! Streamer đã kết thúc buổi phát sóng này.</p>
+            <a href="<%= glitchProjectUrl %>/live" class="control-btn overlay-action-btn" style="background: var(--primary-color); color: white; max-width: 200px; margin: 0 auto;">
+                <i class="fas fa-home"></i> Về Trang Live
+            </a>
+        </div>
+    </div>
+
+    <!-- Viewer Whiteboard Overlay -->
+    <div id="whiteboardContainerOverlayViewer" class="whiteboard-container-overlay viewer-wb">
+        <div id="whiteboardToolbarViewer" class="whiteboard-toolbar">
             <label for="wbColorPickerViewer" class="wb-label">Màu:</label>
-            <input type="color" id="wbColorPickerViewer" title="Chọn màu" value="#FF6EC4"> <!-- Viewer default color pink -->
+            <input type="color" id="wbColorPickerViewer" value="#FFFFFF" title="Chọn màu vẽ" disabled>
+
             <label for="wbLineWidthRangeViewer" class="wb-label">Nét:</label>
-            <input type="range" id="wbLineWidthRangeViewer" min="1" max="30" value="3" title="Độ dày nét vẽ">
-            <span id="wbLineWidthValueDisplayViewer" style="min-width:20px; text-align:right;">3</span>
-            <button id="wbEraserModeBtnViewer" class="wb-tool-btn control-btn" data-tooltip="Tẩy"><i class="fas fa-eraser"></i></button>
-            <!-- Viewers usually don't have a global clear button -->
-            <button id="closeWhiteboardBtnViewer" class="wb-tool-btn control-btn" data-tooltip="Đóng bảng trắng (tạm ẩn)"><i class="fas fa-eye-slash"></i></button>
+            <input type="range" id="wbLineWidthRangeViewer" min="1" max="20" value="3" title="Chọn độ dày nét vẽ" disabled>
+            <span id="wbLineWidthValueDisplayViewer" class="wb-line-width-value">3</span>
+
+            <button id="wbEraserModeBtnViewer" class="control-btn wb-tool-btn" title="Chế độ Tẩy/Bút" disabled>
+                <i class="fas fa-eraser"></i>
+            </button>
+            <%# Viewers usually don't get advanced tools unless permission system is complex %>
+            <%# If viewer gets pan/zoom, add buttons here and pass to sharedWhiteboard config %>
+            <button id="closeWhiteboardBtnViewer" class="control-btn wb-tool-btn" title="Đóng Bảng Vẽ">
+                <i class="fas fa-times"></i>
+            </button>
+            <%# Permission message will be added by JS if needed %>
         </div>
         <canvas id="whiteboardCanvasViewer"></canvas>
     </div>
 
-    <!-- Status Overlays -->
-     <div id="waitingOverlayLive" class="live-status-overlay waiting-overlay"> <%# Start active %>
-         <div class="overlay-content">
-             <div class="overlay-spinner"><div></div><div></div><div></div></div> <%# Corrected spinner structure %>
-             <h2>Đang chờ Host bắt đầu...</h2>
-             <p>Buổi live "<%= room.title %>" sẽ sớm bắt đầu.</p>
-         </div>
-     </div>
+    <!-- Viewer Quiz Overlay -->
+    <div id="viewerQuizOverlay">
+        <button id="closeQuizOverlayBtn" title="Đóng trắc nghiệm">×</button>
+        <h4 id="quizQuestionViewerText"></h4>
+        <div id="quizOptionsViewerContainer">
+            <%# Quiz options will be populated by JS %>
+        </div>
+        <div id="quizViewerFeedback"></div>
+    </div>
 
-     <div id="roomEndedOverlayLive" class="live-status-overlay ended-overlay"> <%# Initially hidden %>
-         <div class="overlay-content">
-             <i class="fas fa-stop-circle overlay-icon"></i>
-             <h2>Buổi Live Đã Kết Thúc</h2>
-             <p>Cảm ơn bạn đã tham gia "<%= room.title %>".</p>
-             <button onclick="window.location.href='https://hoctap-9a3.glitch.me/live'" class="btn btn-primary-glow overlay-action-btn" style="pointer-events:auto;">
-                 <i class="fas fa-list-ul"></i> Xem các buổi Live khác
-             </button>
-         </div>
-     </div>
 
-     <!-- Play Button Overlay (Show initially, hide on interaction) -->
-     <div id="playOverlayLive" class="live-status-overlay play-overlay">
-         <div class="overlay-content">
-              <button id="playButtonLive" class="play-action-btn" aria-label="Bắt đầu xem">
-                  <i class="fas fa-play"></i>
-              </button>
-              <p>Nhấn để tham gia và xem</p>
-         </div>
-     </div>
-
-    <!-- JS Libraries -->
-    <script src="/socket.io/socket.io.js"></script>
-    <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js"></script> <%# May not be needed here %>
-    <script src="https://cdn.jsdelivr.net/npm/tsparticles@2.9.3/tsparticles.bundle.min.js"></script>
-
-    <!-- EJS Variables to JS -->
     <script>
+        // Config for liveRoom.js
         const liveRoomConfig = {
-            roomId: "<%= room.id %>",
-            username: "<%= user.username %>",
-            roomOwner: "<%= room.owner %>",
-            userIsPro: <%= user.isPro ? "true" : "false" %>,
-            peerConfig: {
-                host: 'live-hoctap-9a3.glitch.me', port: 443, path: '/peerjs/myapp', secure: true,
-                config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] }
-            }
+            roomId: "<%= roomId %>",
+            username: "<%= username %>", // Viewer's username
+            roomOwner: "<%= roomOwner %>", // Streamer's username
+            peerConfig: JSON.parse('<%- JSON.stringify(peerConfig) %>'),
+            glitchProjectUrl: "<%= glitchProjectUrl %>",
+            userIsPro: <%= user.isPro || false %>, // Example: pass pro status
+            reduceMotionParticles: false // Example: allow particles even if OS prefers reduced motion
         };
     </script>
-
-     <!-- Custom JS -->
-     <script src="/js/alerts.js"></script> <%# If using showAlert %>
-     <script src="/js/confirm.js"></script> <%# If using showAlert %>
-     <%# <script src="/js/confirm.js"></script> <- Probably not needed %>
-     <script src="/js/liveRoom.js"></script> <%# Assumes viewer logic is here %>
-
+    <script src="/js/alerts.js"></script>
+    <script src="/js/confirm.js"></script>
+    <script src="/js/sharedWhiteboard.js"></script>
+    <script src="/js/liveRoom.js"></script>
 </body>
 </html>
