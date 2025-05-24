@@ -74,6 +74,7 @@ document.addEventListener("DOMContentLoaded", () => {
     whiteboardOverlay: document.getElementById("whiteboardContainerOverlayV2"), // The main overlay div
     whiteboardCanvas: document.getElementById("whiteboardCanvasV2"), // The <canvas>
     // Toolbar elements to pass to shared module
+    closeWhiteboardBtn: document.getElementById("closeWhiteboardBtnV2"),
     whiteboardToolbarMain: document.getElementById("whiteboardToolbarV2"),
     wbColorPicker: document.getElementById("wbColorPickerV2"),
     wbLineWidthRange: document.getElementById("wbLineWidthRangeV2"),
@@ -705,6 +706,7 @@ document.addEventListener("DOMContentLoaded", () => {
       canvasElement: elements.whiteboardCanvas,
       toolbarElements: {
         mainToolbar: elements.whiteboardToolbarMain,
+        closeWhiteboardBtn: elements.closeWhiteboardBtn,
         colorPicker: elements.wbColorPicker,
         lineWidthRange: elements.wbLineWidthRange,
         lineWidthValueDisplay: elements.wbLineWidthValueDisplay,
@@ -2540,12 +2542,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Streamer Whiteboard Toggle
     elements.toggleWhiteboardBtnStreamer?.addEventListener("click", () => {
-      if (!sharedWhiteboardInstance) return;
-      playButtonFeedback(elements.toggleWhiteboardBtnStreamer);
-      const newVisibility = !sharedWhiteboardInstance.isGloballyVisible();
-      sharedWhiteboardInstance.setGlobalVisibility(newVisibility);
-      // The onVisibilityChangeCallback in sharedWhiteboardInstance config will update button class
-    });
+    if (!sharedWhiteboardInstance) return;
+    playButtonFeedback(elements.toggleWhiteboardBtnStreamer);
+    const newGlobalVisibility = !sharedWhiteboardInstance.isGloballyVisible();
+    sharedWhiteboardInstance.setGlobalVisibility(newGlobalVisibility);
+    // The onVisibilityChangeCallback in sharedWB config updates the button's class
+});
 
     // PiP Chat Button
     if (elements.pipChatBtn && elements.pipChatVideoPlayer && pipChatCanvas) {

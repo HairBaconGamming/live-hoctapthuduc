@@ -42,6 +42,7 @@ document.addEventListener("DOMContentLoaded", () => {
     exitButton: document.getElementById("exitRoomBtnLive"),
     liveIndicator: document.getElementById("liveIndicator"),
     // --- Whiteboard Elements for Shared Module (Viewer) ---
+    closeWhiteboardBtnViewer: document.getElementById("closeWhiteboardBtnViewer"),
     whiteboardOverlayViewer: document.getElementById(
       "whiteboardContainerOverlayViewer"
     ), // The main overlay div
@@ -525,12 +526,13 @@ document.addEventListener("DOMContentLoaded", () => {
   // ==================================
   // WHITEBOARD LOGIC (VIEWER - using Shared Module)
   // ==================================
-   function viewerPlayButtonFeedback(button) {
+  function viewerPlayButtonFeedback(button) {
     // A simpler or no feedback for viewer buttons, or implement as needed
     if (!button || prefersReducedMotion) return;
-    gsap.timeline()
-        .to(button, { scale: 0.95, duration: 0.08, ease: "power1.in" })
-        .to(button, { scale: 1, duration: 0.2, ease: "power1.out" });
+    gsap
+      .timeline()
+      .to(button, { scale: 0.95, duration: 0.08, ease: "power1.in" })
+      .to(button, { scale: 1, duration: 0.2, ease: "power1.out" });
   }
 
   function initViewerWhiteboardModule() {
@@ -548,6 +550,7 @@ document.addEventListener("DOMContentLoaded", () => {
       toolbarElements: {
         // Viewer toolbar might be simpler or non-existent if no draw permission
         mainToolbar: elements.whiteboardToolbarViewerMain,
+        closeWhiteboardBtn: elements.closeWhiteboardBtnViewer, 
         colorPicker: elements.wbColorPickerViewer,
         lineWidthRange: elements.wbLineWidthRangeViewer,
         lineWidthValueDisplay: elements.wbLineWidthValueDisplayViewer,
@@ -574,29 +577,34 @@ document.addEventListener("DOMContentLoaded", () => {
         }
         return Promise.resolve(window.confirm(message));
       },
-      onVisibilityChangeCallback: (isVisibleAndGlobal) => {
-        // This callback is when the SHARED module's own visibility changes (show/hide called on it)
-        // AND considers global state.
-        // We use `isWhiteboardLocallyVisible` for the viewer's own toggle button.
-        isWhiteboardLocallyVisible = isVisibleAndGlobal; // Update local state based on shared module
+      onVisibilityChangeCallback: (isActiveLocal, isGlobal) => {
+        isWhiteboardLocallyVisible = isActiveLocal; // Update viewer's specific local state
+
         if (elements.toggleViewerWhiteboardDisplayBtn) {
-          elements.toggleViewerWhiteboardDisplayBtn.innerHTML =
-            isVisibleAndGlobal
-              ? '<i class="fas fa-eye-slash"></i> Ẩn Bảng Vẽ'
-              : '<i class="fas fa-chalkboard"></i> Hiện Bảng Vẽ';
-          elements.toggleViewerWhiteboardDisplayBtn.title = isVisibleAndGlobal
-            ? "Ẩn bảng vẽ (cục bộ)"
-            : "Hiện bảng vẽ (nếu streamer đang bật)";
-          // Disable button if WB is not globally available, handled by 'wb:toggleVisibility' from server too
-          elements.toggleViewerWhiteboardDisplayBtn.disabled =
-            !sharedWhiteboardInstance?.isGloballyVisible();
+          elements.toggleViewerWhiteboardDisplayBtn.disabled = !isGlobal; // Disable if not globally available
+
+          if (isGlobal && isActiveLocal) {
+            // Globally ON, Locally ON
+            elements.toggleViewerWhiteboardDisplayBtn.innerHTML =
+              '<i class="fas fa-eye-slash"></i> Ẩn Bảng Vẽ';
+            elements.toggleViewerWhiteboardDisplayBtn.title =
+              "Ẩn bảng vẽ (cục bộ)";
+          } else {
+            // Globally OFF, OR Globally ON but Locally OFF
+            elements.toggleViewerWhiteboardDisplayBtn.innerHTML =
+              '<i class="fas fa-chalkboard"></i> Hiện Bảng Vẽ';
+            elements.toggleViewerWhiteboardDisplayBtn.title = isGlobal
+              ? "Hiện bảng vẽ"
+              : "Hiện bảng vẽ (Streamer đang tắt)";
+          }
         }
         if (elements.whiteboardToolbarViewerMain) {
           elements.whiteboardToolbarViewerMain.style.display =
-            isVisibleAndGlobal && sharedWhiteboardInstance?.isGloballyVisible()
-              ? "flex"
-              : "none";
+            isActiveLocal && isGlobal ? "flex" : "none";
         }
+        console.log(
+          `Viewer WB LocalVisible: ${isWhiteboardLocallyVisible}, GlobalByStreamer: ${isGlobal}`
+        );
       },
       onPermissionChangeCallback: (canDraw) => {
         // Update viewer's drawing tools' enabled state
@@ -1249,20 +1257,31 @@ document.addEventListener("DOMContentLoaded", () => {
         showAlert("Bảng vẽ chưa sẵn sàng.", "warning");
         return;
       }
-      if (!sharedWhiteboardInstance.isGloballyVisible()) {
+      // Get the LATEST global visibility state from the shared module itself
+      const isCurrentlyGloballyVisible =
+        sharedWhiteboardInstance.isGloballyVisible();
+
+      if (!isCurrentlyGloballyVisible) {
         showAlert("Bảng vẽ chưa được streamer bật.", "info");
+        // Ensure button reflects disabled state if somehow missed
+        elements.toggleViewerWhiteboardDisplayBtn.disabled = true;
+        elements.toggleViewerWhiteboardDisplayBtn.innerHTML =
+          '<i class="fas fa-chalkboard"></i> Hiện Bảng Vẽ';
+        elements.toggleViewerWhiteboardDisplayBtn.title =
+          "Hiện bảng vẽ (Streamer đang tắt)";
         return;
       }
+
+      // If globally visible, then toggle local visibility
       if (sharedWhiteboardInstance.isActive()) {
-        // If locally visible, hide it
+        // If currently active locally
         sharedWhiteboardInstance.hide();
-        isWhiteboardLocallyVisible = false; // Update explicit local state tracker
+        // isWhiteboardLocallyVisible will be updated by the callback
       } else {
-        // If locally hidden (but globally available), show it
+        // If currently hidden locally (but globally available)
         sharedWhiteboardInstance.show();
-        isWhiteboardLocallyVisible = true;
+        // isWhiteboardLocallyVisible will be updated by the callback
       }
-      // The onVisibilityChangeCallback in sharedWB config will update button text/title
     });
 
     // Event listeners for viewer's drawing tools (color, line width, eraser)

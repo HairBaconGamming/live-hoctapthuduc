@@ -60,7 +60,9 @@ function initializeSharedWhiteboard(config) {
 
   // --- State ---
   let isActive = false; // Is the whiteboard overlay currently displayed and interactive for THIS client
-  let isGloballyVisible = false; // Is the whiteboard supposed to be visible for the room (controlled by streamer)
+  let isGloballyVisibleByStreamer = isStreamer
+    ? false
+    : initialIsGloballyVisible; // For viewer, what server says
   let canDraw = initialCanDraw;
 
   let drawingHistory = []; // {type: 'draw'/'shape'/'clear'/'delete'/'move', ...data}
@@ -1673,20 +1675,19 @@ function initializeSharedWhiteboard(config) {
   }
 
   function show() {
-    if (isActive) return;
+    if (isActive) return; // Already shown locally
+
+    // For viewers, only show if it's also globally visible
+    if (!isStreamer && !isGloballyVisibleByStreamer) {
+      if (showNotificationCallback)
+        showNotificationCallback("Bảng vẽ chưa được streamer bật.", "info");
+      return;
+    }
+
     isActive = true;
     canvasElement.parentElement.style.opacity = 0;
     canvasElement.parentElement.style.display = "flex";
-
-    // Make the correct toolbar visible
-    const mainToolbarElement = isStreamer
-      ? toolbarElements.mainToolbar
-      : toolbarElements.mainToolbar; // toolbarElements.mainToolbar should be the correct one passed in config
-    if (mainToolbarElement) {
-      mainToolbarElement.style.display = "flex"; // Or "block" depending on its CSS
-    }
-
-    resizeCanvas(); // Set initial size and draw
+    resizeCanvas();
 
     if (!prefersReducedMotion) {
       gsap.to(canvasElement.parentElement, {
@@ -1694,76 +1695,47 @@ function initializeSharedWhiteboard(config) {
         autoAlpha: 1,
         ease: "power2.out",
       });
-      // Optionally animate toolbar entrance if desired
-      if (mainToolbarElement) {
-        gsap.fromTo(
-          mainToolbarElement,
-          { opacity: 0, y: -10 },
-          { opacity: 1, y: 0, duration: 0.4, delay: 0.1, ease: "power2.out" }
-        );
-      }
     } else {
       gsap.set(canvasElement.parentElement, { autoAlpha: 1 });
-      if (mainToolbarElement)
-        gsap.set(mainToolbarElement, { opacity: 1, y: 0 });
     }
     window.addEventListener("resize", resizeCanvas);
-    if (onVisibilityChangeCallback) onVisibilityChangeCallback(true);
-    if (socket.connected) socket.emit("wb:requestInitialState", { roomId });
+    if (onVisibilityChangeCallback)
+      onVisibilityChangeCallback(true, isGloballyVisibleByStreamer); // Pass both states
+
+    // Request initial state if shown after initial load and not already fetched
+    // This might need a flag to prevent redundant requests if state already loaded
+    if (socket.connected) {
+      console.log("SharedWB: Requesting initial state on show().");
+      socket.emit("wb:requestInitialState", { roomId });
+    }
     console.log(
-      `SharedWhiteboard shown for ${isStreamer ? "streamer" : "viewer"}`
+      `SharedWB ${username}: Shown. LocalActive: ${isActive}, GlobalVisible: ${isGloballyVisibleByStreamer}`
     );
   }
 
   function hide() {
-    if (!isActive) return;
+    if (!isActive) return; // Already hidden locally
     const parentOverlay = canvasElement.parentElement;
-    const mainToolbarElement = isStreamer
-      ? toolbarElements.mainToolbar
-      : toolbarElements.mainToolbar;
-
     const onHideComplete = () => {
       isActive = false;
       parentOverlay.style.display = "none";
-      if (mainToolbarElement) {
-        mainToolbarElement.style.display = "none";
-        // Also hide sub-option containers if they exist and are for streamer
-        if (isStreamer) {
-          if (toolbarElements.shapeOptionsContainer)
-            toolbarElements.shapeOptionsContainer.style.display = "none";
-          if (toolbarElements.snipOptionsContainer)
-            toolbarElements.snipOptionsContainer.style.display = "none";
-          if (toolbarElements.deleteSelectedBtn)
-            toolbarElements.deleteSelectedBtn.style.display = "none";
-        }
-      }
       window.removeEventListener("resize", resizeCanvas);
-      if (onVisibilityChangeCallback) onVisibilityChangeCallback(false);
+      if (onVisibilityChangeCallback)
+        onVisibilityChangeCallback(false, isGloballyVisibleByStreamer); // Pass both states
       console.log(
-        `SharedWhiteboard hidden for ${isStreamer ? "streamer" : "viewer"}`
+        `SharedWB ${username}: Hidden. LocalActive: ${isActive}, GlobalVisible: ${isGloballyVisibleByStreamer}`
       );
     };
 
     if (!prefersReducedMotion) {
-      // Animate toolbar out first or simultaneously
-      if (mainToolbarElement) {
-        gsap.to(mainToolbarElement, {
-          opacity: 0,
-          y: -10,
-          duration: 0.3,
-          ease: "power1.in",
-        });
-      }
       gsap.to(parentOverlay, {
         duration: 0.4,
         autoAlpha: 0,
-        delay: mainToolbarElement ? 0.1 : 0, // Slight delay if toolbar is animating out
         ease: "power1.in",
         onComplete: onHideComplete,
       });
     } else {
       gsap.set(parentOverlay, { autoAlpha: 0 });
-      if (mainToolbarElement) gsap.set(mainToolbarElement, { opacity: 0 });
       onHideComplete();
     }
   }
@@ -1994,23 +1966,54 @@ function initializeSharedWhiteboard(config) {
         }
       });
       socket.on("wb:toggleVisibility", (data) => {
-        isGloballyVisible = data.isVisible;
-        if (isGloballyVisible && !isActive) {
-          // Streamer turned it on, viewer has it locally hidden
-          show(); // Viewer chooses to see it
-        } else if (!isGloballyVisible && isActive) {
-          // Streamer turned it off
-          hide();
+        console.log(
+          `SharedWB ${username}: Received wb:toggleVisibility - isVisible: ${data.isVisible}`
+        );
+        const oldGlobalVisibility = isGloballyVisibleByStreamer;
+        isGloballyVisibleByStreamer = data.isVisible;
+
+        if (isStreamer) {
+          // Streamer's own client also listens to this to keep its UI in sync if changed by another instance
+          if (isGloballyVisibleByStreamer && !isActive) show();
+          else if (!isGloballyVisibleByStreamer && isActive) hide();
+          // onVisibilityChangeCallback in streamer's config will update button
+        } else {
+          // Viewer logic
+          if (isGloballyVisibleByStreamer) {
+            // Streamer turned it ON. Viewer can now choose to see it.
+            // The onVisibilityChangeCallback will update the viewer's toggle button state.
+            if (onVisibilityChangeCallback)
+              onVisibilityChangeCallback(isActive, isGloballyVisibleByStreamer);
+          } else {
+            // Streamer turned it OFF. Force hide for viewer if it was locally visible.
+            if (isActive) {
+              hide(); // This will call onVisibilityChangeCallback(false, false)
+            } else {
+              // If already locally hidden, just update button state via callback
+              if (onVisibilityChangeCallback)
+                onVisibilityChangeCallback(false, false);
+            }
+          }
         }
-        if (onVisibilityChangeCallback)
-          onVisibilityChangeCallback(isActive && isGloballyVisible);
       });
+    }
+    if (toolbarElements.closeWhiteboardBtn) { // Check if it was passed
+        toolbarElements.closeWhiteboardBtn.addEventListener("click", () => {
+            if (isStreamer) {
+                // Streamer's close button should set global visibility to false
+                publicApi.setGlobalVisibility(false);
+            } else {
+                // Viewer's close button just hides it locally
+                hide();
+            }
+        });
     }
     if (isStreamer) {
       // Streamer specific tool buttons
       if (toolbarElements.shapeToolToggleBtn) {
         toolbarElements.shapeToolToggleBtn.addEventListener("click", () => {
-          if (playButtonFeedbackCallback) playButtonFeedbackCallback(toolbarElements.shapeToolToggleBtn);
+          if (playButtonFeedbackCallback)
+            playButtonFeedbackCallback(toolbarElements.shapeToolToggleBtn);
           const isCurrentlyShapeTool =
             toolbarElements.shapeToolToggleBtn.classList.contains("active");
           if (isCurrentlyShapeTool && !currentShapeMode) {
@@ -2035,7 +2038,8 @@ function initializeSharedWhiteboard(config) {
       shapeButtonsConfig.forEach((config) => {
         if (config.btn) {
           config.btn.addEventListener("click", () => {
-            if (playButtonFeedbackCallback) playButtonFeedbackCallback(config.btn);
+            if (playButtonFeedbackCallback)
+              playButtonFeedbackCallback(config.btn);
             setActiveTool("shape", config.mode);
             updateToolbarForCurrentTool();
           });
@@ -2044,7 +2048,8 @@ function initializeSharedWhiteboard(config) {
 
       if (toolbarElements.selectToolToggleBtn) {
         toolbarElements.selectToolToggleBtn.addEventListener("click", () => {
-          if (playButtonFeedbackCallback) playButtonFeedbackCallback(toolbarElements.selectToolToggleBtn);
+          if (playButtonFeedbackCallback)
+            playButtonFeedbackCallback(toolbarElements.selectToolToggleBtn);
           const isCurrentlySelectTool =
             toolbarElements.selectToolToggleBtn.classList.contains("active");
           if (isCurrentlySelectTool) {
@@ -2062,7 +2067,8 @@ function initializeSharedWhiteboard(config) {
       snipButtonsConfig.forEach((config) => {
         if (config.btn) {
           config.btn.addEventListener("click", () => {
-            if (playButtonFeedbackCallback) playButtonFeedbackCallback(config.btn);
+            if (playButtonFeedbackCallback)
+              playButtonFeedbackCallback(config.btn);
             setActiveTool("select", config.mode); // This will set currentTool and currentSnipMode
             updateToolbarForCurrentTool(); // This will update active classes for snip buttons
           });
@@ -2070,7 +2076,8 @@ function initializeSharedWhiteboard(config) {
       });
       if (toolbarElements.deleteSelectedBtn) {
         toolbarElements.deleteSelectedBtn.addEventListener("click", () => {
-          if (playButtonFeedbackCallback) playButtonFeedbackCallback(toolbarElements.deleteSelectedBtn);
+          if (playButtonFeedbackCallback)
+            playButtonFeedbackCallback(toolbarElements.deleteSelectedBtn);
           deleteSelected();
         });
       }
@@ -2089,17 +2096,19 @@ function initializeSharedWhiteboard(config) {
     isActive: () => isActive,
     isGloballyVisible: () => isGloballyVisible,
     setGlobalVisibility: (visible) => {
-      // For streamer to call
       if (!isStreamer) return;
-      isGloballyVisible = visible;
-      if (isGloballyVisible && !isActive) show();
-      else if (!isGloballyVisible && isActive) hide();
+      isGloballyVisibleByStreamer = visible; // Update the module's sense of global state
       socket.emit("wb:toggleGlobalVisibility", {
         roomId,
-        isVisible: isGloballyVisible,
+        isVisible: isGloballyVisibleByStreamer,
       });
-      if (onVisibilityChangeCallback)
-        onVisibilityChangeCallback(isActive && isGloballyVisible);
+
+      if (isGloballyVisibleByStreamer) {
+        if (!isActive) show(); // If streamer turns it on globally, their local view also shows
+      } else {
+        if (isActive) hide(); // If streamer turns it off globally, their local view also hides
+      }
+      // The onVisibilityChangeCallback will be called by show/hide to update streamer's button
     },
     setViewerDrawPermission: (viewerUsernameToSet, newPermission) => {
       // For streamer to call
@@ -2157,13 +2166,13 @@ function initializeSharedWhiteboard(config) {
     // Viewer waits for wb:toggleVisibility or wb:initState
     // If it's already supposed to be visible from server state, it will be handled
   }
-  
+
   if (isStreamer) {
     setActiveTool("pen"); // Default tool for streamer
   } else {
     // For viewer, default tool doesn't matter much until they get draw permission
     // but cursor should be 'default' if no permission.
-    canvasElement.style.cursor = initialCanDraw ? 'crosshair' : 'default';
+    canvasElement.style.cursor = initialCanDraw ? "crosshair" : "default";
   }
 
   return publicApi;
