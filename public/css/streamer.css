@@ -1301,7 +1301,7 @@
 #whiteboardToolbarV2 .wb-tool-options {
   display: none; /* JS toggles to flex/block */
   position: absolute;
-  bottom: 100%; /* Position above the main toolbar */
+  top: 100%; /* Position above the main toolbar */
   left: 50%;
   transform: translateX(-50%) translateY(-5px); /* Small gap */
   background-color: var(--bg-panel); /* Match toolbar background */
