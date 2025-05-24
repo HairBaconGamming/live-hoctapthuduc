@@ -729,3 +729,23 @@
 .wb-tool-options .wb-option-btn.active i {
     color: var(--primary-color) !important;
 }
+
+#wbSelectToolBtnV2Streamer.active {
+    background-color: rgba(var(--info-color-rgb), 0.2) !important; /* Example: blue for select */
+    border-color: var(--info-color) !important;
+}
+#wbSelectToolBtnV2Streamer.active i {
+    color: var(--info-color) !important;
+}
+
+#wbSnipModeOptionsContainerV2Streamer .wb-option-btn.active {
+    background-color: rgba(var(--info-color-rgb), 0.35) !important;
+    border-color: var(--info-color) !important;
+}
+#wbSnipModeOptionsContainerV2Streamer .wb-option-btn.active i {
+    color: var(--info-color) !important;
+}
+
+#wbDeleteSelectedBtnV2Streamer:hover i {
+     color: #ff8a8a !important; /* Lighter red on hover for delete icon */
+}
