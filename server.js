@@ -832,13 +832,11 @@ app.get("/", (req, res) => {
   // Simple landing page or redirect to your main app page
   // res.send("Live Streaming App. Go to /live (example) to see rooms or create one.");
   // For Glitch, redirect to the live room list page
-  res.redirect(`https://${process.env.PROJECT_DOMAIN}.glitch.me/live`);
+  res.redirect(`https://hoctap-9a3.glitch.me/live`);
 });
 
 app.get("/live", (req, res) => {
-    // This page would typically list available live rooms
-    // For now, it can just be a placeholder or the entry point for creating/joining
-    res.render("liveIndex", { /* pass any necessary data */ projectUrl: `https://${process.env.PROJECT_DOMAIN}.glitch.me` });
+   res.redirect(`https://hoctap-9a3.glitch.me/live`);
 });
 
 
