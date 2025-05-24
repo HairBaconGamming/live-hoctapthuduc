@@ -1675,19 +1675,20 @@ function initializeSharedWhiteboard(config) {
   }
 
   function show() {
-    if (isActive) return; // Already shown locally
-
-    // For viewers, only show if it's also globally visible
-    if (!isStreamer && !isGloballyVisibleByStreamer) {
-      if (showNotificationCallback)
-        showNotificationCallback("Bảng vẽ chưa được streamer bật.", "info");
-      return;
-    }
-
+    if (isActive) return;
     isActive = true;
     canvasElement.parentElement.style.opacity = 0;
     canvasElement.parentElement.style.display = "flex";
-    resizeCanvas();
+
+    // Make the correct toolbar visible
+    const mainToolbarElement = isStreamer
+      ? toolbarElements.mainToolbar
+      : toolbarElements.mainToolbar; // toolbarElements.mainToolbar should be the correct one passed in config
+    if (mainToolbarElement) {
+      mainToolbarElement.style.display = "flex"; // Or "block" depending on its CSS
+    }
+
+    resizeCanvas(); // Set initial size and draw
 
     if (!prefersReducedMotion) {
       gsap.to(canvasElement.parentElement, {
@@ -1695,47 +1696,76 @@ function initializeSharedWhiteboard(config) {
         autoAlpha: 1,
         ease: "power2.out",
       });
+      // Optionally animate toolbar entrance if desired
+      if (mainToolbarElement) {
+        gsap.fromTo(
+          mainToolbarElement,
+          { opacity: 0, y: -10 },
+          { opacity: 1, y: 0, duration: 0.4, delay: 0.1, ease: "power2.out" }
+        );
+      }
     } else {
       gsap.set(canvasElement.parentElement, { autoAlpha: 1 });
+      if (mainToolbarElement)
+        gsap.set(mainToolbarElement, { opacity: 1, y: 0 });
     }
     window.addEventListener("resize", resizeCanvas);
-    if (onVisibilityChangeCallback)
-      onVisibilityChangeCallback(true, isGloballyVisibleByStreamer); // Pass both states
-
-    // Request initial state if shown after initial load and not already fetched
-    // This might need a flag to prevent redundant requests if state already loaded
-    if (socket.connected) {
-      console.log("SharedWB: Requesting initial state on show().");
-      socket.emit("wb:requestInitialState", { roomId });
-    }
+    if (onVisibilityChangeCallback) onVisibilityChangeCallback(true);
+    if (socket.connected) socket.emit("wb:requestInitialState", { roomId });
     console.log(
-      `SharedWB ${username}: Shown. LocalActive: ${isActive}, GlobalVisible: ${isGloballyVisibleByStreamer}`
+      `SharedWhiteboard shown for ${isStreamer ? "streamer" : "viewer"}`
     );
   }
 
   function hide() {
-    if (!isActive) return; // Already hidden locally
+    if (!isActive) return;
     const parentOverlay = canvasElement.parentElement;
+    const mainToolbarElement = isStreamer
+      ? toolbarElements.mainToolbar
+      : toolbarElements.mainToolbar;
+
     const onHideComplete = () => {
       isActive = false;
       parentOverlay.style.display = "none";
+      if (mainToolbarElement) {
+        mainToolbarElement.style.display = "none";
+        // Also hide sub-option containers if they exist and are for streamer
+        if (isStreamer) {
+          if (toolbarElements.shapeOptionsContainer)
+            toolbarElements.shapeOptionsContainer.style.display = "none";
+          if (toolbarElements.snipOptionsContainer)
+            toolbarElements.snipOptionsContainer.style.display = "none";
+          if (toolbarElements.deleteSelectedBtn)
+            toolbarElements.deleteSelectedBtn.style.display = "none";
+        }
+      }
       window.removeEventListener("resize", resizeCanvas);
-      if (onVisibilityChangeCallback)
-        onVisibilityChangeCallback(false, isGloballyVisibleByStreamer); // Pass both states
+      if (onVisibilityChangeCallback) onVisibilityChangeCallback(false);
       console.log(
-        `SharedWB ${username}: Hidden. LocalActive: ${isActive}, GlobalVisible: ${isGloballyVisibleByStreamer}`
+        `SharedWhiteboard hidden for ${isStreamer ? "streamer" : "viewer"}`
       );
     };
 
     if (!prefersReducedMotion) {
+      // Animate toolbar out first or simultaneously
+      if (mainToolbarElement) {
+        gsap.to(mainToolbarElement, {
+          opacity: 0,
+          y: -10,
+          duration: 0.3,
+          ease: "power1.in",
+        });
+      }
       gsap.to(parentOverlay, {
         duration: 0.4,
         autoAlpha: 0,
+        delay: mainToolbarElement ? 0.1 : 0, // Slight delay if toolbar is animating out
         ease: "power1.in",
         onComplete: onHideComplete,
       });
     } else {
       gsap.set(parentOverlay, { autoAlpha: 0 });
+      if (mainToolbarElement) gsap.set(mainToolbarElement, { opacity: 0 });
       onHideComplete();
     }
   }
