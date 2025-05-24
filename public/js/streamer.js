@@ -77,7 +77,12 @@ document.addEventListener("DOMContentLoaded", () => {
     wbEraserModeBtn: document.getElementById("wbEraserModeBtnV2"),
     pipChatVideoPlayer: document.getElementById("pipChatVideoPlayer"),
     streamerCoordsDisplay: document.getElementById("streamerCoordsDisplay"), // Thêm ID này vào HTML
-    wbToggleGridBtn: document.getElementById('wbToggleGridBtnV2Streamer'), // Thêm ID này vào HTML
+    wbToggleGridBtn: document.getElementById("wbToggleGridBtnV2Streamer"), // Thêm ID này vào HTML
+    wbShapeToolBtn: document.getElementById('wbShapeToolBtnV2Streamer'), // Main toggle button
+    wbShapeOptionsContainer: document.getElementById('wbShapeOptionsContainerV2Streamer'), // Container for specific shapes
+    wbDrawRectangleBtn: document.getElementById('wbDrawRectangleBtnV2Streamer'),
+    wbDrawCircleBtn: document.getElementById('wbDrawCircleBtnV2Streamer'),
+    wbDrawLineBtn: document.getElementById('wbDrawLineBtnV2Streamer'),
     // ---- Start: Quiz Elements Streamer ----
     toggleQuizPanelBtn: document.getElementById("toggleQuizPanelBtn"),
     streamerQuizPanel: document.getElementById("streamerQuizPanel"),
@@ -114,7 +119,12 @@ document.addEventListener("DOMContentLoaded", () => {
   let wbDrawingHistory = []; // Stores draw actions {type, x0,y0,x1,y1,color,lineWidth,isEraser} in world coordinates
   let wbEventThrottleTimer = null;
   let wbShowGrid = false; // Initially off
-  let wbGridSize = 50;    // World units for grid lines
+  let wbGridSize = 50; // World units for grid lines
+  let wbCurrentShapeMode = null; // null, 'rectangle', 'circle', 'line'
+  let wbShapeStartX = 0;
+  let wbShapeStartY = 0;
+  let isDrawingShape = false;
+  let wbCurrentShapePreview = null; // Stores the object being previewed
 
   // Drawing tool state
   let wbCurrentColor = "#FFFFFF";
@@ -122,7 +132,6 @@ document.addEventListener("DOMContentLoaded", () => {
   let wbIsEraserMode = false;
   const WB_ERASER_COLOR_STREAMER = "#222639"; // Canvas background from CSS
   const WB_THROTTLE_INTERVAL = 16; // ms
-  
 
   // Camera/Viewport state for the whiteboard (World Coordinates)
   const WB_MAX_WIDTH = 2048 * 2; // Virtual canvas size
@@ -985,19 +994,21 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!whiteboardCtx || !elements.whiteboardCanvas) return;
 
     const canvas = elements.whiteboardCanvas;
-    // Clear the entire viewport before redrawing
     whiteboardCtx.clearRect(0, 0, canvas.width, canvas.height);
 
     whiteboardCtx.save();
-    // Apply camera transformations: scale first, then translate
     whiteboardCtx.scale(wbCamera.scale, wbCamera.scale);
     whiteboardCtx.translate(-wbCamera.x, -wbCamera.y);
 
-    // Set common line styles once before the loop for efficiency
+    // ---- Draw Grid (if enabled) ----
+    if (wbShowGrid) {
+      drawWhiteboardGrid();
+    }
+    // ---- End Draw Grid ----
+
     whiteboardCtx.lineCap = "round";
     whiteboardCtx.lineJoin = "round";
 
-    // Redraw all history items
     wbDrawingHistory.forEach((item) => {
       if (item.type === "draw") {
         whiteboardCtx.beginPath();
@@ -1013,12 +1024,9 @@ document.addEventListener("DOMContentLoaded", () => {
           ? "destination-out"
           : "source-over";
         whiteboardCtx.stroke();
-        // No need for closePath() here for line segments if not filling
       }
-      // 'clear' events from history are handled by clearing wbDrawingHistory array itself
-      // before calling redrawWhiteboardFull, if a full clear is intended.
     });
-    whiteboardCtx.globalCompositeOperation = "source-over"; // Reset composite op
+    whiteboardCtx.globalCompositeOperation = "source-over";
     whiteboardCtx.restore();
   }
 
@@ -1038,22 +1046,28 @@ document.addEventListener("DOMContentLoaded", () => {
       wbCamera.lastPanMouseX = event.clientX;
       wbCamera.lastPanMouseY = event.clientY;
       elements.whiteboardCanvas.style.cursor = "grabbing";
-    } else if (event.button === 0 && userCanDrawOnWhiteboard()) {
-      isDrawingOnWhiteboard = true;
-      // wbLastWorldX đã được set ở trên
+    } else if (event.button === 0 && userCanDrawOnWhiteboard()) { // Left mouse button
+        if (wbCurrentShapeMode) {
+            isDrawingShape = true;
+            // wbLastWorldX and wbLastWorldY (already set from worldCoords) will be the start of the shape
+            wbShapeStartX = wbLastWorldX;
+            wbShapeStartY = wbLastWorldY;
+            wbCurrentShapePreview = null; // Clear previous preview
+            // No immediate drawing, wait for mousemove to define shape or mouseup for dot-like shapes
+        } else { // Freehand drawing
+            isDrawingOnWhiteboard = true;
+            // wbLastWorldX and wbLastWorldY already set
 
-      // Draw a dot for single clicks
-      drawOnWhiteboard(
-        wbLastWorldX - 0.1 / wbCamera.scale, // Kích thước dot nhỏ hơn, độc lập với lineWidth một chút
-        wbLastWorldY - 0.1 / wbCamera.scale,
-        wbLastWorldX,
-        wbLastWorldY,
-        wbCurrentColor,
-        wbCurrentLineWidth, // Sử dụng wbCurrentLineWidth cho dot
-        true,
-        false,
-        wbIsEraserMode
-      );
+            drawOnWhiteboard(
+                wbLastWorldX - (0.01 / wbCamera.scale), 
+                wbLastWorldY - (0.01 / wbCamera.scale),
+                wbLastWorldX,
+                wbLastWorldY,
+                wbCurrentColor,
+                wbCurrentLineWidth,
+                true, false, wbIsEraserMode
+            );
+        }
     }
   }
 
@@ -1079,48 +1093,54 @@ document.addEventListener("DOMContentLoaded", () => {
       wbCamera.lastPanMouseX = event.clientX;
       wbCamera.lastPanMouseY = event.clientY;
       redrawWhiteboardFull();
-    } else if (isDrawingOnWhiteboard && userCanDrawOnWhiteboard()) {
-      if (wbEventThrottleTimer) return;
+    } else if (isDrawingOnWhiteboard && userCanDrawOnWhiteboard() && !wbCurrentShapeMode) { // Freehand drawing
+        if (wbEventThrottleTimer) return; 
+        
+        const currentWorldX = worldCoords.x;
+        const currentWorldY = worldCoords.y;
 
-      const currentSegmentEndX = worldCoords.x; // Tọa độ cuối của đoạn thẳng hiện tại
-      const currentSegmentEndY = worldCoords.y;
-
-      wbEventThrottleTimer = setTimeout(() => {
-        // wbLastWorldX, wbLastWorldY là điểm bắt đầu (đã được set ở mousedown hoặc lần mousemove trước)
-        // currentSegmentEndX, currentSegmentEndY là điểm kết thúc của đoạn này
-        drawOnWhiteboard(
-          wbLastWorldX,
-          wbLastWorldY,
-          currentSegmentEndX,
-          currentSegmentEndY,
-          wbCurrentColor,
-          wbCurrentLineWidth,
-          true,
-          false,
-          wbIsEraserMode
-        );
-        // Cập nhật điểm bắt đầu cho đoạn thẳng *tiếp theo*
-        wbLastWorldX = currentSegmentEndX;
-        wbLastWorldY = currentSegmentEndY;
-
-        wbEventThrottleTimer = null;
-      }, WB_THROTTLE_INTERVAL);
+        wbEventThrottleTimer = setTimeout(() => {
+            drawOnWhiteboard(
+                wbLastWorldX, wbLastWorldY, 
+                currentWorldX, currentWorldY, 
+                wbCurrentColor, wbCurrentLineWidth,
+                true, false, wbIsEraserMode
+            );
+            wbLastWorldX = currentWorldX; 
+            wbLastWorldY = currentWorldY;
+            
+            wbEventThrottleTimer = null;
+        }, WB_THROTTLE_INTERVAL);
+    } else if (isDrawingShape && userCanDrawOnWhiteboard() && wbCurrentShapeMode) { // Shape drawing preview
+        const currentWorldX = worldCoords.x;
+        const currentWorldY = worldCoords.y;
+        
+        // Redraw the base canvas (history + grid)
+        redrawWhiteboardFull(); 
+        // Then draw the shape preview on top
+        drawShapePreview(wbShapeStartX, wbShapeStartY, currentWorldX, currentWorldY, wbCurrentShapeMode, wbCurrentColor, wbCurrentLineWidth);
     }
   }
 
   function handleWhiteboardMouseUp(event) {
     if (wbCamera.isPanning) {
-      wbCamera.isPanning = false;
-      elements.whiteboardCanvas.style.cursor = wbCamera.isPanToolActive
-        ? "grab"
-        : "crosshair";
+        wbCamera.isPanning = false;
+        elements.whiteboardCanvas.style.cursor = wbCamera.isPanToolActive ? 'grab' : (wbIsEraserMode ? 'cell' : (wbCurrentShapeMode ? 'crosshair' : 'crosshair'));
+
     }
-    if (isDrawingOnWhiteboard) {
-      isDrawingOnWhiteboard = false;
-      clearTimeout(wbEventThrottleTimer);
-      wbEventThrottleTimer = null;
+    if (isDrawingOnWhiteboard && !wbCurrentShapeMode) { // End freehand draw
+        isDrawingOnWhiteboard = false;
+        clearTimeout(wbEventThrottleTimer);
+        wbEventThrottleTimer = null;
     }
-  }
+    if (isDrawingShape && wbCurrentShapeMode) { // Finalize shape
+        isDrawingShape = false;
+        const worldCoords = getCanvasWorldCoordinates(event.clientX, event.clientY);
+        finalizeShape(wbShapeStartX, wbShapeStartY, worldCoords.x, worldCoords.y, wbCurrentShapeMode, wbCurrentColor, wbCurrentLineWidth);
+        redrawWhiteboardFull(); // Redraw with the finalized shape from history
+        wbCurrentShapePreview = null;
+    }
+}
 
   function handleWhiteboardMouseOut(event) {
     if (isDrawingOnWhiteboard) {
@@ -1402,6 +1422,143 @@ document.addEventListener("DOMContentLoaded", () => {
     const dy = touch1.clientY - touch2.clientY;
     return Math.sqrt(dx * dx + dy * dy);
   }
+
+  function drawWhiteboardGrid() {
+    if (!whiteboardCtx || !elements.whiteboardCanvas) return;
+
+    const canvas = elements.whiteboardCanvas;
+    const scaledGridSize = wbGridSize; // Grid size is in world units, scaling is handled by context transform
+
+    // Calculate the visible world coordinates
+    const worldViewLeft = wbCamera.x;
+    const worldViewTop = wbCamera.y;
+    const worldViewRight = wbCamera.x + canvas.width / wbCamera.scale;
+    const worldViewBottom = wbCamera.y + canvas.height / wbCamera.scale;
+
+    whiteboardCtx.beginPath();
+    whiteboardCtx.strokeStyle = "rgba(255, 255, 255, 0.1)"; // Light grid color
+    whiteboardCtx.lineWidth = 1 / wbCamera.scale; // Make grid lines appear consistently thin
+
+    // Determine the starting grid lines based on the camera view and grid size
+    const startX = Math.floor(worldViewLeft / scaledGridSize) * scaledGridSize;
+    const startY = Math.floor(worldViewTop / scaledGridSize) * scaledGridSize;
+
+    // Vertical lines
+    for (let x = startX; x < worldViewRight; x += scaledGridSize) {
+      // Draw only if within the conceptual WB_MAX_WIDTH bounds (optional, for "infinite" feel this might be removed)
+      // if (x >= 0 && x <= WB_MAX_WIDTH) {
+      whiteboardCtx.moveTo(x, worldViewTop);
+      whiteboardCtx.lineTo(x, worldViewBottom);
+      // }
+    }
+
+    // Horizontal lines
+    for (let y = startY; y < worldViewBottom; y += scaledGridSize) {
+      // if (y >= 0 && y <= WB_MAX_HEIGHT) {
+      whiteboardCtx.moveTo(worldViewLeft, y);
+      whiteboardCtx.lineTo(worldViewRight, y);
+      // }
+    }
+    whiteboardCtx.stroke();
+  }
+  
+  function drawShapePreview(startX, startY, currentX, currentY, shapeMode, color, lineWidth) {
+    if (!whiteboardCtx) return;
+    
+    whiteboardCtx.save();
+    whiteboardCtx.scale(wbCamera.scale, wbCamera.scale);
+    whiteboardCtx.translate(-wbCamera.x, -wbCamera.y);
+    
+    whiteboardCtx.strokeStyle = color;
+    whiteboardCtx.lineWidth = lineWidth;
+    whiteboardCtx.fillStyle = "rgba(0,0,0,0)"; // No fill for preview, or a very light fill
+    whiteboardCtx.setLineDash([5, 5]); // Dashed line for preview
+
+    whiteboardCtx.beginPath();
+    switch (shapeMode) {
+        case 'rectangle':
+            whiteboardCtx.rect(startX, startY, currentX - startX, currentY - startY);
+            break;
+        case 'circle':
+            const radius = Math.sqrt(Math.pow(currentX - startX, 2) + Math.pow(currentY - startY, 2));
+            whiteboardCtx.arc(startX, startY, radius, 0, 2 * Math.PI);
+            break;
+        case 'line':
+            whiteboardCtx.moveTo(startX, startY);
+            whiteboardCtx.lineTo(currentX, currentY);
+            break;
+    }
+    whiteboardCtx.stroke();
+    // if (shapeMode === 'rectangle' || shapeMode === 'circle') whiteboardCtx.fill(); // Optional fill for preview
+
+    whiteboardCtx.restore();
+    whiteboardCtx.setLineDash([]); // Reset line dash
+}
+  
+  function finalizeShape(startX, startY, endX, endY, shapeMode, color, lineWidth) {
+    // This function will add the shape as a series of 'draw' events to wbDrawingHistory
+    // and emit them. This keeps drawing logic consistent.
+    
+    const points = []; // Array of {x0,y0,x1,y1} segments for complex shapes if needed
+    let emitShapeData = { 
+        type: shapeMode, 
+        startX, startY, endX, endY, 
+        color, lineWidth, 
+        username: streamerConfig.username 
+    };
+
+    switch (shapeMode) {
+        case 'rectangle':
+            // Add 4 line segments to history
+            // Top
+            wbDrawingHistory.push({type:'draw', x0:startX, y0:startY, x1:endX, y1:startY, color, lineWidth, isEraser:false});
+            // Right
+            wbDrawingHistory.push({type:'draw', x0:endX, y0:startY, x1:endX, y1:endY, color, lineWidth, isEraser:false});
+            // Bottom
+            wbDrawingHistory.push({type:'draw', x0:endX, y0:endY, x1:startX, y1:endY, color, lineWidth, isEraser:false});
+            // Left
+            wbDrawingHistory.push({type:'draw', x0:startX, y0:endY, x1:startX, y1:startY, color, lineWidth, isEraser:false});
+            break;
+        case 'circle':
+            // Approximate circle with many small line segments for history & emission
+            const centerX = startX;
+            const centerY = startY;
+            const radius = Math.sqrt(Math.pow(endX - startX, 2) + Math.pow(endY - startY, 2));
+            if (radius < lineWidth / 2) { // If radius is too small, draw a dot essentially
+                 wbDrawingHistory.push({type:'draw', x0:centerX - 0.1, y0:centerY, x1:centerX, y1:centerY, color, lineWidth, isEraser:false});
+            } else {
+                const segments = Math.max(36, Math.floor(radius / 2)); // More segments for larger circles
+                let prevX = centerX + radius;
+                let prevY = centerY;
+                for (let i = 1; i <= segments; i++) {
+                    const angle = (i / segments) * 2 * Math.PI;
+                    const currentX = centerX + radius * Math.cos(angle);
+                    const currentY = centerY + radius * Math.sin(angle);
+                    wbDrawingHistory.push({type:'draw', x0:prevX, y0:prevY, x1:currentX, y1:currentY, color, lineWidth, isEraser:false});
+                    prevX = currentX;
+                    prevY = currentY;
+                }
+            }
+            emitShapeData.radius = radius; // Add radius for easier handling by viewers if they draw circles directly
+            break;
+        case 'line':
+            wbDrawingHistory.push({type:'draw', x0:startX, y0:startY, x1:endX, y1:endY, color, lineWidth, isEraser:false});
+            break;
+    }
+     // Trim history
+    if (wbDrawingHistory.length > 500) {
+        wbDrawingHistory.splice(0, wbDrawingHistory.length - 500);
+    }
+
+    // Emit a single shape event instead of individual line segments for shapes
+    if (socket && socket.connected && userCanDrawOnWhiteboard()) {
+      socket.emit("wb:drawShape", { // New event type for shapes
+        roomId: streamerConfig.roomId,
+        shapeData: emitShapeData
+      });
+    }
+    console.log(`Finalized shape: ${shapeMode}`);
+}
 
   function updateCoordsDisplay(worldX, worldY, screenX, screenY) {
     if (elements.streamerCoordsDisplay) {
@@ -5226,6 +5383,66 @@ document.addEventListener("DOMContentLoaded", () => {
         redrawWhiteboardFull();
       });
     }
+    
+    // ---- Shape Tools UI Logic ----
+    const shapeToolBtn = elements.wbShapeToolBtn;
+    const shapeOptionsContainer = elements.wbShapeOptionsContainer;
+
+    if (shapeToolBtn && shapeOptionsContainer) {
+        shapeToolBtn.addEventListener('click', () => {
+            playButtonFeedback(shapeToolBtn);
+            const isActive = shapeToolBtn.classList.toggle('active');
+            shapeOptionsContainer.style.display = isActive ? 'flex' : 'none';
+            if (isActive) {
+                // Optional: Hide other tool-specific UIs if needed
+                wbCamera.isPanToolActive = false; // Turn off pan tool when opening shapes
+                if(elements.wbPanToolBtnV2Streamer) elements.wbPanToolBtnV2Streamer.classList.remove('active');
+                if(elements.whiteboardCanvas) elements.whiteboardCanvas.style.cursor = 'crosshair';
+            } else {
+                // If closing shape options, and no shape is active, revert to pen/eraser cursor
+                if (!wbCurrentShapeMode) {
+                    if(elements.whiteboardCanvas) elements.whiteboardCanvas.style.cursor = wbIsEraserMode ? 'cell' : 'crosshair';
+                }
+            }
+        });
+
+        const shapeButtons = [
+            { btn: elements.wbDrawRectangleBtn, mode: 'rectangle' },
+            { btn: elements.wbDrawCircleBtn, mode: 'circle' },
+            { btn: elements.wbDrawLineBtn, mode: 'line' },
+        ];
+
+        shapeButtons.forEach(item => {
+            if (item.btn) {
+                item.btn.addEventListener('click', () => {
+                    playButtonFeedback(item.btn);
+                    // Deselect other shape buttons
+                    shapeButtons.forEach(s => s.btn?.classList.remove('active'));
+
+                    if (wbCurrentShapeMode === item.mode) { // Clicked active shape again: deselect
+                        wbCurrentShapeMode = null;
+                        if(elements.whiteboardCanvas) elements.whiteboardCanvas.style.cursor = wbIsEraserMode ? 'cell' : 'crosshair';
+                         if(typeof showAlert === 'function') showAlert(`Chế độ vẽ Hình dạng: TẮT`, "info", 1500);
+
+                    } else { // Select new shape
+                        wbCurrentShapeMode = item.mode;
+                        item.btn.classList.add('active');
+                        if(elements.whiteboardCanvas) elements.whiteboardCanvas.style.cursor = 'crosshair'; // Always crosshair for shape drawing
+                        wbIsEraserMode = false; // Turn off eraser when selecting a shape
+                        if(elements.wbEraserModeBtn) elements.wbEraserModeBtn.classList.remove('active');
+                        wbCamera.isPanToolActive = false; // Turn off pan tool
+                         if(elements.wbPanToolBtnV2Streamer) elements.wbPanToolBtnV2Streamer.classList.remove('active');
+                        if(typeof showAlert === 'function') showAlert(`Chế độ vẽ: ${item.mode}`, "info", 1500);
+                    }
+                    // Hide shape options dropdown if a shape is deselected by clicking it again OR if freehand is chosen (no shape mode)
+                    if (!wbCurrentShapeMode) {
+                         // shapeOptionsContainer.style.display = 'none';
+                         // shapeToolBtn.classList.remove('active');
+                    }
+                });
+            }
+        });
+    }
 
     // Ensure eraser mode also respects pan tool for cursor
     if (elements.wbEraserModeBtn) {
@@ -5242,6 +5459,20 @@ document.addEventListener("DOMContentLoaded", () => {
             : "crosshair";
         }
       };
+    }
+    const gridToolBtn = elements.wbToggleGridBtn;
+    if (gridToolBtn) {
+      gridToolBtn.addEventListener("click", () => {
+        wbShowGrid = !wbShowGrid;
+        gridToolBtn.classList.toggle("active", wbShowGrid);
+        redrawWhiteboardFull(); // Redraw to show/hide grid
+        if (typeof showAlert === "function")
+          showAlert(
+            wbShowGrid ? "Lưới bảng vẽ: BẬT" : "Lưới bảng vẽ: TẮT",
+            "info",
+            2000
+          );
+      });
     }
   } // End initUIEventListeners
 
