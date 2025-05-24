@@ -5,8 +5,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Live Streams | Nền Tảng Học Tập</title>
-    <link rel="stylesheet" href="/styles.css"> <%# Assuming a global styles.css %>
-    <link rel="stylesheet" href="/css/liveIndex.css"> <%# Assuming a specific CSS for this page %>
+  <link rel="icon" type="image/png" href="https://cdn.glitch.global/71030012-56ea-4d26-a426-e0099201df1c/823029_library_512x512.png?v=1741523759119">
+    <link rel="stylesheet" href="/styles.css">
+    <link rel="stylesheet" href="/css/liveIndex.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     <style>
         /* Basic styles for liveIndex.ejs if liveIndex.css is not comprehensive */
@@ -122,7 +123,7 @@
         <div class="header-actions">
             <h1><i class="fas fa-broadcast-tower"></i> Live Streams</h1>
             <div>
-                <input type="text" id="streamTitleInput" placeholder="Tiêu đề buổi Live (tùy chọn)" style="padding: 10px; border-radius: 5px; border: 1px solid #555; background: #333; color: white; margin-right: 10px;">
+                <%# Input for title is removed as creation is now external %>
                 <button id="createStreamBtn" class="btn btn-primary"><i class="fas fa-plus-circle"></i> Tạo Phòng Live Mới</button>
             </div>
         </div>
@@ -135,64 +136,68 @@
     </div>
 
     <script>
-    // Basic client-side logic for /live page
-    const roomList = document.getElementById('roomList');
-    const noRoomsMessage = document.getElementById('noRoomsMessage');
-    const createStreamBtn = document.getElementById('createStreamBtn');
-    // const streamTitleInput = document.getElementById('streamTitleInput'); // No longer needed here for direct creation logic
-    const projectUrl = "<%= projectUrl %>"; 
+        const roomList = document.getElementById('roomList');
+        const noRoomsMessage = document.getElementById('noRoomsMessage');
+        const createStreamBtn = document.getElementById('createStreamBtn');
+        const projectUrl = "<%= projectUrl %>"; // Server-side URL for this current app
 
-    async function fetchRooms() {
-        try {
-            const response = await fetch('/api/rooms');
-            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-            const rooms = await response.json();
-            renderRooms(rooms);
-        } catch (error) {
-            console.error("Failed to fetch rooms:", error);
-            roomList.innerHTML = '<p style="color: var(--danger-color);">Lỗi tải danh sách phòng.</p>';
+        // This is the URL of your MAIN website where users log in and initiate room creation.
+        const MAIN_WEBSITE_CREATE_STREAM_URL = "https://hoctap-9a3.glitch.me/live/create";
+
+        async function fetchRooms() {
+            try {
+                const response = await fetch('/api/rooms'); // API from this server
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                const rooms = await response.json();
+                renderRooms(rooms);
+            } catch (error) {
+                console.error("Failed to fetch rooms:", error);
+                roomList.innerHTML = '<p style="color: var(--danger-color);">Lỗi tải danh sách phòng.</p>';
+            }
         }
-    }
 
-    function renderRooms(rooms) {
-        if (rooms.length === 0) {
-            noRoomsMessage.style.display = 'block';
-            roomList.innerHTML = '';
-            return;
+        function renderRooms(rooms) {
+            if (!rooms || rooms.length === 0) {
+                noRoomsMessage.style.display = 'block';
+                roomList.innerHTML = '';
+                return;
+            }
+            noRoomsMessage.style.display = 'none';
+            roomList.innerHTML = rooms.map(room => {
+                // The token for joining a room will now likely be handled by the main site's logic
+                // or passed back to this page after successful creation/login on the main site.
+                // For simplicity, we'll assume the main site will provide the correct token or handle access.
+                // If your main site sets a global authToken in localStorage, that could be used.
+                const authToken = localStorage.getItem('authToken'); // Get token if available
+                const roomJoinUrl = `${projectUrl}${room.liveStreamUrl}${authToken ? '?token=' + authToken : ''}`;
+
+                return `
+                <div class="room-card">
+                    <h3><a href="${roomJoinUrl}" style="color: var(--accent-color); text-decoration: none;">${room.title || 'Live Stream'}</a></h3>
+                    <p><span class="live-indicator-dot"></span><strong>Chủ phòng:</strong> <span class="owner">${room.owner}</span></p>
+                    <p><strong>Người xem:</strong> ${room.viewers}</p>
+                    <p><strong>Thời gian live:</strong> ${room.onlineTime}</p>
+                    <a href="${roomJoinUrl}" class="btn btn-secondary" style="margin-top: 10px; display: inline-block;">Vào Phòng</a>
+                </div>`;
+            }).join('');
         }
-        noRoomsMessage.style.display = 'none';
-        roomList.innerHTML = rooms.map(room => `
-            <div class="room-card">
-                <h3><a href="${projectUrl}${room.liveStreamUrl}?token=${localStorage.getItem('authToken') || ''}" style="color: var(--accent-color); text-decoration: none;">${room.title || 'Live Stream'}</a></h3>
-                <p><span class="live-indicator-dot"></span><strong>Chủ phòng:</strong> <span class="owner">${room.owner}</span></p>
-                <p><strong>Người xem:</strong> ${room.viewers}</p>
-                <p><strong>Thời gian live:</strong> ${room.onlineTime}</p>
-                <a href="${projectUrl}${room.liveStreamUrl}?token=${localStorage.getItem('authToken') || ''}" class="btn btn-secondary" style="margin-top: 10px; display: inline-block;">Vào Phòng</a>
-            </div>
-        `).join('');
-    }
 
-    createStreamBtn.addEventListener('click', () => {
-        // Simply redirect to the create stream page
-        // The token for authentication to *create* a stream should be handled
-        // on the /live/create page itself, perhaps by requiring login before accessing it.
-        // Or, if you need to pass a token for the creation page itself, append it here.
-        // For simplicity, assuming /live/create handles its own auth.
-        
-        // Get current auth token if it exists, it might be useful for the /live/create page
-        // to pre-fill user info or validate if the user is allowed to create.
-        const authToken = localStorage.getItem('authToken');
-        let createUrl = `${projectUrl}/live/create`;
-        if (authToken) {
-            // You might want to pass the token to the create page if it needs to
-            // identify the user immediately for pre-filling forms or auth.
-            // createUrl += `?token=${authToken}`; // Uncomment if needed
-        }
-        window.location.href = createUrl; 
-    });
+        createStreamBtn.addEventListener('click', () => {
+            // Simply redirect to the main website's create stream page.
+            // The main website will handle login, getting user details,
+            // then it will call THIS server's /api/createStream endpoint with the necessary auth.
+            // It might also pass back a token for this live server.
+            window.location.href = MAIN_WEBSITE_CREATE_STREAM_URL;
+        });
 
-    fetchRooms();
-    setInterval(fetchRooms, 15000);
-</script>
+        // Periodically refresh the room list
+        fetchRooms();
+        const roomRefreshInterval = setInterval(fetchRooms, 15000); // Refresh every 15 seconds
+
+        // Clean up interval on page unload
+        window.addEventListener('beforeunload', () => {
+            clearInterval(roomRefreshInterval);
+        });
+    </script>
 </body>
 </html>

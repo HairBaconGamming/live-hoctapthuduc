@@ -195,7 +195,7 @@ app.post("/api/createStream", (req, res) => {
   }
 
   const roomId = uuidv4();
-  const liveStreamUrl = `/room/${roomId}`; // Relative URL, client can prepend domain
+  const liveStreamUrl = `https://live-hoctap-9a3.glitch.me/room/${roomId}`; // Relative URL, client can prepend domain
   const newRoom = {
     id: roomId,
     owner: roomOwnerName,
@@ -259,80 +259,6 @@ app.get("/api/rooms", (req, res) => {
       };
     });
   res.json(roomsToDisplay);
-});
-
-// GET route to display the create stream page/form
-app.get("/live/create", checkHoctapAuth, (req, res) => { // Require authentication to access create page
-    // The `req.user` object is available here from `checkHoctapAuth`
-    res.render("createStreamPage", {
-        user: req.user, // Pass user info to pre-fill or display
-        projectUrl: `https://${process.env.PROJECT_DOMAIN}.glitch.me`,
-        // Add any other data needed for the createStreamPage.ejs
-    });
-});
-
-// POST route to handle the actual stream creation from the new page
-// This replaces your previous /api/createStream logic but is now hit from a form submission
-app.post("/live/create/submit", checkHoctapAuth, (req, res) => { // Require auth to submit
-    const roomOwnerId = req.user.userId; // Get from authenticated user
-    const roomOwnerName = req.user.username;
-    const { title } = req.body; // Get title from form submission
-
-    if (!roomOwnerId || !roomOwnerName) { // Should not happen if checkHoctapAuth is working
-        return res.status(400).json({ error: "Thông tin người dùng không hợp lệ." });
-    }
-
-    const existingRoom = liveRooms.find(room => room.ownerid === roomOwnerId);
-    if (existingRoom) {
-        // Instead of JSON, maybe redirect back to /live/create with an error message,
-        // or directly to their existing room.
-        // For now, let's send an error that the client-side JS on /live/create can handle.
-        return res.status(409).render("createStreamPage", {
-            user: req.user,
-            projectUrl: `https://${process.env.PROJECT_DOMAIN}.glitch.me`,
-            errorMessage: "Bạn đã có một phòng live đang hoạt động. Không thể tạo thêm.",
-            existingRoomUrl: `${projectUrl}${existingRoom.liveStreamUrl}?token=${req.query.token || ''}` // Send back existing room URL
-        });
-    }
-
-    const roomId = uuidv4();
-    const liveStreamUrl = `/room/${roomId}`; // Relative URL
-    const projectUrl = `https://${process.env.PROJECT_DOMAIN}.glitch.me`;
-
-    const newRoom = {
-        id: roomId,
-        owner: roomOwnerName,
-        ownerid: roomOwnerId,
-        title: title || `Live Stream của ${roomOwnerName}`,
-        liveStreamUrl, // Relative path
-        viewers: 0,
-        createdAt: new Date(),
-        isLive: false,
-        bannedViewers: [],
-        viewersList: [],
-        pinnedComment: null,
-        isWhiteboardActive: false,
-        whiteboardHistory: [],
-        quiz: { /* ... quiz structure ... */ },
-        hostSocketId: null,
-        peerConfig: { /* ... your peerConfig ... */
-             host: process.env.PROJECT_DOMAIN + ".glitch.me",
-             port: 443,
-             path: "/peerjs/myapp",
-             secure: true,
-             debug: process.env.NODE_ENV !== 'production' ? 2 : 0,
-        },
-        glitchProjectUrl: projectUrl
-    };
-    liveRooms.push(newRoom);
-    console.log("✅ Room created via /live/create/submit:", { id: newRoom.id, owner: newRoom.owner, title: newRoom.title });
-
-    // After successful creation, redirect the user to their new streamer room.
-    // The token from checkHoctapAuth (req.query.token) should still be valid for accessing the room.
-    // Or generate a fresh one if needed (though checkHoctapAuth implies it's already good).
-    const roomAccessToken = req.query.token || jwt.sign({ userId: req.user.userId, username: req.user.username, roomId: newRoom.id }, JWT_SECRET, { expiresIn: "6h" });
-    
-    res.redirect(`${projectUrl}${liveStreamUrl}?token=${roomAccessToken}`);
 });
 
 /* =============================
