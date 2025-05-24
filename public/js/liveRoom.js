@@ -525,6 +525,14 @@ document.addEventListener("DOMContentLoaded", () => {
   // ==================================
   // WHITEBOARD LOGIC (VIEWER - using Shared Module)
   // ==================================
+   function viewerPlayButtonFeedback(button) {
+    // A simpler or no feedback for viewer buttons, or implement as needed
+    if (!button || prefersReducedMotion) return;
+    gsap.timeline()
+        .to(button, { scale: 0.95, duration: 0.08, ease: "power1.in" })
+        .to(button, { scale: 1, duration: 0.2, ease: "power1.out" });
+  }
+
   function initViewerWhiteboardModule() {
     if (!elements.whiteboardCanvasViewer || !socket) {
       console.error(
@@ -552,6 +560,7 @@ document.addEventListener("DOMContentLoaded", () => {
       isStreamer: false,
       initialCanDraw: false, // Viewers start without drawing permission
       showNotificationCallback: showAlert, // Use global showAlert
+      playButtonFeedbackCallback: viewerPlayButtonFeedback,
       // Viewers don't typically confirm actions on the WB unless they are drawing
       confirmActionCallback: (message, confirmText, cancelText, iconClass) => {
         // Use showArtisticConfirm if available, else window.confirm

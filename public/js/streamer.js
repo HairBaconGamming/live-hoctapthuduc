@@ -564,6 +564,24 @@ document.addEventListener("DOMContentLoaded", () => {
   // ==================================
   // SHARED WHITEBOARD INITIALIZATION & CALLBACKS
   // ==================================
+  // playButtonFeedback function (already defined in streamer.js)
+  function playButtonFeedback(button) {
+    if (!button || prefersReducedMotion) return;
+    gsap
+      .timeline()
+      .to(button, { scale: 0.92, duration: 0.1, ease: "power1.in" })
+      .to(button, { scale: 1, duration: 0.35, ease: "elastic.out(1, 0.5)" });
+    if (typeof tsParticles !== "undefined") {
+      tsParticles
+        .load({
+          element: button,
+          preset: "confetti",
+          particles: { /* ... */ },
+          emitters: { /* ... */ },
+        })
+        .then((c) => setTimeout(() => c?.destroy(), 400));
+    }
+  }
   function initStreamerWhiteboard() {
     if (!elements.whiteboardCanvas || !socket) {
       console.error(
@@ -606,6 +624,7 @@ document.addEventListener("DOMContentLoaded", () => {
       initialCanDraw: true, // Streamer can always draw
       showNotificationCallback: showAlert,
       confirmActionCallback: showStreamerConfirmation,
+      playButtonFeedbackCallback: playButtonFeedback,
       onVisibilityChangeCallback: (isVisible) => {
         // Streamer's global toggle button UI update
         elements.toggleWhiteboardBtnStreamer?.classList.toggle(

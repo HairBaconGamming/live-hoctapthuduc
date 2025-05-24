@@ -2010,7 +2010,7 @@ function initializeSharedWhiteboard(config) {
       // Streamer specific tool buttons
       if (toolbarElements.shapeToolToggleBtn) {
         toolbarElements.shapeToolToggleBtn.addEventListener("click", () => {
-          playButtonFeedback(toolbarElements.shapeToolToggleBtn); // Assuming playButtonFeedback is global or passed
+          if (playButtonFeedbackCallback) playButtonFeedbackCallback(toolbarElements.shapeToolToggleBtn);
           const isCurrentlyShapeTool =
             toolbarElements.shapeToolToggleBtn.classList.contains("active");
           if (isCurrentlyShapeTool && !currentShapeMode) {
@@ -2035,7 +2035,7 @@ function initializeSharedWhiteboard(config) {
       shapeButtonsConfig.forEach((config) => {
         if (config.btn) {
           config.btn.addEventListener("click", () => {
-            playButtonFeedback(config.btn);
+            if (playButtonFeedbackCallback) playButtonFeedbackCallback(config.btn);
             setActiveTool("shape", config.mode);
             updateToolbarForCurrentTool();
           });
@@ -2044,7 +2044,7 @@ function initializeSharedWhiteboard(config) {
 
       if (toolbarElements.selectToolToggleBtn) {
         toolbarElements.selectToolToggleBtn.addEventListener("click", () => {
-          playButtonFeedback(toolbarElements.selectToolToggleBtn);
+          if (playButtonFeedbackCallback) playButtonFeedbackCallback(toolbarElements.selectToolToggleBtn);
           const isCurrentlySelectTool =
             toolbarElements.selectToolToggleBtn.classList.contains("active");
           if (isCurrentlySelectTool) {
@@ -2062,7 +2062,7 @@ function initializeSharedWhiteboard(config) {
       snipButtonsConfig.forEach((config) => {
         if (config.btn) {
           config.btn.addEventListener("click", () => {
-            playButtonFeedback(config.btn);
+            if (playButtonFeedbackCallback) playButtonFeedbackCallback(config.btn);
             setActiveTool("select", config.mode); // This will set currentTool and currentSnipMode
             updateToolbarForCurrentTool(); // This will update active classes for snip buttons
           });
@@ -2070,7 +2070,7 @@ function initializeSharedWhiteboard(config) {
       });
       if (toolbarElements.deleteSelectedBtn) {
         toolbarElements.deleteSelectedBtn.addEventListener("click", () => {
-          playButtonFeedback(toolbarElements.deleteSelectedBtn);
+          if (playButtonFeedbackCallback) playButtonFeedbackCallback(toolbarElements.deleteSelectedBtn);
           deleteSelected();
         });
       }

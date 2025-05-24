@@ -299,6 +299,7 @@ app.get("/room/:id", checkHoctapAuth, (req, res) => {
         roomCreatedAt: room.createdAt,
         peerConfig: peerConfigForClient,
         glitchProjectUrl: room.glitchProjectUrl,
+        user: req.user,
         userIsPro: req.user.isPro || false // Example: pass pro status
     });
   } else {
@@ -312,6 +313,7 @@ app.get("/room/:id", checkHoctapAuth, (req, res) => {
         isHostPresent: room.isLive, // Reflects if host is connected
         peerConfig: peerConfigForClient,
         glitchProjectUrl: room.glitchProjectUrl,
+        user: req.user,
         userIsPro: req.user.isPro || false // Example: pass pro status
     });
   }
