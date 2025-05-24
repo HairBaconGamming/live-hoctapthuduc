@@ -1,0 +1,248 @@
+<%# File: views/liveIndex.ejs %>
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Streams | Nền Tảng Học Tập</title>
+    <link rel="stylesheet" href="/styles.css"> <%# Assuming a global styles.css %>
+    <link rel="stylesheet" href="/css/liveIndex.css"> <%# Assuming a specific CSS for this page %>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <style>
+        /* Basic styles for liveIndex.ejs if liveIndex.css is not comprehensive */
+        body {
+            font-family: var(--font-main, 'Poppins', sans-serif);
+            background-color: var(--bg-dark, #12121f);
+            color: var(--text-light, #f0f0f0);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .container {
+            width: 100%;
+            max-width: var(--container-width, 1200px);
+        }
+        .header-actions {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid var(--border-color-dark, rgba(255,255,255,0.15));
+        }
+        .header-actions h1 {
+            font-family: var(--font-heading, 'Montserrat', sans-serif);
+            font-size: 2rem;
+            color: var(--primary-color, #7873f5);
+        }
+        .btn {
+            padding: 10px 20px;
+            border-radius: var(--border-radius-medium, 10px);
+            text-decoration: none;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: 1px solid transparent;
+        }
+        .btn-primary {
+            background-color: var(--primary-color, #7873f5);
+            color: white;
+        }
+        .btn-primary:hover {
+            background-color: var(--secondary-color, #ff6ec4); /* Example hover */
+            box-shadow: var(--shadow-glow-primary);
+        }
+        .btn-secondary {
+            background-color: transparent;
+            color: var(--primary-color, #7873f5);
+            border-color: var(--primary-color, #7873f5);
+        }
+        .btn-secondary:hover {
+            background-color: rgba(var(--primary-color-rgb), 0.1);
+            color: var(--text-light);
+        }
+        .room-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+        }
+        .room-card {
+            background-color: var(--bg-card-dark, rgba(30,30,50,0.7));
+            padding: 20px;
+            border-radius: var(--border-radius-large, 20px);
+            border: 1px solid var(--border-color-dark, rgba(255,255,255,0.15));
+            box-shadow: var(--shadow-medium, 0 6px 18px rgba(0,0,0,0.1));
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        .room-card:hover {
+            transform: translateY(-5px);
+            box-shadow: var(--shadow-dark, 0 10px 30px rgba(0,0,0,0.15));
+        }
+        .room-card h3 {
+            font-family: var(--font-heading, 'Montserrat', sans-serif);
+            font-size: 1.4rem;
+            margin-top: 0;
+            margin-bottom: 10px;
+            color: var(--accent-color, #ffdd57);
+        }
+        .room-card p {
+            margin-bottom: 8px;
+            font-size: 0.9rem;
+            color: var(--text-medium, #a0a0c0);
+        }
+        .room-card .owner {
+            font-weight: 500;
+            color: var(--text-light, #f0f0f0);
+        }
+        .room-card .live-indicator-dot {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            background-color: var(--success-color, #4CAF50);
+            border-radius: 50%;
+            margin-right: 8px;
+            animation: liveDotPulse 1.5s infinite ease-in-out;
+        }
+        @keyframes liveDotPulse {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.2); opacity: 0.7; }
+        }
+        .no-rooms {
+            text-align: center;
+            font-size: 1.2rem;
+            color: var(--text-medium);
+            margin-top: 40px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header-actions">
+            <h1><i class="fas fa-broadcast-tower"></i> Live Streams</h1>
+            <div>
+                <input type="text" id="streamTitleInput" placeholder="Tiêu đề buổi Live (tùy chọn)" style="padding: 10px; border-radius: 5px; border: 1px solid #555; background: #333; color: white; margin-right: 10px;">
+                <button id="createStreamBtn" class="btn btn-primary"><i class="fas fa-plus-circle"></i> Tạo Phòng Live Mới</button>
+            </div>
+        </div>
+
+        <h2><i class="fas fa-satellite-dish"></i> Các Phòng Đang Live</h2>
+        <div id="roomList" class="room-list">
+            <%# Room cards will be populated by JavaScript %>
+        </div>
+        <p id="noRoomsMessage" class="no-rooms" style="display: none;">Hiện chưa có phòng live nào.</p>
+    </div>
+
+    <script>
+        // Basic client-side logic for /live page
+        const roomList = document.getElementById('roomList');
+        const noRoomsMessage = document.getElementById('noRoomsMessage');
+        const createStreamBtn = document.getElementById('createStreamBtn');
+        const streamTitleInput = document.getElementById('streamTitleInput');
+        const projectUrl = "<%= projectUrl %>"; // Passed from server
+
+        async function fetchRooms() {
+            try {
+                const response = await fetch('/api/rooms');
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                const rooms = await response.json();
+                renderRooms(rooms);
+            } catch (error) {
+                console.error("Failed to fetch rooms:", error);
+                roomList.innerHTML = '<p style="color: var(--danger-color);">Lỗi tải danh sách phòng.</p>';
+            }
+        }
+
+        function renderRooms(rooms) {
+            if (rooms.length === 0) {
+                noRoomsMessage.style.display = 'block';
+                roomList.innerHTML = '';
+                return;
+            }
+            noRoomsMessage.style.display = 'none';
+            roomList.innerHTML = rooms.map(room => `
+                <div class="room-card">
+                    <h3><a href="${projectUrl}${room.liveStreamUrl}?token=${localStorage.getItem('authToken') || ''}" style="color: var(--accent-color); text-decoration: none;">${room.title || 'Live Stream'}</a></h3>
+                    <p><span class="live-indicator-dot"></span><strong>Chủ phòng:</strong> <span class="owner">${room.owner}</span></p>
+                    <p><strong>Người xem:</strong> ${room.viewers}</p>
+                    <p><strong>Thời gian live:</strong> ${room.onlineTime}</p>
+                    <a href="${projectUrl}${room.liveStreamUrl}?token=${localStorage.getItem('authToken') || ''}" class="btn btn-secondary" style="margin-top: 10px; display: inline-block;">Vào Phòng</a>
+                </div>
+            `).join('');
+        }
+
+        createStreamBtn.addEventListener('click', async () => {
+            // In a real app, get roomOwnerId and roomOwnerName from an authenticated session.
+            // For this demo, we'll use prompt or hardcode if needed.
+            // We need to get a token first to simulate a logged-in user for creation
+            // This is a simplified flow for Glitch demo.
+
+            // Simulate getting user info (replace with actual auth)
+            const userId = localStorage.getItem("userId") || prompt("Nhập User ID của bạn:", "user_streamer_123");
+            const username = localStorage.getItem("username") || prompt("Nhập Tên hiển thị của bạn:", "StreamerPro");
+            const title = streamTitleInput.value.trim() || `Live của ${username}`;
+
+            if (!userId || !username) {
+                alert("Cần User ID và Tên hiển thị để tạo phòng.");
+                return;
+            }
+            // Store for potential reuse if redirection happens
+            localStorage.setItem("userId", userId);
+            localStorage.setItem("username", username);
+
+
+            try {
+                // First, create the stream room
+                const createResponse = await fetch('/api/createStream', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ roomOwnerId: userId, roomOwnerName: username, title: title })
+                });
+                const createData = await createResponse.json();
+
+                if (createData.success) {
+                    alert(`Phòng live "${title}" đã được tạo!`);
+                     // Generate a token specifically for this room access
+                    const tokenResponse = await fetch(`/api/generateRoomToken`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json'},
+                        body: JSON.stringify({userId, username, roomIdToAccess: createData.roomId})
+                    });
+                    const tokenData = await tokenResponse.json();
+
+                    if (tokenData.token) {
+                        localStorage.setItem('authToken', tokenData.token); // Store token
+                        window.location.href = `${projectUrl}${createData.liveStreamUrl}?token=${tokenData.token}`;
+                    } else {
+                        alert('Lỗi tạo token truy cập phòng.');
+                    }
+                } else if (createData.existingRoomUrl) {
+                    alert(`Bạn đã có phòng: ${createData.existingRoomUrl}. Chuyển hướng...`);
+                     const tokenResponse = await fetch(`/api/generateRoomToken`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json'},
+                        body: JSON.stringify({userId, username, roomIdToAccess: createData.roomId})
+                    });
+                    const tokenData = await tokenResponse.json();
+                     if (tokenData.token) {
+                        localStorage.setItem('authToken', tokenData.token); // Store token
+                        window.location.href = `${projectUrl}${createData.existingRoomUrl}?token=${tokenData.token}`;
+                    } else {
+                        alert('Lỗi tạo token truy cập phòng hiện tại.');
+                    }
+                }
+                else {
+                    alert('Lỗi tạo phòng live: ' + (createData.error || 'Unknown error'));
+                }
+            } catch (error) {
+                console.error("Error creating stream:", error);
+                alert('Lỗi tạo phòng live phía client.');
+            }
+        });
+
+        fetchRooms();
+        setInterval(fetchRooms, 15000); // Refresh room list every 15 seconds
+    </script>
+</body>
+</html>

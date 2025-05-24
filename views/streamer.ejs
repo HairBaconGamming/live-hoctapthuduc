@@ -1,299 +1,279 @@
+<%# File: views/streamer.ejs %>
 <!DOCTYPE html>
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
-    <title>Quản lý Live Stream - <%= room.title %></title>
-    <%# Use the new CSS file name %>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Streamer: <%= roomTitle %></title>
+    <link rel="stylesheet" href="/styles.css">
     <link rel="stylesheet" href="/css/streamer.css">
-    <link rel="icon" type="image/png" href="https://cdn.glitch.global/71030012-56ea-4d26-a426-e0099201df1c/823029_library_512x512.png?v=1741523759119">
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"> <%# Use Inter font %>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"> <%# Update FA if needed %>
-    <!-- Marked & KaTeX (Keep if used in chat) -->
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js" defer></script>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.js" defer></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js" defer></script>
-    <!-- Ví dụ với CDN (kiểm tra phiên bản mới nhất) -->
-    <script src="/js/libs/html2canvas.min.js" allow-scripts></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tsparticles@2.12.0/tsparticles.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
 </head>
-<body class="streamer-body"> <%# Add body class %>
-    <input type="hidden" id="streamerUsername" value="<%= user.username %>"> <%# Changed ID %>
-
-    <!-- Background Particles -->
+<body class="streamer-body">
     <div id="streamer-particles-bg"></div>
 
-    <!-- Streamer Header -->
-    <header class="streamer-main-header" data-animate="header-slide-down">
-         <div class="header-left">
-            <i class="fas fa-satellite-dish stream-icon-indicator"></i>
-            <h1>Quản lý: <span class="stream-title-highlight"><%= room.title %></span></h1>
-         </div>
-         <div class="header-right">
-             <div class="info-widget viewers">
-                 <i class="fas fa-eye"></i>
-                 <span id="viewerCountV2" class="count-value">0</span>
-                 <span class="widget-label">Người xem</span>
-             </div>
-              <div class="info-widget time">
-                 <i class="far fa-clock"></i>
-                 <span id="streamDuration" class="time-value">00:00:00</span>
-                 <span class="widget-label">Thời gian</span>
-             </div>
-             <%# Add more widgets like bitrate, status etc. if available %>
-         </div>
+    <header class="streamer-main-header">
+        <div class="header-left">
+            <i class="fas fa-video stream-icon-indicator"></i>
+            <h1>Stream của: <span class="stream-title-highlight"><%= roomOwner %></span> - <%= roomTitle %></h1>
+        </div>
+        <div class="header-right">
+            <div class="info-widget viewers">
+                <i class="fas fa-users"></i>
+                <span class="widget-label">Xem:</span>
+                <span id="viewerCountV2" class="count-value">0</span>
+            </div>
+            <div class="info-widget time">
+                <i class="fas fa-clock"></i>
+                <span class="widget-label">Live:</span>
+                <span id="streamDuration" class="time-value">00:00:00</span>
+            </div>
+        </div>
     </header>
 
-    <div class="streamer-main-layout">
-
-        <!-- Left Column: Controls & Preview -->
-        <aside class="streamer-sidebar" data-animate="sidebar-slide-in">
-             <div class="control-panel-v2" id="controlPanelV2">
-                 <div class="panel-header">
-                     <h3><i class="fas fa-sliders-h"></i> Bảng Điều Khiển</h3>
-                     <button id="togglePanelBtnV2" class="panel-toggle-btn-v2" aria-label="Thu gọn/Mở rộng">
-                         <i class="fas fa-chevron-up"></i>
-                     </button>
-                 </div>
-                 <div class="panel-content-collapsible">
-                    <div class="stream-preview-container" id="streamPreviewContainer">
-                         <h4><i class="fas fa-tv"></i> Xem trước Stream</h4>
-                         <div class="video-wrapper">
-                             <video id="streamPreviewVideo" autoplay muted playsinline></video>
-                             <div class="no-stream-overlay">Chưa có tín hiệu...</div>
-                             <div class="stream-status-indicator" id="streamStatusIndicator">OFF AIR</div>
-                         </div>
-                    </div>
-                   <div class="control-panel-section" id="quizCreatorSection" style="margin-top: 20px; border-top: 1px solid var(--border-color); padding-top: 20px;">
-                        <div style="display:flex; justify-content: space-between; align-items:center; margin-bottom:15px;">
-                            <h4 style="font-size: 1.1rem; color: var(--accent-color); margin:0;"><i class="fas fa-question-circle" style="margin-right:8px;"></i>Tạo Trắc Nghiệm</h4>
-                            <button id="toggleQuizPanelBtn" class="control-btn control-btn-small" title="Ẩn/Hiện Bảng Tạo Trắc Nghiệm" style="flex-grow:0; min-width:auto; padding: 6px 10px !important;">
-                                <i class="fas fa-chevron-down"></i>
-                            </button>
-                        </div>
-                        <div id="streamerQuizPanel" style="display: none;">
-                            <div class="quiz-question-creator">
-                                <label for="quizQuestionText" style="display:block; margin-bottom:5px; font-size:0.9em; color: var(--text-medium);">Nội dung câu hỏi:</label>
-                                <textarea id="quizQuestionText" placeholder="Nhập câu hỏi trắc nghiệm tại đây..."></textarea>
-                                
-                                <label style="display:block; margin-bottom:5px; font-size:0.9em; color: var(--text-medium);">Các lựa chọn (tối đa 6):</label>
-                                <div id="quizOptionsContainer">
-                                    <!-- Option inputs will be added here by JS -->
-                                </div>
-                                <button id="addQuizOptionBtn" class="control-btn control-btn-small">
-                                    <i class="fas fa-plus-circle"></i> Thêm lựa chọn
-                                </button>
-
-                                <label for="quizCorrectAnswerSelect" style="display:block; margin-top:10px; margin-bottom:5px; font-size:0.9em; color: var(--text-medium);">Chọn đáp án đúng:</label>
-                                <select id="quizCorrectAnswerSelect" style="display:none;"></select>
-                            </div>
-
-                            <div class="quiz-controls-streamer">
-                                <button id="startQuizBtn" class="control-btn" title="Bắt đầu câu hỏi này">
-                                    <i class="fas fa-play-circle"></i><span class="btn-label">Bắt đầu</span>
-                                </button>
-                                <button id="showQuizAnswerBtn" class="control-btn" title="Hiển thị đáp án đúng cho câu hỏi hiện tại" disabled>
-                                    <i class="fas fa-eye"></i><span class="btn-label">Xem đáp án</span>
-                                </button>
-                                <button id="nextQuizQuestionBtn" class="control-btn" title="Xóa câu hỏi hiện tại, chuẩn bị câu mới" disabled>
-                                    <i class="fas fa-forward"></i><span class="btn-label">Câu tiếp</span>
-                                </button>
-                                <button id="endQuizBtn" class="control-btn" title="Kết thúc phiên trắc nghiệm" style="background-color: rgba(var(--danger-color),0.15); border-color: rgba(var(--danger-color),0.4);" disabled>
-                                    <i class="fas fa-stop-circle"></i><span class="btn-label">Kết thúc</span>
-                                </button>
-                            </div>
-                            <div id="quizStreamerStatus" style="margin-top:10px;">
-                                <p>Trạng thái: Chưa bắt đầu.</p>
-                            </div>
-                            <div id="quizStreamerResults" style="margin-top:10px;">
-                                <!-- Results will be displayed here by JS -->
-                            </div>
+    <main class="streamer-main-layout">
+        <aside class="streamer-sidebar">
+            <div id="controlPanelV2" class="control-panel-v2">
+                <div class="panel-header">
+                    <h3><i class="fas fa-cogs"></i> Bảng Điều Khiển</h3>
+                    <button id="togglePanelBtnV2" class="panel-toggle-btn-v2" title="Thu gọn/Mở rộng">
+                        <i class="fas fa-chevron-up"></i>
+                    </button>
+                </div>
+                <div class="panel-content-collapsible">
+                    <div id="streamPreviewContainer" class="stream-preview-container">
+                        <h4><i class="fas fa-tv"></i> Xem Trước Stream</h4>
+                        <div class="video-wrapper">
+                            <video id="streamPreviewVideo" autoplay muted playsinline></video>
+                            <div class="no-stream-overlay">Chưa có stream...</div>
+                            <span id="streamStatusIndicator" class="stream-status-indicator">OFF AIR</span>
                         </div>
                     </div>
-                     <div class="control-section primary-controls">
-                          <button id="shareScreenBtnV2" class="control-btn screen-share" data-tooltip="Chia sẻ Màn hình">
-                              <i class="fas fa-desktop"></i> <span class="btn-label">Màn hình</span>
-                          </button>
-                          <button id="liveCamBtnV2" class="control-btn live-cam" data-tooltip="Live Camera">
-                              <i class="fas fa-camera-retro"></i> <span class="btn-label">Camera</span>
-                          </button>
-                          <button id="toggleMicBtnV2" class="control-btn mic active" data-tooltip="Tắt/Mở Mic"> <%# Start active assume mic on %>
-                              <i class="fas fa-microphone"></i> <span class="btn-label">Mic On</span>
-                          </button>
-                           <button id="endStreamBtnV2" class="control-btn end-stream" data-tooltip="Kết thúc Stream">
-                              <i class="fas fa-power-off"></i> <span class="btn-label">Kết thúc</span>
-                          </button>
-                     </div>
-                      <div class="control-section secondary-controls">
-                           <button id="viewersListBtnV2" class="control-btn viewers-list" data-tooltip="Danh sách người xem">
-                               <i class="fas fa-users"></i> <span class="btn-label">Người xem</span>
-                           </button>
-                           <button id="bannedListBtnV2" class="control-btn banned-list" data-tooltip="Danh sách bị chặn">
-                                <i class="fas fa-user-slash"></i> <span class="btn-label">Bị chặn</span>
-                           </button>
-                            <button id="pipChatBtnV2" class="control-btn pip-chat" data-tooltip="Chat thu nhỏ (PiP)">
-                                <i class="fas fa-window-restore"></i> <span class="btn-label">PiP Chat</span>
-                           </button>
-                           <button id="toggleWhiteboardBtnStreamerV2" class="control-btn" data-tooltip="Bảng Trắng"><i class="fas fa-chalkboard"></i><span class="btn-label">Bảng Trắng</span></button>
-                           <%# Add more controls like settings? %>
-                      </div>
-                 </div>
-             </div>
+
+                    <div class="control-section">
+                        <button id="shareScreenBtnV2" class="control-btn" data-tooltip="Chia sẻ màn hình & Âm thanh hệ thống/Mic">
+                            <i class="fas fa-desktop"></i>
+                            <span class="btn-label">Share MH</span>
+                        </button>
+                        <button id="liveCamBtnV2" class="control-btn" data-tooltip="Bật/Tắt Camera & Mic">
+                            <i class="fas fa-camera-retro"></i>
+                            <span class="btn-label">Camera</span>
+                        </button>
+                    </div>
+                     <div class="control-section">
+                        <button id="toggleMicBtnV2" class="control-btn mic active" data-tooltip="Bật/Tắt Micro (khi đang stream)">
+                            <i class="fas fa-microphone"></i>
+                            <span class="btn-label">Mic On</span>
+                        </button>
+                         <button id="toggleWhiteboardBtnStreamerV2" class="control-btn" data-tooltip="Bật/Tắt Bảng Vẽ Chung">
+                            <i class="fas fa-chalkboard-teacher"></i>
+                            <span class="btn-label">Bảng Vẽ</span>
+                        </button>
+                    </div>
+                     <div class="control-section">
+                        <button id="toggleQuizPanelBtn" class="control-btn" data-tooltip="Mở/Đóng Bảng Điều Khiển Trắc Nghiệm">
+                            <i class="fas fa-question-circle"></i>
+                            <span class="btn-label">Trắc Nghiệm</span>
+                        </button>
+                        <button id="pipChatBtnV2" class="control-btn" data-tooltip="Chat trong Picture-in-Picture (Thử nghiệm)">
+                            <i class="fas fa-window-restore"></i>
+                            <span class="btn-label">PiP Chat</span>
+                        </button>
+                    </div>
+
+
+                    <div class="control-section">
+                        <button id="viewersListBtnV2" class="control-btn" data-tooltip="Danh sách người xem">
+                            <i class="fas fa-users-cog"></i>
+                            <span class="btn-label">Người Xem</span>
+                        </button>
+                        <button id="bannedListBtnV2" class="control-btn" data-tooltip="Danh sách người bị chặn">
+                            <i class="fas fa-user-slash"></i>
+                            <span class="btn-label">Bị Chặn</span>
+                        </button>
+                    </div>
+                     <div class="control-section">
+                        <button id="endStreamBtnV2" class="control-btn end-stream" data-tooltip="Kết thúc buổi Live">
+                            <i class="fas fa-power-off"></i>
+                            <span class="btn-label">Kết Thúc</span>
+                        </button>
+                    </div>
+
+                     <!-- Streamer Quiz Panel (initially hidden) -->
+                    <div id="streamerQuizPanel">
+                        <h4><i class="fas fa-tasks"></i> Tạo Trắc Nghiệm</h4>
+                        <div class="quiz-question-creator">
+                            <textarea id="quizQuestionText" placeholder="Nhập nội dung câu hỏi..."></textarea>
+                        </div>
+                        <div id="quizOptionsContainer">
+                            <%# Option inputs will be added here by JS %>
+                        </div>
+                        <button id="addQuizOptionBtn" class="control-btn">
+                            <i class="fas fa-plus-circle"></i> Thêm Lựa Chọn
+                        </button>
+                        <select id="quizCorrectAnswerSelect" title="Chọn đáp án đúng">
+                            <%# Options populated by JS %>
+                        </select>
+                        <div class="quiz-controls-streamer">
+                            <button id="startQuizBtn" class="control-btn"><i class="fas fa-play-circle"></i> Bắt Đầu</button>
+                            <button id="showQuizAnswerBtn" class="control-btn" disabled><i class="fas fa-eye"></i> Hiện Đáp Án</button>
+                            <button id="nextQuizQuestionBtn" class="control-btn" disabled><i class="fas fa-forward"></i> Câu Tiếp</button>
+                            <button id="endQuizBtn" class="control-btn" disabled><i class="fas fa-stop-circle"></i> Kết Thúc</button>
+                        </div>
+                        <div id="quizStreamerStatus"><p>Trạng thái: Chưa bắt đầu.</p></div>
+                        <div id="quizStreamerResults"></div>
+                    </div>
+
+
+                </div>
+            </div>
         </aside>
 
-        <!-- Right Column: Chat -->
-        <main class="streamer-chat-area" data-animate="chat-fade-in">
+        <section class="streamer-chat-area">
             <div class="chat-container-v2">
+                <div class="panel-header chat-header"> <%# Added chat-header for potential specific styling %>
+                    <h3><i class="fas fa-comments"></i> Live Chat</h3>
+                </div>
                 <div id="pinnedCommentV2" class="pinned-comment-v2">
-                     <%# Pinned comment loaded by JS %>
+                    <%# Pinned comment will be injected here by JS %>
                 </div>
                 <div class="chat-messages-wrapper">
-                     <ul id="chatMessagesV2" class="chat-messages-list">
-                         <%# Messages loaded by JS %>
-                          <li class="message-system initial-message"><span>Chào mừng đến với buổi live!</span></li>
-                     </ul>
+                    <ul id="chatMessagesV2" class="chat-messages-list">
+                        <%# Chat messages will be appended here %>
+                    </ul>
                 </div>
                 <div class="chat-input-area-v2">
                     <div class="input-wrapper">
-                        <textarea id="chatInputAreaV2" placeholder="Gửi tin nhắn tới mọi người..." rows="1"></textarea>
-                         <div id="chatPreviewV2" class="chat-preview-v2"></div> <%# Preview above input? %>
+                        <div id="chatPreviewV2" class="chat-preview-v2 prose-styling"></div>
+                        <textarea id="chatInputAreaV2" placeholder="Nhập tin nhắn (Markdown/KaTeX được hỗ trợ)..." rows="1"></textarea>
                     </div>
-                    <button id="sendChatBtnV2" class="send-btn-v2" aria-label="Gửi tin nhắn">
+                    <button id="sendChatBtnV2" class="send-btn-v2" title="Gửi tin nhắn">
                         <i class="fas fa-paper-plane"></i>
                     </button>
                 </div>
             </div>
-        </main>
-
-    </div> <!-- End .streamer-main-layout -->
-              
-    <div id="whiteboardContainerOverlayV2" class="whiteboard-container-overlay" style="display: none; opacity: 0;">
-        <div id="streamerCoordsDisplay" style="position: absolute; top: 5px; left: 5px; background-color: rgba(0,0,0,0.5); color: white; padding: 3px 7px; border-radius: 3px; font-size: 0.75em; z-index: 10; display: none; pointer-events: none;">
-            <!-- Coordinates will be inserted here by JS -->
-        </div>
-        <div id="whiteboardToolbarV2" class="whiteboard-toolbar">
-            <span style="font-weight: bold; color: var(--text-light); margin-right:15px;">Bảng Vẽ</span>
-            <label for="wbColorPickerV2" class="wb-label">Màu:</label>
-            <input type="color" id="wbColorPickerV2" title="Chọn màu" value="#FFFFFF">
-            <label for="wbLineWidthRangeV2" class="wb-label">Nét:</label>
-            <input type="range" id="wbLineWidthRangeV2" min="1" max="30" value="3" title="Độ dày nét vẽ">
-            <span id="wbLineWidthValueV2" style="min-width:20px; text-align:right;">3</span>
-            <button id="wbEraserModeBtnV2" class="wb-tool-btn control-btn" data-tooltip="Tẩy"><i class="fas fa-eraser"></i></button>
-          <button id="wbPanToolBtnV2Streamer" class="control-btn wb-tool-btn" title="Di chuyển bảng vẽ (P)">
-                            <i class="fas fa-hand-paper"></i>
-                        </button>
-                        <button id="wbZoomInBtnV2Streamer" class="control-btn wb-tool-btn" title="Phóng to (+)">
-                            <i class="fas fa-search-plus"></i>
-                        </button>
-                        <button id="wbZoomOutBtnV2Streamer" class="control-btn wb-tool-btn" title="Thu nhỏ (-)">
-                            <i class="fas fa-search-minus"></i>
-                        </button>
-                        <button id="wbResetViewBtnV2Streamer" class="control-btn wb-tool-btn" title="Reset góc nhìn (0)">
-                            <i class="fas fa-expand-arrows-alt"></i>
-                        </button>
-          <div class="wb-tool-dropdown-container">
-                            <button id="wbShapeToolBtnV2Streamer" class="control-btn wb-tool-btn" title="Vẽ Hình dạng (S)">
-                                <i class="fas fa-shapes"></i>
-                            </button>
-                            <div id="wbShapeOptionsContainerV2Streamer" class="wb-tool-options" style="display: none;">
-                                <button id="wbDrawLineBtnV2Streamer" class="control-btn wb-tool-btn wb-option-btn" title="Đường thẳng">
-                                    <i class="fas fa-minus"></i>
-                                </button>
-                                <button id="wbDrawRectangleBtnV2Streamer" class="control-btn wb-tool-btn wb-option-btn" title="Hình chữ nhật">
-                                    <i class="far fa-square"></i>
-                                </button>
-                                <button id="wbDrawCircleBtnV2Streamer" class="control-btn wb-tool-btn wb-option-btn" title="Hình tròn">
-                                    <i class="far fa-circle"></i>
-                                </button>
-                                <!-- Add more shape buttons here if needed -->
-                            </div>
-                        </div>
-          <div class="wb-tool-dropdown-container">
-                            <button id="wbSelectToolBtnV2Streamer" class="control-btn wb-tool-btn" title="Công cụ Chọn/Cắt (V)">
-                                <i class="fas fa-mouse-pointer"></i> <!-- Or fa-vector-square, fa-object-group -->
-                            </button>
-                            <div id="wbSnipModeOptionsContainerV2Streamer" class="wb-tool-options" style="display: none;">
-                                <button id="wbRectangularSnipBtnV2Streamer" class="control-btn wb-tool-btn wb-option-btn active" title="Cắt hình chữ nhật">
-                                    <i class="far fa-square"></i>
-                                </button>
-                                <button id="wbFreedomSnipBtnV2Streamer" class="control-btn wb-tool-btn wb-option-btn" title="Cắt tự do (Lasso)">
-                                    <i class="fas fa-signature"></i> <!-- Or fa-draw-polygon -->
-                                </button>
-                            </div>
-                        </div>
-                        <button id="wbDeleteSelectedBtnV2Streamer" class="control-btn wb-tool-btn" title="Xóa đã chọn (Delete/Backspace)" style="display: none; background-color: rgba(var(--danger-color), 0.15); border-color: rgba(var(--danger-color),0.4);">
-                            <i class="fas fa-trash-alt" style="color: var(--danger-color);"></i>
-                        </button>
-          <button id="wbToggleGridBtnV2Streamer" class="control-btn wb-tool-btn" title="Ẩn/Hiện lưới (G)">
-                            <i class="fas fa-border-all"></i>
-                        </button>
-            <button id="wbClearBtnV2" class="wb-tool-btn control-btn" data-tooltip="Xóa toàn bộ"><i class="fas fa-trash-alt"></i></button>
-            <button id="closeWhiteboardBtnV2" class="wb-tool-btn control-btn" data-tooltip="Đóng bảng trắng"><i class="fas fa-times"></i></button>
-        </div>
-        <canvas id="whiteboardCanvasV2"></canvas>
-    </div>
+        </section>
+    </main>
 
     <!-- Modals -->
-    <div id="bannedModalV2" class="modal-v2 banned-modal-v2">
+    <div id="viewersModalV2" class="modal-v2">
         <div class="modal-backdrop"></div>
         <div class="modal-content">
-            <button class="modal-close-btn" aria-label="Đóng">×</button>
-            <h3><i class="fas fa-user-slash"></i> Danh sách Đã Chặn</h3>
-            <div class="modal-body">
-                <ul id="bannedListV2" class="user-list"></ul>
-            </div>
-        </div>
-    </div>
-
-     <div id="viewersModalV2" class="modal-v2 viewers-modal-v2">
-        <div class="modal-backdrop"></div>
-        <div class="modal-content">
-            <button class="modal-close-btn" aria-label="Đóng">×</button>
-            <h3><i class="fas fa-users"></i> Danh sách Người Xem</h3>
+            <button class="modal-close-btn" title="Đóng">×</button>
+            <h3><i class="fas fa-users"></i> Danh Sách Người Xem</h3>
             <div class="modal-header">
-                 <input type="text" id="viewersSearchV2" placeholder="Tìm kiếm người xem..." class="modal-search-input" />
+                 <input type="text" id="viewersSearchV2" class="modal-search-input" placeholder="Tìm người xem...">
             </div>
             <div class="modal-body">
                 <ul id="viewersListV2" class="user-list"></ul>
             </div>
         </div>
     </div>
-              
-    <video 
-      id="pipChatVideoPlayer" 
-      autoplay 
-      muted 
-      playsinline 
-      style="display: none;"
-    ></video>
- 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js"></script>
-    <script src="/socket.io/socket.io.js"></script> <%# Socket.IO client %>
-    <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script> <%# PeerJS %>
-    <script src="https://cdn.jsdelivr.net/npm/tsparticles@2.9.3/tsparticles.bundle.min.js"></script> <%# tsParticles %>
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script> <%# Marked (if needed client-side) %>
 
-    <!-- Pass EJS variables to JS -->
+    <div id="bannedModalV2" class="modal-v2">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content">
+            <button class="modal-close-btn" title="Đóng">×</button>
+            <h3><i class="fas fa-user-slash"></i> Danh Sách Đã Chặn</h3>
+            <div class="modal-body">
+                <ul id="bannedListV2" class="user-list"></ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Whiteboard Overlay Container -->
+    <div id="whiteboardContainerOverlayV2" class="whiteboard-container-overlay">
+        <div id="whiteboardToolbarV2" class="whiteboard-toolbar">
+            <label for="wbColorPickerV2" class="wb-label">Màu:</label>
+            <input type="color" id="wbColorPickerV2" value="#FFFFFF" title="Chọn màu vẽ">
+
+            <label for="wbLineWidthRangeV2" class="wb-label">Nét:</label>
+            <input type="range" id="wbLineWidthRangeV2" min="1" max="20" value="3" title="Chọn độ dày nét vẽ">
+            <span id="wbLineWidthValueV2" class="wb-line-width-value">3</span>
+
+            <button id="wbEraserModeBtnV2" class="control-btn wb-tool-btn" title="Chế độ Tẩy/Bút">
+                <i class="fas fa-eraser"></i>
+            </button>
+            <button id="wbPanToolBtnV2Streamer" class="control-btn wb-tool-btn" title="Di chuyển bảng vẽ (Pan)">
+                <i class="fas fa-arrows-alt"></i>
+            </button>
+            <button id="wbZoomInBtnV2Streamer" class="control-btn wb-tool-btn" title="Phóng to">
+                <i class="fas fa-search-plus"></i>
+            </button>
+            <button id="wbZoomOutBtnV2Streamer" class="control-btn wb-tool-btn" title="Thu nhỏ">
+                <i class="fas fa-search-minus"></i>
+            </button>
+             <button id="wbResetViewBtnV2Streamer" class="control-btn wb-tool-btn" title="Reset góc nhìn">
+                <i class="fas fa-expand-arrows-alt"></i>
+            </button>
+            <button id="wbToggleGridBtnV2Streamer" class="control-btn wb-tool-btn" title="Bật/Tắt Lưới">
+                <i class="fas fa-th"></i>
+            </button>
+
+            <!-- Shape Tools -->
+            <div class="wb-tool-dropdown-container">
+                <button id="wbShapeToolBtnV2Streamer" class="control-btn wb-tool-btn" title="Công cụ Hình dạng">
+                    <i class="fas fa-shapes"></i>
+                </button>
+                <div id="wbShapeOptionsContainerV2Streamer" class="wb-tool-options">
+                    <button id="wbDrawRectangleBtnV2Streamer" class="control-btn wb-option-btn" title="Vẽ Hình chữ nhật"><i class="far fa-square"></i></button>
+                    <button id="wbDrawCircleBtnV2Streamer" class="control-btn wb-option-btn" title="Vẽ Hình tròn"><i class="far fa-circle"></i></button>
+                    <button id="wbDrawLineBtnV2Streamer" class="control-btn wb-option-btn" title="Vẽ Đường thẳng"><i class="fas fa-minus"></i></button>
+                </div>
+            </div>
+            <!-- Select/Snip Tools -->
+             <div class="wb-tool-dropdown-container">
+                <button id="wbSelectToolBtnV2Streamer" class="control-btn wb-tool-btn" title="Công cụ Chọn/Cắt">
+                    <i class="fas fa-mouse-pointer"></i> <!-- Or fa-vector-square -->
+                </button>
+                <div id="wbSnipModeOptionsContainerV2Streamer" class="wb-tool-options">
+                    <button id="wbRectangularSnipBtnV2Streamer" class="control-btn wb-option-btn active" title="Chọn hình chữ nhật"><i class="far fa-square"></i></button>
+                    <button id="wbFreedomSnipBtnV2Streamer" class="control-btn wb-option-btn" title="Chọn tự do"><i class="fas fa-signature"></i></button>
+                </div>
+            </div>
+            <button id="wbDeleteSelectedBtnV2Streamer" class="control-btn wb-tool-btn" title="Xóa mục đã chọn" style="display: none;">
+                <i class="fas fa-trash-alt"></i>
+            </button>
+
+
+            <button id="wbClearBtnV2" class="control-btn wb-tool-btn" title="Xóa toàn bộ bảng vẽ">
+                <i class="fas fa-trash"></i>
+            </button>
+            <button id="closeWhiteboardBtnV2" class="control-btn wb-tool-btn" title="Đóng Bảng Vẽ">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <canvas id="whiteboardCanvasV2"></canvas>
+        <div id="streamerCoordsDisplay"></div>
+    </div>
+    
+    <!-- Hidden video element for PiP Chat -->
+    <video id="pipChatVideoPlayer" style="display:none;" playsinline muted></video>
+
+
     <script>
         const streamerConfig = {
-            roomId: "<%= room.id %>",
-            username: document.getElementById("streamerUsername").value || "<%= user.username %>",
-            roomCreatedAt: new Date("<%= room.createdAt %>"),
-            roomOwner: "<%= room.owner %>", // Assuming owner username is passed
-            userIsPro: <%= user.isPro ? "true" : "false" %>,
-            peerConfig: { // Pass PeerJS config securely if possible, or use defaults
-                host: 'live-hoctap-9a3.glitch.me',
-                port: 443,
-                path: '/peerjs/myapp',
-                secure: true,
-                // Avoid exposing sensitive credentials directly in client-side JS
-                // Best practice: Fetch TURN credentials from your server API if needed
-                 config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] }
-            }
+            roomId: "<%= roomId %>",
+            username: "<%= username %>",
+            roomOwner: "<%= roomOwner %>", // Assuming owner username is passed
+            roomCreatedAt: new Date("<%= roomCreatedAt %>"), // Ensure this is a valid Date string
+            peerConfig: JSON.parse('<%- JSON.stringify(peerConfig) %>'), // Pass PeerJS config securely
+            glitchProjectUrl: "<%= glitchProjectUrl %>",
+            reduceMotionParticles: false // Example: allow particles even if OS prefers reduced motion
         };
     </script>
-    <!-- Main Streamer JS -->
-    <script src="/js/streamer.js"></script> <%# New JS file name %>
-
+    <script src="/js/alerts.js"></script>
+    <script src="/js/confirm.js"></script>
+    <script src="/js/sharedWhiteboard.js"></script>
+    <script src="/js/streamer.js"></script>
 </body>
 </html>

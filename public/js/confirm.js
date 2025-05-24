@@ -1,3 +1,5 @@
+// File: public/js/confirm.js
+// No changes needed from the original provided, it's a self-contained module.
 // public/js/confirm.js - Artistic Confirmation Modal
 
 /**
@@ -40,8 +42,7 @@ function showArtisticConfirm(
         modal.setAttribute('role', 'alertdialog');
         modal.setAttribute('aria-modal', 'true');
         modal.setAttribute('aria-labelledby', 'artisticConfirmMessage');
-        // Add data attribute to indicate it's open, useful for global checks
-        modal.dataset.modalOpen = 'true';
+        modal.dataset.modalOpen = 'true'; // Mark as open for global checks
 
         modal.innerHTML = `
             <div class="artistic-confirm-backdrop"></div>
@@ -69,29 +70,32 @@ function showArtisticConfirm(
         `;
 
         document.body.appendChild(modal);
-        // Prevent background scroll immediately
-        document.body.style.overflow = 'hidden';
+        document.body.style.overflow = 'hidden'; // Prevent background scroll
 
-        // --- Get References ---
         const backdrop = modal.querySelector('.artistic-confirm-backdrop');
         const box = modal.querySelector('.artistic-confirm-box');
         const content = modal.querySelector('.confirm-box-content');
         const confirmBtn = modal.querySelector('.btn-confirm');
         const cancelBtn = modal.querySelector('.btn-cancel');
         const closeBtn = modal.querySelector('.modal-close-button');
-        const focusableElements = Array.from(modal.querySelectorAll('[data-modal-focus]')); // Select focusable elements
+        const focusableElements = Array.from(modal.querySelectorAll('[data-modal-focus]'));
         const firstFocusable = focusableElements[0];
         const lastFocusable = focusableElements[focusableElements.length - 1];
 
-        let isClosing = false; // Flag to prevent double cleanup
+        let isClosing = false;
 
-        // --- Cleanup Function ---
+        const removeElement = () => {
+            modal?.remove();
+            if (!document.querySelector('[data-modal-open="true"]')) {
+                document.body.style.overflow = '';
+            }
+            console.log("Artistic Confirm Modal closed and removed.");
+        };
+        
         const cleanup = (result) => {
-             if (isClosing || !modal) return; // Prevent multiple calls
+             if (isClosing || !modal) return;
              isClosing = true;
-             modal.dataset.modalOpen = 'false'; // Update state attribute
-
-             // Remove focus trap listener
+             modal.dataset.modalOpen = 'false';
              modal.removeEventListener('keydown', handleFocusTrap);
 
              if (!prefersReducedMotion) {
@@ -104,35 +108,23 @@ function showArtisticConfirm(
              resolve(result);
         };
 
-         const removeElement = () => {
-            modal?.remove(); // Use optional chaining just in case
-            // Only restore scroll if NO OTHER modals are open (check by class or specific ID pattern)
-             if (!document.querySelector('[data-modal-open="true"]')) { // Check if any modal is still marked as open
-                 document.body.style.overflow = '';
-             }
-             console.log("Artistic Confirm Modal closed.");
-        };
+        confirmBtn.onclick = () => cleanup(true);
+        cancelBtn.onclick = () => cleanup(false);
+        closeBtn.onclick = () => cleanup(false);
+        backdrop.onclick = () => cleanup(false);
 
-
-        // --- Event Listeners ---
-        confirmBtn.onclick = () => { console.log("Confirm clicked"); cleanup(true); };
-        cancelBtn.onclick = () => { console.log("Cancel clicked"); cleanup(false); };
-        closeBtn.onclick = () => { console.log("Close button clicked"); cleanup(false); };
-        backdrop.onclick = () => { console.log("Backdrop clicked"); cleanup(false); };
-
-        // --- Focus Trapping ---
         const handleFocusTrap = (e) => {
             if (e.key === 'Escape') {
                 cleanup(false);
                 return;
             }
             if (e.key === 'Tab') {
-                if (e.shiftKey) { // Shift + Tab
+                if (e.shiftKey) { /* Shift + Tab */
                     if (document.activeElement === firstFocusable) {
                         e.preventDefault();
                         lastFocusable.focus();
                     }
-                } else { // Tab
+                } else { /* Tab */
                     if (document.activeElement === lastFocusable) {
                         e.preventDefault();
                         firstFocusable.focus();
@@ -142,72 +134,30 @@ function showArtisticConfirm(
         };
         modal.addEventListener('keydown', handleFocusTrap);
 
-
-        // --- Entrance Animation ---
         if (!prefersReducedMotion) {
-            // Use a timeline to ensure proper execution order
-            const openTl = gsap.timeline({
-                 onStart: () => console.log("Entrance timeline START"),
-                 onComplete: () => console.log("Entrance timeline COMPLETE. Modal alpha:", gsap.getProperty(modal, "autoAlpha"))
-            });
-
-            // 1. Set display: flex - crucial to happen BEFORE animating alpha/transform
-            openTl.set(modal, { display: 'flex', autoAlpha: 1 }); // Ensure alpha starts at 0 FOR THE ANIMATION
-            console.log("Set display:flex");
-
-            // 2. Animate backdrop
+            const openTl = gsap.timeline();
+            openTl.set(modal, { display: 'flex', autoAlpha: 0 }); // Start with alpha 0 for GSAP
+            openTl.to(modal, { duration: 0.01, autoAlpha: 1 }); // Make it visible for backdrop anim
             openTl.to(backdrop, { duration: 0.5, autoAlpha: 1, ease: 'none' });
-             console.log("Animating backdrop...");
-
-            // 3. Animate box entrance
             openTl.fromTo(box,
                  { scale: 0.7, y: 60, autoAlpha: 0, rotationX: -30 },
                  { duration: 0.7, scale: 1, y: 0, autoAlpha: 1, rotationX: 0, ease: 'back.out(1.5)' },
-                 "-=0.3" // Overlap slightly
+                 "-=0.3"
              );
-             console.log("Animating box...");
-
-            // 4. Stagger content inside box
              if (content && content.children.length > 0) {
                  openTl.from(content.children, {
                      duration: 0.5, autoAlpha: 0, y: 15, stagger: 0.08, ease: 'power2.out'
-                 }, "-=0.4"); // Overlap box animation
-                 console.log("Animating content stagger...");
-             } else {
-                  console.warn("Modal content children not found for stagger animation.");
+                 }, "-=0.4");
              }
-
-
-        } else { // Reduced motion
-             console.log("Setting instant visibility (reduced motion).");
+        } else {
              gsap.set(modal, { display: 'flex', autoAlpha: 1 });
              gsap.set(box, { scale: 1, y: 0, autoAlpha: 1, rotationX: 0 });
              if (content) gsap.set(content.children, {autoAlpha: 1, y: 0});
         }
 
-        // Focus the preferred button (usually confirm) after a short delay for animation
         setTimeout(() => {
-            confirmBtn.focus();
-        }, prefersReducedMotion ? 50 : 600); // Shorter delay if no animation
+             if (confirmBtn && typeof confirmBtn.focus === 'function') confirmBtn.focus();
+        }, prefersReducedMotion ? 50 : 550); // Slightly shorter delay if no animation for focus
 
-    }); // End Promise
-} // End showArtisticConfirm
-
-// --- Example Usage (You would call this from your other JS files) ---
-/*
-async function handleDeleteAction() {
-    const confirmed = await showArtisticConfirm(
-        "Bạn có chắc chắn muốn xóa mục này vĩnh viễn?", // Message
-        "Xóa Ngay",      // Confirm Text
-        "Để Sau",        // Cancel Text
-        "fas fa-exclamation-triangle" // Icon (optional, default is question mark)
-    );
-
-    if (confirmed) {
-        console.log("User confirmed deletion!");
-        // Proceed with deletion logic...
-    } else {
-        console.log("User cancelled deletion.");
-    }
+    });
 }
-*/

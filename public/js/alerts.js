@@ -1,5 +1,3 @@
-// public/js/alerts.js
-
 (function() {
     'use strict';
 
@@ -16,18 +14,18 @@
         alertContainer = document.createElement('div');
         alertContainer.id = 'alertContainerGlobal';
         
-        // Apply styles that are crucial for functionality if not covered by CSS.
-        // Ideally, most of this should be in a CSS file.
+        // Crucial inline styles for positioning and behavior.
+        // Theme-related styles (colors, fonts, specific border-radius) should come from CSS.
         alertContainer.style.position = 'fixed';
         alertContainer.style.top = '20px';
         alertContainer.style.right = '20px';
-        alertContainer.style.zIndex = '10050'; // Higher than artistic confirm modal (10010) and streamer whiteboard (1005)
+        alertContainer.style.zIndex = '10050'; // High z-index
         alertContainer.style.display = 'flex';
         alertContainer.style.flexDirection = 'column';
         alertContainer.style.gap = `${ALERT_GAP}px`;
         alertContainer.style.width = 'auto'; // Fit content
-        alertContainer.style.maxWidth = '380px'; // Consistent with --notification-width
-        alertContainer.style.pointerEvents = 'none'; // Container itself should not block interactions
+        alertContainer.style.maxWidth = 'var(--notification-width, 380px)'; // Use CSS var if available
+        alertContainer.style.pointerEvents = 'none'; // Container itself doesn't block
 
         document.body.appendChild(alertContainer);
     }
@@ -53,67 +51,35 @@
             createAlertContainer();
         }
 
-        // Limit the number of alerts
         if (alertContainer.children.length >= MAX_ALERTS) {
             const oldestAlert = alertContainer.firstChild;
             if (oldestAlert) {
-                removeAlert(oldestAlert, true); // Remove immediately to make space
+                removeAlert(oldestAlert, true); // Remove immediately
             }
         }
 
         const alertElement = document.createElement('div');
+        // The class `custom-alert` is for general styling, `alert-${type}` for type-specific.
         alertElement.className = `custom-alert alert-${type}`;
         alertElement.setAttribute('role', 'alert');
         
-        // Basic inline styles for structure and fallback theming.
-        // CSS (e.g., in styles.css or a dedicated alerts.css) should override and complete this.
+        // Basic structural inline styles, appearance should be from CSS.
         alertElement.style.display = 'flex';
-        alertElement.style.alignItems = 'flex-start'; // Align items to the top for multi-line messages
-        alertElement.style.padding = '12px 15px';
-        alertElement.style.borderRadius = 'var(--border-radius-medium, 10px)';
-        alertElement.style.boxShadow = 'var(--shadow-medium, 0 6px 18px rgba(0, 0, 0, 0.1))';
-        alertElement.style.opacity = '0'; 
-        alertElement.style.transform = 'translateX(110%)'; // Start further off-screen
+        alertElement.style.alignItems = 'flex-start';
+        alertElement.style.opacity = '0'; // For GSAP animation
+        alertElement.style.transform = 'translateX(110%)'; // For GSAP animation
         alertElement.style.pointerEvents = 'auto'; // Individual alerts are interactive
-        alertElement.style.minWidth = '300px';
-        alertElement.style.margin = '0'; // Reset margin
+        // min-width, padding, borderRadius, boxShadow should come from CSS .custom-alert
 
-        // Type-specific background/color hints using CSS variables from styles.css where possible
-        // Fallbacks are provided if CSS variables are not defined.
-        switch (type) {
-            case 'success':
-                alertElement.style.backgroundColor = 'var(--bg-success-light, #e8f5e9)';
-                alertElement.style.color = 'var(--success-color-dark, #1e4620)'; // Darker green for text
-                alertElement.style.borderLeft = '5px solid var(--success-color, #4CAF50)';
-                break;
-            case 'error':
-                alertElement.style.backgroundColor = 'var(--bg-danger-light, #ffebee)';
-                alertElement.style.color = 'var(--danger-color-dark, #c62828)'; // Darker red for text
-                alertElement.style.borderLeft = '5px solid var(--danger-color, #F44336)';
-                break;
-            case 'warning':
-                alertElement.style.backgroundColor = 'var(--bg-warning-light, #fff3e0)'; // Using orange theme
-                alertElement.style.color = 'var(--warning-color-dark, #e65100)'; // Darker orange for text
-                alertElement.style.borderLeft = '5px solid var(--warning-color, #ff9800)';
-                break;
-            case 'info':
-            default:
-                alertElement.style.backgroundColor = 'var(--bg-info-light, #e3f2fd)'; // Using blue theme
-                alertElement.style.color = 'var(--info-color-dark, #0d47a1)'; // Darker blue for text
-                alertElement.style.borderLeft = '5px solid var(--info-color, #2196F3)';
-                break;
-        }
+        // Type-specific styling is primarily handled by CSS classes (.alert-info, .alert-success etc.)
+        // The inline styles in the original for background/color were fallbacks, CSS is preferred.
 
         const iconElement = document.createElement('i');
         iconElement.className = `${getIconClass(type)} alert-icon`;
-        iconElement.style.marginRight = '12px';
-        iconElement.style.fontSize = '1.3em';
-        iconElement.style.lineHeight = '1.5'; // Align icon better with first line of text
-        iconElement.style.marginTop = '2px'; // Small top margin for better vertical alignment
+        // Icon styling (margin, font-size) should come from CSS .alert-icon
 
         const textContainer = document.createElement('div');
-        textContainer.style.flexGrow = '1';
-        textContainer.style.lineHeight = '1.5'; // For message text readability
+        textContainer.className = 'alert-text-container'; // Added for better structure if needed
         
         const messageSpan = document.createElement('span');
         messageSpan.className = 'alert-text';
@@ -122,23 +88,12 @@
 
         const closeButton = document.createElement('button');
         closeButton.className = 'alert-close-btn';
-        closeButton.innerHTML = '×';
+        closeButton.innerHTML = '×'; // Use HTML entity for '×'
         closeButton.setAttribute('aria-label', 'Close alert');
-        closeButton.style.background = 'none';
-        closeButton.style.border = 'none';
-        closeButton.style.color = 'inherit';
-        closeButton.style.opacity = '0.6';
-        closeButton.style.marginLeft = '15px';
-        closeButton.style.fontSize = '1.6em';
-        closeButton.style.fontWeight = 'bold';
-        closeButton.style.cursor = 'pointer';
-        closeButton.style.padding = '0 5px';
-        closeButton.style.lineHeight = '1'; // Ensure X is centered
+        // Styling for close button (background, border, color, opacity etc.) should be in CSS
 
-        closeButton.onmouseover = () => closeButton.style.opacity = '1';
-        closeButton.onmouseout = () => closeButton.style.opacity = '0.6';
         closeButton.onclick = (e) => {
-            e.stopPropagation(); // Prevent any other click listeners on the alert itself
+            e.stopPropagation();
             removeAlert(alertElement);
         };
 
@@ -150,7 +105,6 @@
 
         const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-        // Entrance animation
         if (typeof gsap !== 'undefined' && !prefersReducedMotion) {
             gsap.to(alertElement, { 
                 duration: 0.5, 
@@ -169,7 +123,6 @@
             }, duration);
         }
         
-        // Add hover listener to pause auto-dismiss
         alertElement.addEventListener('mouseenter', () => {
             if (alertElement._dismissTimer) {
                 clearTimeout(alertElement._dismissTimer);
@@ -177,10 +130,10 @@
         });
 
         alertElement.addEventListener('mouseleave', () => {
-            if (duration > 0 && !alertElement.dataset.closing) { // Only restart if not already closing
+            if (duration > 0 && !alertElement.dataset.closing) {
                  alertElement._dismissTimer = setTimeout(() => {
                     removeAlert(alertElement);
-                }, duration / 2); // Shorter duration after mouseleave if it was paused
+                }, duration / 2); 
             }
         });
     };
@@ -188,7 +141,7 @@
     function removeAlert(alertElement, immediate = false) {
         if (!alertElement || !alertElement.parentNode || alertElement.dataset.closing) return;
         
-        alertElement.dataset.closing = 'true'; // Mark as closing to prevent re-triggering mouseleave timeout
+        alertElement.dataset.closing = 'true';
         if (alertElement._dismissTimer) {
             clearTimeout(alertElement._dismissTimer);
         }
@@ -199,16 +152,15 @@
             gsap.to(alertElement, { 
                 duration: 0.4, 
                 opacity: 0, 
-                x: '110%', // Slide out further
-                height: 0, // Animate height to 0
-                paddingTop: 0,
+                x: '110%', 
+                height: 0, // Animate height
+                paddingTop: 0, // Animate padding
                 paddingBottom: 0,
-                marginTop: 0, 
-                marginBottom: `-${ALERT_GAP}px`, // Compensate for gap if element above this one
+                marginTop: 0, // Animate margin
+                marginBottom: `-${ALERT_GAP}px`, // Compensate for gap removal
                 ease: 'cubic-bezier(0.550, 0.055, 0.675, 0.190)', // EaseInExpo
                 onComplete: () => {
                     alertElement.remove();
-                    // If container is empty and not needed, it could be removed here, but it's generally fine to keep it.
                 }
             });
         } else {
@@ -216,16 +168,91 @@
         }
     }
     
-    // Ensure container is ready on DOM load if showAlert hasn't been called yet
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', createAlertContainer);
     } else {
-        createAlertContainer(); // DOM already loaded
+        createAlertContainer();
     }
 
 })();
 
 /*
-CSS suggestions for public/styles.css or a dedicated alerts.css:
+CSS suggestions (to be placed in public/styles.css or a dedicated alerts.css):
 
+#alertContainerGlobal {
+    // Positioned by JS, but ensure it's above other content
+    // z-index: 10050;
+    // gap: 10px; // Handled by JS
+    // max-width: var(--notification-width, 380px); // Handled by JS
+}
+
+.custom-alert {
+    display: flex;
+    align-items: flex-start;
+    padding: 12px 15px;
+    border-radius: var(--border-radius-medium, 10px);
+    box-shadow: var(--shadow-medium, 0 6px 18px rgba(0,0,0,0.1));
+    min-width: 300px;
+    line-height: 1.5;
+    color: var(--text-dark); // Default text color if not overridden by type
+    font-family: var(--font-main, sans-serif);
+    font-size: 0.9rem;
+    // GSAP handles opacity & transform
+}
+
+.custom-alert .alert-icon {
+    margin-right: 12px;
+    font-size: 1.3em; 
+    line-height: inherit; 
+    margin-top: 2px; 
+}
+
+.custom-alert .alert-text-container {
+    flex-grow: 1;
+}
+
+.custom-alert .alert-close-btn {
+    background: none;
+    border: none;
+    color: inherit; 
+    opacity: 0.6;
+    margin-left: 15px;
+    font-size: 1.6em;
+    font-weight: bold;
+    cursor: pointer;
+    padding: 0 5px;
+    line-height: 1; 
+    transition: opacity 0.2s ease;
+}
+.custom-alert .alert-close-btn:hover {
+    opacity: 1;
+}
+
+.alert-info {
+    background-color: var(--bg-info-light, #e3f2fd);
+    color: var(--info-color-dark, #0d47a1);
+    border-left: 5px solid var(--info-color, #2196F3);
+}
+.alert-info .alert-icon { color: var(--info-color, #2196F3); }
+
+.alert-success {
+    background-color: var(--bg-success-light, #e8f5e9);
+    color: var(--success-color-dark, #1e4620);
+    border-left: 5px solid var(--success-color, #4CAF50);
+}
+.alert-success .alert-icon { color: var(--success-color, #4CAF50); }
+
+.alert-warning {
+    background-color: var(--bg-warning-light, #fff3e0);
+    color: var(--warning-color-dark, #e65100);
+    border-left: 5px solid var(--warning-color, #ff9800);
+}
+.alert-warning .alert-icon { color: var(--warning-color, #ff9800); }
+
+.alert-error {
+    background-color: var(--bg-danger-light, #ffebee);
+    color: var(--danger-color-dark, #c62828);
+    border-left: 5px solid var(--danger-color, #F44336);
+}
+.alert-error .alert-icon { color: var(--danger-color, #F44336); }
 */
