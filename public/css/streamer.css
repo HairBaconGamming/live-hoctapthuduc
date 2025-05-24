@@ -429,4 +429,468 @@
 .modal-search-input {
     width: 100%; padding: 10px 15px; font-size: 0.9rem;
     border-radius: var(--border-radius-small); border: 1px solid var(--border-highlight);
-    background: rg
+    background: rgba(var(--bg-dark-rgb), 0.9); color: var(--text-light); outline: none;
+}
+.modal-search-input:focus { border-color: var(--primary-color); box-shadow: 0 0 0 3px rgba(var(--primary-color-rgb), 0.15); }
+.modal-body {
+overflow-y: auto; flex-grow: 1; margin-right: -10px; padding-right: 10px;
+scrollbar-width: thin; scrollbar-color: var(--primary-color) rgba(0,0,0,0.1);
+}
+.modal-body::-webkit-scrollbar { width: 6px; }
+.modal-body::-webkit-scrollbar-track { background: rgba(0,0,0,0.1); border-radius: 3px; }
+.modal-body::-webkit-scrollbar-thumb { background-color: rgba(var(--primary-color-rgb), 0.6); border-radius: 3px; }
+.user-list { list-style: none; padding: 0; margin: 0; }
+.user-list-item {
+display: flex; justify-content: space-between; align-items: center;
+padding: 12px 5px; border-bottom: 1px solid var(--border-color);
+font-size: 0.95rem; color: var(--text-medium);
+transition: background-color 0.2s ease;
+}
+.user-list-item:hover { background-color: rgba(var(--primary-color-rgb), 0.05); }
+.user-list-item:last-child { border-bottom: none; }
+.user-list-item.empty { justify-content: center; font-style: italic; padding: 20px 0; }
+.list-username { color: var(--text-light); font-weight: 500; }
+.list-actions { display: flex; gap: 8px; }
+/* .list-actions .action-btn should inherit from .control-btn or have its own specific styling /
+.list-actions .action-btn {
+padding: 6px 10px; / Example padding, adjust as needed /
+font-size: 0.8rem;
+/ Other styles will come from .control-btn if class is added in JS /
+}
+.list-actions .unban-btn {
+background: rgba(var(--success-color-rgb), 0.15);
+border-color: rgba(var(--success-color-rgb), 0.4);
+color: var(--success-color);
+}
+.list-actions .unban-btn:hover:not(:disabled) { background: var(--success-color); color: white; }
+.list-actions .ban-btn {
+background: rgba(var(--danger-color-rgb), 0.15);
+border-color: rgba(var(--danger-color-rgb), 0.4);
+color: var(--danger-color);
+}
+.list-actions .ban-btn:hover:not(:disabled) { background: var(--danger-color); color: white; }
+.list-actions .draw-perm-btn.active { / Style for when permission is granted */
+background: rgba(var(--success-color-rgb), 0.2) !important;
+border-color: var(--success-color) !important;
+color: var(--success-color) !important;
+}
+.list-actions .draw-perm-btn.active i {
+color: var(--success-color) !important;
+}
+/* --- Responsive (Unchanged) --- */
+@media (max-width: 1024px) {
+.streamer-main-layout { flex-direction: column; }
+.streamer-sidebar { flex: 0 0 auto; width: 100%; height: auto; max-height: none; }
+.streamer-chat-area { height: 60vh; max-height: none; }
+}
+@media (max-width: 768px) {
+.streamer-main-header { padding: 10px 20px; flex-direction: column; gap: 10px; }
+.header-left h1 { font-size: 1rem; }
+.header-right { gap: 15px; }
+.info-widget { font-size: 0.8rem; }
+.streamer-main-layout { padding: 15px; gap: 15px; }
+.panel-header { padding: 12px 15px; }
+.panel-header h3 { font-size: 1rem; }
+.panel-content-collapsible { padding: 0 15px 15px; }
+.control-btn { font-size: 0.7rem; }
+.control-btn i { font-size: 1.2rem; }
+.chat-input-area-v2 { padding: 10px 15px; }
+#chatInputAreaV2 { min-height: 38px; }
+.send-btn-v2 { width: 38px; height: 38px; font-size: 1rem; }
+.modal-content { padding: 20px 25px; }
+.modal-content h3 { font-size: 1.2rem; margin-bottom: 15px; }
+.user-list-item { font-size: 0.9rem; }
+}
+@media (max-width: 480px) {
+.header-right { flex-wrap: wrap; justify-content: center; }
+.info-widget { flex-basis: 45%; justify-content: center; }
+.control-section { gap: 8px; }
+.control-btn { padding: 8px 4px; }
+.control-btn .btn-label { display: none; }
+.control-btn i { margin-bottom: 0; }
+.chat-message-item .msg-body { font-size: 0.9rem; }
+.modal-content { padding: 15px 20px; }
+}
+/* --- Whiteboard Styles (Shared Module will handle actual display) --- /
+/ The overlay itself /
+.whiteboard-container-overlay { / This class is on the #whiteboardContainerOverlayV2 /
+position: fixed;
+top: 0; left: 0; width: 100%; height: 100%;
+background-color: rgba(var(--bg-dark-rgb), 0.9);
+backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px);
+z-index: 1005; / High enough to cover page, below modals if any overlap /
+display: none; / Controlled by sharedWhiteboard.show()/hide() /
+flex-direction: column;
+align-items: center;
+justify-content: center;
+padding: 10px; / Padding around the canvas and toolbar */
+}
+/* Canvas styling (dimensions set by JS) /
+#whiteboardCanvasV2 {
+background-color: #222639; / Dark bg for drawing surface /
+border: 1px solid var(--border-highlight);
+border-radius: var(--border-radius-base);
+box-shadow: 0 5px 20px rgba(0,0,0,0.4);
+touch-action: none; / Crucial for preventing browser default touch actions /
+/ Cursor will be set by JS based on current tool */
+}
+/* Toolbar styling /
+#whiteboardToolbarV2 {
+/ display: flex; / / JS controls display of this based on whiteboard module state /
+display: none; / Initially hidden /
+align-items: center;
+gap: 12px;
+padding: 12px 15px;
+background-color: var(--bg-panel);
+border-radius: var(--border-radius-base) var(--border-radius-base) 0 0;
+border: 1px solid var(--border-color);
+border-bottom: none;
+box-sizing: border-box;
+margin-bottom: 0; / Canvas is directly below toolbar /
+flex-wrap: wrap; / Allow tools to wrap on smaller screens /
+/ width will be set by JS to match canvas width */
+}
+#whiteboardToolbarV2 .wb-label {
+color: var(--text-medium);
+font-size: 0.9em;
+margin-right: -5px;
+}
+#whiteboardToolbarV2 input[type="color"] {
+width: 36px; height: 28px;
+border: 1px solid var(--border-color); border-radius: 4px;
+cursor: pointer; padding: 2px; background-color: transparent;
+-webkit-appearance: none; -moz-appearance: none; appearance: none;
+}
+#whiteboardToolbarV2 input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+#whiteboardToolbarV2 input[type="color"]::-webkit-color-swatch { border: none; border-radius: 3px;}
+#whiteboardToolbarV2 input[type="color"]::-moz-color-swatch { border: none; border-radius: 3px;}
+#whiteboardToolbarV2 input[type="range"] { cursor: pointer; width: 100px; }
+#whiteboardToolbarV2 #wbLineWidthValueV2 { color: var(--text-light); font-weight: 500; }
+/* General style for tool buttons in the whiteboard toolbar /
+/ Reuse .control-btn and .wb-tool-btn for consistency, specialize if needed /
+#whiteboardToolbarV2 .wb-tool-btn,
+#whiteboardToolbarV2 .control-btn { / If using generic .control-btn in toolbar /
+padding: 6px 10px !important; / Specific padding for toolbar buttons /
+background-color: rgba(var(--primary-color-rgb), 0.1) !important;
+border: 1px solid var(--border-highlight) !important;
+color: var(--text-medium) !important; / Default text/icon color /
+min-width: auto; / Allow buttons to be smaller if needed /
+}
+#whiteboardToolbarV2 .wb-tool-btn:hover:not(:disabled),
+#whiteboardToolbarV2 .control-btn:hover:not(:disabled) {
+background-color: rgba(var(--primary-color-rgb), 0.2) !important;
+color: var(--primary-color) !important; / Text/icon color on hover /
+}
+#whiteboardToolbarV2 .wb-tool-btn i,
+#whiteboardToolbarV2 .control-btn i {
+font-size: 1rem !important;
+margin-bottom: 0 !important;
+color: inherit !important; / Icon inherits color from button text /
+}
+/ Active state for toolbar buttons /
+#whiteboardToolbarV2 .wb-tool-btn.active,
+#whiteboardToolbarV2 .control-btn.active {
+background-color: rgba(var(--secondary-color-rgb), 0.25) !important;
+border-color: var(--secondary-color) !important;
+color: var(--secondary-color) !important; / Text and icon color when active */
+}
+/* Specific tool button overrides if needed /
+#whiteboardToolbarV2 #wbClearBtnV2 i { color: var(--danger-color) !important; }
+#whiteboardToolbarV2 #wbClearBtnV2:hover:not(:disabled) i { color: #ff8a8a !important; } / Lighter red */
+#whiteboardToolbarV2 #closeWhiteboardBtnV2 { /* Special styling for close button /
+margin-left: auto; / Push to the right */
+background-color: transparent !important;
+border: none !important;
+}
+#whiteboardToolbarV2 #closeWhiteboardBtnV2 i { color: var(--text-medium) !important; }
+#whiteboardToolbarV2 #closeWhiteboardBtnV2:hover i { color: var(--text-light) !important; transform: scale(1.1); }
+/* Streamer's main whiteboard toggle button styling (in sidebar) */
+#toggleWhiteboardBtnStreamerV2.control-btn.active {
+background: rgba(var(--accent-color-rgb), 0.25) !important;
+border-color: var(--accent-color) !important;
+}
+#toggleWhiteboardBtnStreamerV2.control-btn.active i {
+color: var(--accent-color) !important;
+}
+/* Added streamerCoordsDisplay styling /
+#streamerCoordsDisplay {
+position: absolute;
+bottom: 5px;
+left: 5px;
+background-color: rgba(0,0,0,0.5);
+color: white;
+padding: 3px 6px;
+font-size: 0.7rem;
+border-radius: 3px;
+z-index: 10; / Above canvas, below toolbar if it overlaps /
+display: none; / JS will toggle */
+font-family: monospace;
+}
+/* Whiteboard Shape Tool Dropdown/Options Container /
+.wb-tool-dropdown-container { / If using a wrapper for shape/select main button + options /
+position: relative;
+display: inline-flex; / Or inline-block /
+flex-direction: column; / Stack button and options vertically /
+align-items: center;
+}
+/ General container for sub-options (shapes, snip modes) /
+#whiteboardToolbarV2 .wb-tool-options {
+display: none; / JS toggles to flex/block /
+position: absolute;
+bottom: 100%; / Position above the main toolbar /
+left: 50%;
+transform: translateX(-50%) translateY(-5px); / Small gap /
+background-color: var(--bg-panel); / Match toolbar background /
+border: 1px solid var(--border-highlight);
+border-radius: var(--border-radius-base);
+padding: 8px;
+box-shadow: 0 -4px 15px rgba(0,0,0,0.2);
+z-index: 1010; / Above toolbar, but below modals /
+flex-direction: row; / Arrange sub-buttons horizontally /
+gap: 8px;
+}
+#whiteboardToolbarV2 .wb-tool-options .wb-option-btn {
+padding: 6px 8px !important;
+min-width: auto;
+}
+#whiteboardToolbarV2 .wb-tool-options .wb-option-btn i {
+font-size: 0.9rem !important;
+margin: 0 !important;
+}
+/ Active state for main shape/select toggle buttons /
+#whiteboardToolbarV2 #wbShapeToolBtnV2Streamer.active,
+#whiteboardToolbarV2 #wbSelectToolBtnV2Streamer.active {
+background-color: rgba(var(--accent-color-rgb), 0.2) !important;
+border-color: var(--accent-color) !important;
+}
+#whiteboardToolbarV2 #wbShapeToolBtnV2Streamer.active i,
+#whiteboardToolbarV2 #wbSelectToolBtnV2Streamer.active i {
+color: var(--accent-color) !important;
+}
+/ Active state for sub-option buttons (specific shape or snip mode) /
+#whiteboardToolbarV2 .wb-tool-options .wb-option-btn.active {
+background-color: rgba(var(--primary-color-rgb), 0.3) !important; / Different highlight for selected sub-option /
+border-color: var(--primary-color) !important;
+}
+#whiteboardToolbarV2 .wb-tool-options .wb-option-btn.active i {
+color: var(--primary-color) !important;
+}
+/ Delete selected button specific styling /
+#whiteboardToolbarV2 #wbDeleteSelectedBtnV2Streamer {
+background-color: rgba(var(--danger-color-rgb), 0.15) !important;
+border-color: rgba(var(--danger-color-rgb), 0.4) !important;
+display: none; / JS toggles display */
+}
+#whiteboardToolbarV2 #wbDeleteSelectedBtnV2Streamer i {
+color: var(--danger-color) !important;
+}
+#whiteboardToolbarV2 #wbDeleteSelectedBtnV2Streamer:hover:not(:disabled) i {
+color: #ff8a8a !important;
+}
+/* --- Streamer Quiz Panel Styles --- /
+#streamerQuizPanel {
+padding: 15px;
+border-top: 1px solid var(--border-color);
+margin-top: 15px; / Space from other controls /
+background-color: rgba(var(--bg-dark-rgb), 0.3); / Slightly different from main panel content /
+border-radius: var(--border-radius-medium);
+/ GSAP will handle display/height animation if #toggleQuizPanelBtn is used /
+display: none; / Initially hidden */
+}
+#streamerQuizPanel h4 {
+font-size: 1.1rem; /* Adjusted from 1.2rem /
+color: var(--accent-color);
+margin-bottom: 15px;
+display: flex;
+align-items: center;
+gap: 8px;
+}
+#streamerQuizPanel h4 i {
+font-size: 0.9em; / Make icon slightly smaller than text */
+}
+.quiz-question-creator textarea#quizQuestionText {
+width: 100%;
+min-height: 70px; /* Adjusted from 80px /
+padding: 10px;
+border: 1px solid var(--border-highlight);
+border-radius: var(--border-radius-small);
+background: rgba(var(--bg-dark-rgb), 0.8); / Consistent dark input /
+color: var(--text-light);
+font-size: 0.9rem; / Adjusted from 0.95rem */
+resize: vertical;
+margin-bottom: 15px;
+}
+.quiz-question-creator textarea#quizQuestionText:focus {
+border-color: var(--primary-color); box-shadow: 0 0 0 3px rgba(var(--primary-color-rgb), 0.15);
+}
+/* Wrapper for each option input + remove button /
+.quiz-option-input-wrapper {
+display: flex;
+align-items: center;
+margin-bottom: 8px;
+gap: 8px;
+}
+#quizOptionsContainer .quiz-option-input-wrapper input[type="text"] {
+background-color: rgba(var(--bg-dark-rgb), 0.7);
+color: var(--text-light);
+border: 1px solid var(--border-color);
+border-radius: var(--border-radius-small);
+padding: 8px 10px;
+font-size: 0.9rem;
+flex-grow: 1; / Take available space /
+}
+#quizOptionsContainer .quiz-option-input-wrapper input[type="text"]:focus {
+border-color: var(--primary-color);
+}
+.quiz-option-remove-btn.control-btn-small { / For styling the 'X' remove button /
+padding: 5px !important; / Small padding /
+width: 28px !important; / Fixed small size */
+height: 28px !important;
+min-width: 28px !important;
+background-color: rgba(var(--danger-color-rgb), 0.2) !important;
+border-color: rgba(var(--danger-color-rgb), 0.5) !important;
+color: var(--danger-color) !important;
+line-height: 1 !important;
+}
+.quiz-option-remove-btn.control-btn-small i {
+margin: 0 !important;
+font-size: 0.8em !important;
+}
+.quiz-option-remove-btn.control-btn-small:hover {
+background-color: rgba(var(--danger-color-rgb), 0.35) !important;
+}
+#addQuizOptionBtn.control-btn { /* General control-btn class applied /
+padding: 8px 12px !important;
+font-size: 0.8rem !important;
+margin-top: 5px;
+margin-bottom: 15px;
+background-color: rgba(var(--secondary-color-rgb), 0.15) !important;
+border-color: rgba(var(--secondary-color-rgb), 0.4) !important;
+color: var(--secondary-color) !important;
+line-height: 1.2 !important;
+height: auto !important;
+flex-grow: 0; / Don't let it grow like other control-btns in a flex row /
+max-width: 180px; / Or fit-content */
+}
+#addQuizOptionBtn.control-btn:hover {
+background-color: rgba(var(--secondary-color-rgb), 0.25) !important;
+}
+#addQuizOptionBtn.control-btn i {
+margin-right: 5px;
+font-size: 0.9em !important;
+margin-bottom: 0 !important;
+}
+#quizCorrectAnswerSelect {
+width: 100%;
+padding: 10px;
+background-color: rgba(var(--bg-dark-rgb), 0.8);
+color: var(--text-light);
+border: 1px solid var(--border-highlight);
+border-radius: var(--border-radius-small);
+margin-top: 10px;
+font-size:0.9rem;
+appearance: none; /* Basic reset for custom arrow /
+background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23a0a0c0'%3E%3Cpath d='M7 10l5 5 5-5H7z'/%3E%3C/svg%3E");
+background-repeat: no-repeat;
+background-position: right 10px center;
+background-size: 1em;
+padding-right: 30px; / Space for arrow */
+}
+#quizCorrectAnswerSelect:focus {
+border-color: var(--primary-color);
+}
+.quiz-controls-streamer {
+display: flex;
+gap: 10px;
+margin-top: 20px;
+margin-bottom: 15px;
+flex-wrap: wrap; /* Allow buttons to wrap on smaller screens /
+}
+.quiz-controls-streamer .control-btn {
+flex-grow: 1; / Distribute space /
+min-width: 120px; / Minimum comfortable width /
+/ Specific quiz control button colors */
+}
+.quiz-controls-streamer #startQuizBtn { background-color: rgba(var(--success-color-rgb), 0.2); border-color: rgba(var(--success-color-rgb), 0.5); color: var(--success-color); }
+.quiz-controls-streamer #startQuizBtn:hover:not(:disabled) { background-color: rgba(var(--success-color-rgb), 0.35); }
+.quiz-controls-streamer #showQuizAnswerBtn { background-color: rgba(var(--info-color-rgb), 0.2); border-color: rgba(var(--info-color-rgb), 0.5); color: var(--info-color); }
+.quiz-controls-streamer #showQuizAnswerBtn:hover:not(:disabled) { background-color: rgba(var(--info-color-rgb), 0.35); }
+.quiz-controls-streamer #nextQuizQuestionBtn { background-color: rgba(var(--accent-color-rgb), 0.2); border-color: rgba(var(--accent-color-rgb), 0.5); color: var(--accent-color); }
+.quiz-controls-streamer #nextQuizQuestionBtn:hover:not(:disabled) { background-color: rgba(var(--accent-color-rgb), 0.35); }
+.quiz-controls-streamer #endQuizBtn { background-color: rgba(var(--danger-color-rgb), 0.2); border-color: rgba(var(--danger-color-rgb), 0.5); color: var(--danger-color); }
+.quiz-controls-streamer #endQuizBtn:hover:not(:disabled) { background-color: rgba(var(--danger-color-rgb), 0.35); }
+#quizStreamerStatus p {
+font-style: italic;
+color: var(--text-medium);
+margin-bottom: 10px;
+font-size: 0.9rem;
+}
+#quizStreamerResults h4 {
+font-size: 1rem;
+color: var(--text-light);
+margin-bottom: 8px;
+}
+#quizStreamerResults ul {
+list-style: none;
+padding-left: 0;
+font-size: 0.9rem;
+}
+#quizStreamerResults ul li {
+padding: 4px 0;
+color: var(--text-medium);
+border-bottom: 1px dashed rgba(var(--border-color), 0.3);
+}
+#quizStreamerResults ul li:last-child {
+border-bottom: none;
+}
+/* Main quiz panel toggle button (in sidebar) /
+#toggleQuizPanelBtn.control-btn {
+/ Standard control-btn styles apply /
+}
+#toggleQuizPanelBtn.control-btn.active { / When quiz panel is open /
+background: rgba(var(--accent-color-rgb), 0.25) !important;
+border-color: var(--accent-color) !important;
+}
+#toggleQuizPanelBtn.control-btn.active i {
+color: var(--accent-color) !important;
+}
+#toggleQuizPanelBtn.control-btn .btn-label {
+display: inline-block !important; / Ensure label is visible */
+}
+/* General .prose-styling (can be in styles.css or here if specific to streamer) /
+.prose-styling { line-height: 1.6; }
+.prose-styling p { margin-bottom: 0.75em; }
+.prose-styling p:last-child { margin-bottom: 0; }
+.prose-styling strong, .prose-styling b { font-weight: 600; }
+.prose-styling em, .prose-styling i { font-style: italic; }
+.prose-styling a { color: var(--info-color); text-decoration: underline; text-underline-offset: 2px; }
+.prose-styling a:hover { color: var(--accent-color); }
+.prose-styling ul, .prose-styling ol { margin-left: 1.5em; margin-bottom: 0.75em; }
+.prose-styling li { margin-bottom: 0.25em; }
+.prose-styling blockquote {
+border-left: 3px solid var(--border-color); padding-left: 1em;
+margin-left: 0; margin-bottom: 0.75em; color: var(--text-medium); font-style: italic;
+}
+.prose-styling code {
+background-color: rgba(var(--bg-dark-rgb), 0.7); / Slightly more prominent bg for code /
+padding: 0.2em 0.4em; border-radius: var(--border-radius-small);
+font-family: Consolas, Monaco, 'Andale Mono', 'Ubuntu Mono', monospace; font-size: 0.9em;
+}
+.prose-styling pre {
+background-color: rgba(var(--bg-dark-rgb), 0.8); / Even more prominent for pre blocks */
+padding: 0.8em 1em; border-radius: var(--border-radius-medium);
+overflow-x: auto; margin-bottom: 0.75em;
+}
+.prose-styling pre code { background-color: transparent; padding: 0; font-size: inherit; }
+.prose-styling table {
+width: auto; border-collapse: collapse; margin-bottom: 1em;
+border: 1px solid var(--border-color);
+}
+.prose-styling th, .prose-styling td {
+border: 1px solid var(--border-color); padding: 0.5em 0.75em; text-align: left;
+}
+.prose-styling th { background-color: rgba(var(--bg-dark-rgb), 0.6); font-weight: 600; }
+.prose-styling .katex-error {
+color: var(--warning-color); background: rgba(var(--warning-color-rgb), 0.1);
+padding: 2px 4px; border-radius: var(--border-radius-small);
+}
