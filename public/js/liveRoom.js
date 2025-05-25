@@ -351,9 +351,7 @@ document.addEventListener("DOMContentLoaded", () => {
     socket.on("connect_error", (err) =>
       console.error("Socket Error:", err.message)
     );
-    socket.on("userJoined", (msg) =>
-      addChatMessage(msg, "system", "join")
-    );
+    socket.on("userJoined", (msg) => addChatMessage(msg, "system", "join"));
     socket.on("viewerLeft", (data) =>
       addChatMessage(`${data.username} đã rời đi.`, "system", "left")
     );
@@ -481,43 +479,221 @@ document.addEventListener("DOMContentLoaded", () => {
       displayQuizQuestion(questionId, text, options);
     });
     socket.on("quiz:answerSubmitted", ({ questionId, answerIndex }) => {
-      /* quiz logic */
+      // This confirms to the *submitting* user their answer was noted.
+      // Does not show results yet.
+      if (questionId === currentQuizIdViewer) {
+        selectedAnswerIndexViewer = answerIndex; // Store which option this viewer selected
+        if (elements.quizViewerFeedback) {
+          elements.quizViewerFeedback.textContent =
+            "Đã ghi nhận câu trả lời của bạn. Đang chờ kết quả...";
+        }
+        // Visually mark their selection (optional, can be subtle)
+        const optionButtons =
+          elements.quizOptionsViewerContainer.querySelectorAll(
+            ".quiz-option-btn-viewer"
+          );
+        optionButtons.forEach((button, idx) => {
+          button.classList.toggle("selected-by-me", idx === answerIndex); // A new class for styling
+          // Optionally disable other buttons after one selection if it's single choice
+          // button.disabled = true;
+        });
+      }
     });
+
     socket.on(
       "quiz:correctAnswer",
       ({ questionId, correctAnswerIndex, results }) => {
-        /* quiz logic */
+        // This event is sent from the server when the host reveals the answer.
+        // It includes the correct answer and vote distribution.
+        if (questionId === currentQuizIdViewer) {
+          showQuizResultViewer(questionId, correctAnswerIndex, results);
+        }
       }
     );
+
     socket.on("quiz:clearCurrent", () => {
-      /* quiz logic */
+      // Host moved to "next question" setup or cleared the current one before results.
+      if (
+        elements.viewerQuizOverlay &&
+        elements.quizQuestionViewerText &&
+        elements.quizOptionsViewerContainer
+      ) {
+        elements.quizQuestionViewerText.textContent =
+          "Chờ câu hỏi tiếp theo...";
+        elements.quizOptionsViewerContainer.innerHTML = "";
+        if (elements.quizViewerFeedback)
+          elements.quizViewerFeedback.textContent = "";
+      }
+      currentQuizIdViewer = null;
+      selectedAnswerIndexViewer = null;
+      // No need to call clearQuizOverlayViewer() here, as the overlay might still be needed
+      // if the host immediately posts another question.
     });
+
     socket.on("quiz:ended", () => {
-      /* quiz logic */
+      clearQuizOverlayViewer(); // Now fully close and reset the quiz overlay
+      if (typeof showAlert === "function")
+        showAlert("Phiên trắc nghiệm đã kết thúc.", "info", 3000);
     });
+
     socket.on("quiz:error", (errorMessage) => {
-      /* quiz logic */
+      if (typeof showAlert === "function") showAlert(errorMessage, "error");
+      // Potentially re-enable options if an error occurred mid-process and results weren't shown
+      if (
+        currentQuizIdViewer &&
+        selectedAnswerIndexViewer !== null &&
+        elements.quizOptionsViewerContainer
+      ) {
+        const optionButtons =
+          elements.quizOptionsViewerContainer.querySelectorAll(
+            ".quiz-option-btn-viewer"
+          );
+        let resultsAlreadyShown = false;
+        optionButtons.forEach((btn) => {
+          if (
+            btn.classList.contains("correct-answer") ||
+            btn.classList.contains("incorrect-answer")
+          ) {
+            resultsAlreadyShown = true;
+          }
+        });
+        if (!resultsAlreadyShown) {
+          optionButtons.forEach((button) => {
+            button.disabled = false;
+            button.style.opacity = "1";
+            button.classList.remove("selected-by-me");
+          });
+          if (elements.quizViewerFeedback)
+            elements.quizViewerFeedback.textContent =
+              "Có lỗi xảy ra, vui lòng thử chọn lại.";
+          selectedAnswerIndexViewer = null;
+        }
+      }
     });
     if (LIVE_ROOM_CONFIG.isHost) {
       socket.on("viewerPeerId", ({ viewerId, username: viewerUsername }) => {
+        console.log(
+          `Host received new viewerPeerId: ${viewerId} for ${viewerUsername}`
+        );
         if (localStream && peer && viewerId && !outgoingCalls[viewerId]) {
+          console.log(`Host attempting to call new viewer: ${viewerId}`);
           const call = peer.call(viewerId, localStream, {
-            metadata: { type: "stream" },
+            metadata: {
+              type: "stream",
+              streamerUsername: LIVE_ROOM_CONFIG.username,
+            },
           });
           if (call) {
             outgoingCalls[viewerId] = call;
-            call.on("close", () => delete outgoingCalls[viewerId]);
-            call.on("error", (err) => {
-              console.error(`Call error with ${viewerId}:`, err);
+            call.on("close", () => {
+              console.log(`Call with viewer ${viewerId} closed.`);
               delete outgoingCalls[viewerId];
             });
+            call.on("error", (err) => {
+              console.error(`Call error with viewer ${viewerId}:`, err);
+              delete outgoingCalls[viewerId];
+              // Optionally notify UI that connection failed for this viewer
+            });
+            console.log(`Call initiated to viewer ${viewerId}`);
+          } else {
+            console.error(`Failed to initiate call to viewer ${viewerId}`);
           }
+        } else {
+          console.warn("Host: Cannot call new viewer - conditions not met.", {
+            localStreamExists: !!localStream,
+            peerReady: !!peer,
+            hasViewerId: !!viewerId,
+            notAlreadyCalling: !outgoingCalls[viewerId],
+          });
         }
       });
+
       socket.on(
         "requestScreenShareAgain",
         ({ viewerId, username: viewerUsername }) => {
-          /* streamer logic */
+          console.log(
+            `Host received requestScreenShareAgain from ${viewerUsername} (${viewerId})`
+          );
+          if (!peer) {
+            console.warn(
+              "Host PeerJS not initialized. Cannot fulfill screen share request."
+            );
+            // Optionally emit an error back to viewer or try to re-init PeerJS if appropriate
+            return;
+          }
+          if (!localStream) {
+            console.warn(
+              "Host: No local stream available to share for requestScreenShareAgain."
+            );
+            // Optionally notify the specific viewer that stream is not active
+            // socket.emit('streamNotActiveForViewer', { targetViewerSocketId: findSocketIdByViewerPeerId(viewerId) });
+            // This would require server to relay this message or for host to find viewer's socket id
+            return;
+          }
+
+          // Check if already calling this viewer or if viewerId is valid
+          if (viewerId && !outgoingCalls[viewerId]) {
+            console.log(
+              `Host attempting to re-call viewer: ${viewerId} due to request.`
+            );
+            const call = peer.call(viewerId, localStream, {
+              metadata: {
+                type: "stream",
+                streamerUsername: LIVE_ROOM_CONFIG.username,
+              },
+            });
+
+            if (call) {
+              outgoingCalls[viewerId] = call;
+              call.on("close", () => {
+                console.log(
+                  `Re-established call with viewer ${viewerId} closed.`
+                );
+                delete outgoingCalls[viewerId];
+              });
+              call.on("error", (err) => {
+                console.error(
+                  `Re-established call error with viewer ${viewerId}:`,
+                  err
+                );
+                delete outgoingCalls[viewerId];
+                // Optionally notify UI or specific viewer
+              });
+              console.log(
+                `Re-established call initiated to viewer ${viewerId}`
+              );
+            } else {
+              console.error(`Failed to re-initiate call to viewer ${viewerId}`);
+            }
+          } else if (viewerId && outgoingCalls[viewerId]) {
+            console.log(
+              `Host: Already have an active call with viewer ${viewerId}. Request ignored.`
+            );
+            // Potentially, you could check if the existing call is healthy.
+            // If not, close it and try a new one. For now, assume existing call is okay.
+          } else if (!viewerId) {
+            console.warn(
+              "Host: Received requestScreenShareAgain without a valid viewerId."
+            );
+          }
+        }
+      );
+
+      // Listener for when a viewer disconnects their PeerJS connection (or socket implying peer gone)
+      socket.on(
+        "viewerDisconnected",
+        ({ viewerId, username: viewerUsername }) => {
+          console.log(
+            `Host notified that viewer ${viewerUsername} (${viewerId}) disconnected.`
+          );
+          if (outgoingCalls[viewerId]) {
+            console.log(
+              `Closing outgoing call to disconnected viewer ${viewerId}.`
+            );
+            outgoingCalls[viewerId].close(); // Gracefully close the call from host side
+            delete outgoingCalls[viewerId];
+          }
+          // Update UI list of connected viewers if you have one
         }
       );
     }
@@ -527,8 +703,9 @@ document.addEventListener("DOMContentLoaded", () => {
   // PEERJS
   // ==================================
   function initPeer() {
-    /* ... (Your existing PeerJS initialization logic) ... */ let peerIdToUse =
-      LIVE_ROOM_CONFIG.isHost ? LIVE_ROOM_CONFIG.roomId : undefined;
+    let peerIdToUse = LIVE_ROOM_CONFIG.isHost
+      ? LIVE_ROOM_CONFIG.roomId
+      : undefined;
     peer = new Peer(peerIdToUse, LIVE_ROOM_CONFIG.peerConfig);
     peer.on("open", (id) => {
       console.log(
@@ -573,6 +750,31 @@ document.addEventListener("DOMContentLoaded", () => {
         });
         if (currentCall) currentCall.close();
         currentCall = call;
+      });
+    }
+    if (LIVE_ROOM_CONFIG.isHost) {
+      peer.on("error", (err) => {
+        console.error("Host PeerJS global error:", err);
+        if (err.type === "peer-unavailable") {
+          showAlert(
+            `Không thể kết nối tới người xem: ${err.message}. Họ có thể đã rời đi.`,
+            "warning"
+          );
+          // Attempt to clean up the call if it was for a specific peer ID
+          const unavailablePeerId = err.message.match(
+            /Could not connect to peer (.*)/
+          );
+          if (
+            unavailablePeerId &&
+            unavailablePeerId[1] &&
+            outgoingCalls[unavailablePeerId[1]]
+          ) {
+            outgoingCalls[unavailablePeerId[1]].close();
+            delete outgoingCalls[unavailablePeerId[1]];
+          }
+        } else {
+          showAlert(`Lỗi kết nối PeerJS: ${err.type}`, "error");
+        }
       });
     }
     peer.on("error", (err) => {
@@ -794,45 +996,59 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // ---- Quiz Functions for Viewer ----
+  // ==================================
+  // QUIZ FUNCTIONS FOR VIEWER
+  // ==================================
   function displayQuizQuestion(questionId, text, options) {
-    /* ... (Your existing logic, same as before) ... */ if (
+    if (
       !elements.viewerQuizOverlay ||
       !elements.quizQuestionViewerText ||
       !elements.quizOptionsViewerContainer ||
       !elements.quizViewerFeedback
-    )
+    ) {
+      console.error("Quiz UI elements missing for displayQuizQuestion");
       return;
+    }
     currentQuizIdViewer = questionId;
-    selectedAnswerIndexViewer = null;
+    selectedAnswerIndexViewer = null; // Reset viewer's selection for new question
     elements.quizQuestionViewerText.textContent = text;
-    elements.quizOptionsViewerContainer.innerHTML = "";
+    elements.quizOptionsViewerContainer.innerHTML = ""; // Clear previous options
+
     options.forEach((optionText, index) => {
       const button = document.createElement("button");
-      button.className = "quiz-option-btn-viewer control-btn";
+      button.className = "quiz-option-btn-viewer control-btn"; // Apply a base class and a specific one
       button.textContent = optionText;
-      button.dataset.optionIndex = String(index);
+      button.dataset.optionIndex = String(index); // Store index as string
+      button.disabled = false; // Ensure buttons are enabled for a new question
+
       button.onclick = () => {
         if (
           !socket ||
-          elements.quizOptionsViewerContainer.querySelector("button:disabled")
-        ) {
-          if (
-            elements.quizViewerFeedback &&
-            elements.quizViewerFeedback.textContent.includes("Đáp án đúng là")
+          button.disabled ||
+          elements.quizOptionsViewerContainer.querySelector(
+            "button.correct-answer, button.incorrect-answer"
           )
-            return;
+        ) {
+          // Don't allow action if no socket, button is disabled, or results already shown
+          return;
         }
+
         const allOptionBtns =
           elements.quizOptionsViewerContainer.querySelectorAll(
             ".quiz-option-btn-viewer"
           );
-        allOptionBtns.forEach((btn) => btn.classList.remove("selected"));
-        button.classList.add("selected");
+        allOptionBtns.forEach((btn) => {
+          btn.classList.remove("selected-by-me");
+          // Optionally disable all buttons after one click if you want to prevent changing answer before results
+          // btn.disabled = true;
+        });
+        button.classList.add("selected-by-me");
+        // button.disabled = true; // Disable this one too
+
         socket.emit("quiz:submitAnswer", {
           roomId: LIVE_ROOM_CONFIG.roomId,
           questionId: currentQuizIdViewer,
-          answerIndex: index,
+          answerIndex: index, // Send the numeric index
         });
         if (elements.quizViewerFeedback)
           elements.quizViewerFeedback.textContent =
@@ -840,17 +1056,140 @@ document.addEventListener("DOMContentLoaded", () => {
       };
       elements.quizOptionsViewerContainer.appendChild(button);
     });
+
     if (elements.quizViewerFeedback)
       elements.quizViewerFeedback.textContent = "Chọn một câu trả lời.";
     elements.viewerQuizOverlay.style.display = "block";
     quizOverlayVisible = true;
-    if (!prefersReducedMotion)
+
+    if (!prefersReducedMotion && typeof gsap !== "undefined") {
       gsap.fromTo(
         elements.viewerQuizOverlay,
-        { autoAlpha: 0, y: 50 },
-        { duration: 0.5, autoAlpha: 1, y: 0, ease: "back.out(1.7)" }
+        { autoAlpha: 0, y: 50, scale: 0.95 },
+        { duration: 0.5, autoAlpha: 1, y: 0, scale: 1, ease: "back.out(1.7)" }
       );
-    else gsap.set(elements.viewerQuizOverlay, { autoAlpha: 1, y: 0 });
+    } else {
+      gsap.set(elements.viewerQuizOverlay, { autoAlpha: 1, y: 0, scale: 1 });
+    }
+  }
+
+  // ---- Quiz Functions for Viewer ----
+  function showQuizResultViewer(questionId, correctAnswerIndex, results) {
+    if (
+      !elements.viewerQuizOverlay ||
+      !elements.quizOptionsViewerContainer ||
+      !elements.quizViewerFeedback ||
+      questionId !== currentQuizIdViewer
+    ) {
+      console.warn(
+        "showQuizResultViewer: Aborting, conditions not met or wrong question ID.",
+        {
+          expectedQID: currentQuizIdViewer,
+          receivedQID: questionId,
+          overlayExists: !!elements.viewerQuizOverlay,
+        }
+      );
+      return;
+    }
+    console.log("showQuizResultViewer called:", {
+      questionId,
+      correctAnswerIndex,
+      results,
+      selectedAnswerIndexViewer,
+    });
+
+    const optionButtons = elements.quizOptionsViewerContainer.querySelectorAll(
+      ".quiz-option-btn-viewer"
+    );
+    let totalVotes = 0;
+    if (results && typeof results === "object") {
+      // Ensure results is an object
+      Object.values(results).forEach(
+        (count) => (totalVotes += Number(count) || 0)
+      );
+    } else {
+      console.warn("Quiz results data is missing or not an object:", results);
+      results = {}; // Default to empty object to avoid errors
+    }
+
+    let feedbackText = ""; // Start with empty feedback
+
+    optionButtons.forEach((button) => {
+      const optionIndex = parseInt(button.dataset.optionIndex, 10);
+      button.disabled = true; // Disable all buttons now that results are shown
+      button.classList.remove("selected-by-me"); // Clear "my selection" visual indication
+
+      let resultText = "";
+      const voteCount = Number(results[optionIndex]) || 0;
+      if (totalVotes > 0) {
+        const percentage = ((voteCount / totalVotes) * 100).toFixed(0);
+        resultText = ` (${voteCount} phiếu, ${percentage}%)`;
+      } else {
+        resultText = ` (${voteCount} phiếu)`;
+      }
+
+      // Get original text content, avoiding icons/previous results if any
+      let originalButtonText =
+        button.firstChild && button.firstChild.nodeType === Node.TEXT_NODE
+          ? button.firstChild.textContent.trim()
+          : button.textContent
+              .replace(/\s*<i.*<\/i>\s*\(ĐÚNG\).*|\s*\(\d+.*phiếu.*\)/g, "")
+              .trim();
+
+      if (optionIndex === correctAnswerIndex) {
+        button.classList.add("correct-answer");
+        button.classList.remove("incorrect-answer");
+        button.innerHTML = `${originalButtonText} <i class="fas fa-check"></i> (ĐÚNG)${resultText}`;
+        if (selectedAnswerIndexViewer === optionIndex) {
+          feedbackText = "Chính xác! ";
+        }
+      } else {
+        button.classList.add("incorrect-answer");
+        button.classList.remove("correct-answer");
+        button.innerHTML = `${originalButtonText}${resultText}`;
+        if (selectedAnswerIndexViewer === optionIndex) {
+          feedbackText = "Sai rồi. ";
+        }
+      }
+    });
+
+    if (elements.quizViewerFeedback) {
+      if (selectedAnswerIndexViewer === null && feedbackText === "") {
+        feedbackText = "Bạn chưa chọn đáp án. ";
+      }
+      const correctButton = optionButtons[correctAnswerIndex];
+      if (correctButton) {
+        // Extract original text before icons/results were added
+        let correctButtonOriginalText = "Lựa chọn không xác định";
+        const textNode = Array.from(correctButton.childNodes).find(
+          (node) =>
+            node.nodeType === Node.TEXT_NODE && node.textContent.trim() !== ""
+        );
+        if (textNode) {
+          correctButtonOriginalText = textNode.textContent.trim();
+        } else {
+          // Fallback if structure is more complex or text is inside other spans
+          const tempDiv = document.createElement("div");
+          tempDiv.innerHTML = correctButton.innerHTML;
+          const iconCheck = tempDiv.querySelector("i.fa-check");
+          if (iconCheck) iconCheck.remove();
+          // Remove vote count span if it was structured that way
+          const voteSpan = Array.from(tempDiv.childNodes).find(
+            (node) =>
+              node.nodeType === Node.TEXT_NODE &&
+              node.textContent.includes("phiếu")
+          );
+          if (voteSpan) voteSpan.remove();
+          correctButtonOriginalText = tempDiv.textContent
+            .replace("(ĐÚNG)", "")
+            .trim();
+        }
+
+        feedbackText += `Đáp án đúng là: "${correctButtonOriginalText}"`;
+      }
+      elements.quizViewerFeedback.textContent = feedbackText;
+    }
+    console.log("Quiz results displayed for viewer.");
   }
   function showQuizResultViewer(questionId, correctAnswerIndex, results) {
     /* ... (Your existing logic, same as before) ... */ if (
@@ -978,7 +1317,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (type === "host") iconClass = "fa-star";
     else if (type === "pro") iconClass = "fa-check-circle";
-    else if (type === "system" || type === "join") iconClass = "fa-info-circle"; // System gets info icon
+    else if (type === "system" || type === "join") iconClass = "fa-info-circle";
+    // System gets info icon
     else if (type === "left") iconClass = "fa-sign-out-alt";
     else if (type === "ban") iconClass = "fa-gavel";
     iconSpan.innerHTML = `<i class="fas ${iconClass}"></i>`;
@@ -993,24 +1333,29 @@ document.addEventListener("DOMContentLoaded", () => {
     // Header (Username and Timestamp)
     // For system messages, we might want to display "System" or hide the header.
     // For join/left messages, the 'content' itself is usually like "UserX has joined."
-    if (type !== "system" && type !== "join" && type !== "left" && type !== "ban") { // Only show user header for actual user messages
-        const msgHeader = document.createElement("div");
-        msgHeader.className = "msg-header";
-        const userSpan = document.createElement("span");
-        userSpan.className = "msg-username";
-        userSpan.textContent = username; // Use the passed username
-        msgHeader.appendChild(userSpan);
+    if (
+      type !== "system" &&
+      type !== "join" &&
+      type !== "left" &&
+      type !== "ban"
+    ) {
+      // Only show user header for actual user messages
+      const msgHeader = document.createElement("div");
+      msgHeader.className = "msg-header";
+      const userSpan = document.createElement("span");
+      userSpan.className = "msg-username";
+      userSpan.textContent = username; // Use the passed username
+      msgHeader.appendChild(userSpan);
 
-        const timeSpan = document.createElement("span");
-        timeSpan.className = "msg-timestamp";
-        timeSpan.textContent = new Date(timestamp).toLocaleTimeString([], {
-          hour: "2-digit",
-          minute: "2-digit",
-        });
-        msgHeader.appendChild(timeSpan);
-        contentContainer.appendChild(msgHeader);
+      const timeSpan = document.createElement("span");
+      timeSpan.className = "msg-timestamp";
+      timeSpan.textContent = new Date(timestamp).toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+      msgHeader.appendChild(timeSpan);
+      contentContainer.appendChild(msgHeader);
     }
-
 
     // Message Body
     const bodySpan = document.createElement("span");
@@ -1023,7 +1368,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // For this fix, let's assume system messages are plain text or simple HTML.
     if (
       type !== "system" && // Don't parse system messages as markdown by default
-      type !== "join" &&   // Unless you intend them to have markdown
+      type !== "join" && // Unless you intend them to have markdown
       type !== "left" &&
       type !== "ban" &&
       typeof marked !== "undefined" &&
@@ -1034,7 +1379,15 @@ document.addEventListener("DOMContentLoaded", () => {
         finalHtml = marked.parse(content || "");
         const tempDiv = document.createElement("div");
         tempDiv.innerHTML = finalHtml;
-        renderMathInElement(tempDiv, { /* KaTeX options */ delimiters: [ { left: "$$", right: "$$", display: true }, { left: "$", right: "$", display: false }, { left: "\\(", right: "\\)", display: false }, { left: "\\[", right: "\\]", display: true } ], throwOnError: false });
+        renderMathInElement(tempDiv, {
+          /* KaTeX options */ delimiters: [
+            { left: "$$", right: "$$", display: true },
+            { left: "$", right: "$", display: false },
+            { left: "\\(", right: "\\)", display: false },
+            { left: "\\[", right: "\\]", display: true },
+          ],
+          throwOnError: false,
+        });
         finalHtml = tempDiv.innerHTML;
       } catch (e) {
         console.error("Marked/Katex Error in chat:", e);
@@ -1047,7 +1400,6 @@ document.addEventListener("DOMContentLoaded", () => {
     // --- FIX: ALWAYS APPEND contentContainer to li ---
     li.appendChild(contentContainer);
     // --- END FIX ---
-
 
     if (!prefersReducedMotion) {
       // GSAP animation or CSS class for fade-in
