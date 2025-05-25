@@ -310,69 +310,94 @@ app.get("/api/rooms", (req, res) => {
 /* =============================
     PAGE RENDERING ROUTES
 ============================= */
-router.get("/room/:roomId", isLoggedIn, async (req, res) => { // Or whatever your room display route is
-    try {
-        const roomId = req.params.roomId;
-        const user = req.user; // The currently logged-in user
+app.get("/room/:id", checkHoctapAuth, async (req, res) => { // Make it async if fetching room details
+  try {
+    const roomId = req.params.id;
+    const userMakingRequest = req.user; // User object from checkHoctapAuth middleware
 
-        // 1. Fetch room details (including who the owner is)
-        // This is a placeholder for how you get room info.
-        // You might be fetching this from your live-hoctap-9a3.glitch.me API or a local DB.
-        let roomDetails;
-        try {
-            const response = await axios.get(`https://live-hoctap-9a3.glitch.me/api/room-details/${roomId}`); // Example API endpoint
-            roomDetails = response.data;
-        } catch (apiError) {
-            console.error("Failed to fetch room details:", apiError.message);
-            // Handle error, e.g., room not found
-            req.flash("error", "Phòng live không tồn tại hoặc có lỗi xảy ra.");
-            return res.redirect("/live");
-        }
-
-        if (!roomDetails) {
-            req.flash("error", "Không tìm thấy thông tin phòng.");
-            return res.redirect("/live");
-        }
-
-        // 2. Determine if the current user is the host of THIS room
-        const isCurrentUserHost = user && user._id.toString() === roomDetails.ownerId.toString(); // Compare user ID with room owner ID
-
-        // 3. Prepare data for the EJS template
-        const templateData = {
-            title: `Live: ${roomDetails.title}`, // Use title from roomDetails
-            user: user, // Pass the logged-in user object
-            activePage: "live",
-            roomId: roomId,
-            username: user.username,
-            roomTitle: roomDetails.title,
-            roomOwner: roomDetails.ownerName, // The username of the room owner
-            peerConfig: { // Your PeerJS config (this should come from your .env or constants)
-                host: process.env.PEERJS_HOST || '0.peerjs.com', // Default to public peerjs server
-                port: process.env.PEERJS_PORT || 443,
-                path: process.env.PEERJS_PATH || '/peerjs',
-                secure: process.env.PEERJS_SECURE !== 'false', // Default to true (HTTPS)
-                // key: 'peerjs', // Only if your peerjs server needs a key
-                // debug: 3 // Optional: for debugging
-            },
-            glitchProjectUrl: process.env.APP_URL || `https://${process.env.PROJECT_DOMAIN}.glitch.me`,
-            isHostPresent: true, // You'll need to update this based on actual host presence via sockets
-
-            // --- FIX: ADD isHost HERE ---
-            isHost: isCurrentUserHost,
-
-            // --- Initial states for whiteboard (server should provide these for a robust setup) ---
-            // For simplicity now, we can derive some:
-            initialWhiteboardGlobalState: roomDetails.isWhiteboardCurrentlyVisible || false, // Get from room state API
-            initialViewerDrawPermission: roomDetails.defaultViewerDrawPermission || false, // Get from room state API
-        };
-
-        res.render("liveRoom", templateData);
-
-    } catch (error) {
-        console.error("Error rendering live room:", error);
-        req.flash("error", "Không thể vào phòng live.");
-        res.redirect("/live");
+    if (!userMakingRequest || !userMakingRequest.userId) {
+        // This case should ideally be handled by checkHoctapAuth redirecting to login
+        console.error("User not authenticated or userId missing for room access.");
+        // req.flash is not available in this server.js context, send plain error or redirect
+        return res.status(401).send("Authentication required to access room.");
     }
+
+    const room = findRoom(roomId);
+    if (!room) {
+      return res.status(404).render("errorPage", { // Assuming you have an errorPage.ejs
+        message: "Phòng live không tồn tại hoặc đã kết thúc.",
+        projectUrl: `https://${process.env.PROJECT_DOMAIN}.glitch.me`,
+        user: userMakingRequest // Pass user if your error page uses it
+      });
+    }
+
+    if (room.bannedViewers.includes(userMakingRequest.username)) {
+      return res.status(403).render("errorPage", {
+        message: "Bạn đã bị chặn khỏi phòng live này.",
+        projectUrl: room.glitchProjectUrl,
+        user: userMakingRequest
+      });
+    }
+
+    const isCurrentUserHost = room.ownerid.toString() === userMakingRequest.userId.toString();
+
+    // Default initial states for whiteboard (can be overridden by actual room state later)
+    let initialWhiteboardVisibleState = false;
+    let initialDrawPermissionForViewer = false;
+
+    // In a more robust system, you would fetch the room's current state
+    // from a database or your live-hoctap-9a3 service here.
+    // For now, we use the `room.isWhiteboardActive` and a default for viewers.
+    if (room) {
+        initialWhiteboardVisibleState = room.isWhiteboardActive || false;
+        // Default viewer permission (can be more dynamic based on room settings)
+        const viewerSettings = room.viewersList.find(v => v.username === userMakingRequest.username);
+        initialDrawPermissionForViewer = viewerSettings ? viewerSettings.canDraw : false;
+    }
+
+
+    const templateData = {
+      title: `Live: ${room.title}`,
+      user: userMakingRequest, // The logged-in user object (ensure it has username, isPro etc.)
+      activePage: "live", // For navigation highlighting
+      roomId: room.id,
+      username: userMakingRequest.username,
+      roomTitle: room.title,
+      roomOwner: room.owner,
+      roomCreatedAt: room.createdAt,
+      isHostPresent: room.isLive,
+      isHost: isCurrentUserHost, // CRUCIAL: This defines if the current user is the host
+      peerConfig: room.peerConfig, // Use the config from the room object
+      glitchProjectUrl: room.glitchProjectUrl,
+      // userIsPro: userMakingRequest.isPro || false, // Pass this if needed by EJS
+
+      // --- FIX: Define and Pass these variables ---
+      initialWhiteboardGlobalState: initialWhiteboardVisibleState,
+      initialViewerDrawPermission: isCurrentUserHost ? true : initialDrawPermissionForViewer, // Host can always draw initially
+    };
+
+    if (isCurrentUserHost) {
+      // Streamer specific logic from original server.js
+      room.isLive = true;
+      if (room.hostSocketId && room.hostSocketId !== userMakingRequest.socketId) {
+        const oldHostSocket = io.sockets.sockets.get(room.hostSocketId);
+        if (oldHostSocket) {
+          oldHostSocket.emit("forceEndStream", "Phiên live của bạn đã được bắt đầu từ một thiết bị/tab khác.");
+          oldHostSocket.disconnect(true);
+        }
+      }
+      console.log(`Host ${userMakingRequest.username} is accessing their room ${room.id}.`);
+      res.render("streamer", templateData); // Render streamer.ejs for host
+    } else {
+      console.log(`Viewer ${userMakingRequest.username} is joining room ${room.id}.`);
+      res.render("liveRoom", templateData); // Render liveRoom.ejs for viewer
+    }
+
+  } catch (error) {
+    console.error("Error in /room/:id route:", error);
+    // req.flash not available
+    res.status(500).send("Lỗi khi tải phòng live. " + error.message);
+  }
 });
 
 /* =============================
