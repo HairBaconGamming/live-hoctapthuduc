@@ -7,7 +7,7 @@
     <title>Live: <%= roomTitle %></title>
     <link rel="stylesheet" href="/styles.css">
     <link rel="stylesheet" href="/css/liveRoom.css">
-      <link rel="icon" type="image/png" href="https://cdn.glitch.global/71030012-56ea-4d26-a426-e0099201df1c/823029_library_512x512.png?v=1741523759119">
+    <link rel="icon" type="image/png" href="https://cdn.glitch.global/71030012-56ea-4d26-a426-e0099201df1c/823029_library_512x512.png?v=1741523759119">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js"></script>
@@ -39,8 +39,9 @@
                 <i class="fas fa-eye"></i>
                 <span id="viewerCountLive" class="viewer-count-live">0</span>
             </div>
-            <button id="toggleViewerWhiteboardDisplayBtn" class="control-btn wb-viewer-toggle-btn" title="Hiện bảng vẽ (nếu streamer đang bật)" disabled>
-                <i class="fas fa-chalkboard"></i> Hiện Bảng Vẽ
+            <!-- Viewer's button to toggle their LOCAL whiteboard display -->
+            <button id="viewerToggleWhiteboardDisplayBtn" class="control-btn wb-viewer-toggle-btn" title="Hiện bảng vẽ (nếu chủ phòng đang bật)" disabled>
+                <i class="fas fa-chalkboard"></i> <span class="btn-text">Bảng Vẽ</span>
             </button>
             <button id="exitRoomBtnLive" class="exit-room-btn-v2" title="Rời phòng">
                 <i class="fas fa-times"></i>
@@ -120,30 +121,135 @@
     </div>
 
     <!-- Viewer Whiteboard Overlay -->
-    <div id="whiteboardContainerOverlayViewer" class="whiteboard-container-overlay viewer-wb">
+    <!-- Changed ID from whiteboardContainerOverlayViewer to sharedWhiteboardOverlayViewer to match CSS -->
+    <div id="sharedWhiteboardOverlayViewer" class="whiteboard-container-overlay viewer-wb" style="display: none;">
+        <!-- Toolbar for the VIEWER -->
         <div id="whiteboardToolbarViewer" class="whiteboard-toolbar">
-            <label for="wbColorPickerViewer" class="wb-label">Màu:</label>
-            <input type="color" id="wbColorPickerViewer" value="#FFFFFF" title="Chọn màu vẽ" disabled>
-
-            <label for="wbLineWidthRangeViewer" class="wb-label">Nét:</label>
-            <input type="range" id="wbLineWidthRangeViewer" min="1" max="20" value="3" title="Chọn độ dày nét vẽ" disabled>
-            <span id="wbLineWidthValueDisplayViewer" class="wb-line-width-value">3</span>
-
-            <button id="wbEraserModeBtnViewer" class="control-btn wb-tool-btn" title="Chế độ Tẩy/Bút" disabled>
-                <i class="fas fa-eraser"></i>
-            </button>
-            <%# Viewers usually don't get advanced tools unless permission system is complex %>
-            <%# If viewer gets pan/zoom, add buttons here and pass to sharedWhiteboard config %>
-            <button id="closeWhiteboardBtnViewer" class="control-btn wb-tool-btn" title="Đóng Bảng Vẽ">
+            <!-- Viewer controls are typically limited. Streamer has full controls. -->
+            <!-- If viewer CAN draw, they might have color/linewidth. -->
+            <!-- For simplicity, let's assume viewer has minimal controls. -->
+            <button id="wbCloseBtnViewer" class="control-btn wb-tool-btn" title="Đóng Bảng Vẽ">
                 <i class="fas fa-times"></i>
             </button>
-            <%# Permission message will be added by JS if needed %>
+            <span id="wbCoordsDisplayViewer" class="whiteboard-coords-display" style="display:none;"></span>
+            <!-- Add other viewer-specific buttons here if needed, e.g., zoom -->
+             <button id="wbZoomInBtnViewer" class="control-btn wb-tool-btn" title="Phóng to">
+                <i class="fas fa-search-plus"></i>
+            </button>
+            <button id="wbZoomOutBtnViewer" class="control-btn wb-tool-btn" title="Thu nhỏ">
+                <i class="fas fa-search-minus"></i>
+            </button>
+             <button id="wbResetViewBtnViewer" class="control-btn wb-tool-btn" title="Reset góc nhìn">
+                <i class="fas fa-expand-arrows-alt"></i>
+            </button>
+            <button id="wbToggleGridBtnViewer" class="control-btn wb-tool-btn" title="Bật/Tắt Lưới">
+                <i class="fas fa-th"></i>
+            </button>
+            <!-- If viewer can draw, include color and line width. Ensure IDs are unique if streamer's toolbar is also in DOM -->
+            <!-- Example if viewer can draw -->
+            <!--
+            <label for="wbColorPickerViewer" class="wb-label">Màu:</label>
+            <input type="color" id="wbColorPickerViewer" value="#FFFFFF" title="Chọn màu vẽ">
+            <label for="wbLineWidthViewer" class="wb-label">Nét:</label>
+            <input type="range" id="wbLineWidthViewer" min="1" max="20" value="3" title="Chọn độ dày nét vẽ">
+            <span id="wbLineWidthValueViewer" class="wb-line-width-value">3</span>
+            <button id="wbEraserBtnViewer" class="control-btn wb-tool-btn" title="Tẩy/Bút">
+                <i class="fas fa-eraser"></i>
+            </button>
+             <button id="wbPanToolBtnViewer" class="control-btn wb-tool-btn" title="Di chuyển bảng">
+                <i class="fas fa-arrows-alt"></i>
+            </button>
+            -->
         </div>
-        <canvas id="whiteboardCanvasViewer"></canvas>
+        <!-- Canvas Wrapper for the VIEWER -->
+        <div id="sharedWhiteboardCanvasWrapperViewer">
+            <canvas id="sharedWhiteboardCanvasViewer"></canvas>
+        </div>
     </div>
 
+    <!-- Streamer Whiteboard Overlay (Only rendered if user isHost) -->
+    <% if (isHost) { %>
+    <div id="sharedWhiteboardOverlayStreamer" class="whiteboard-container-overlay streamer-wb" style="display: none;">
+        <div id="whiteboardToolbarStreamer" class="whiteboard-toolbar">
+            <!-- Full controls for streamer -->
+            <button id="wbToggleGlobalVisibilityBtn" class="control-btn wb-tool-btn" title="Bật/Tắt bảng vẽ cho mọi người">
+                <i class="fas fa-eye"></i> <span class="btn-text">Hiện Bảng</span>
+            </button>
+            <select id="wbViewerPermissionsList" class="wb-select" title="Quyền vẽ của người xem">
+                <option value="all_true">Cho phép tất cả vẽ</option>
+                <option value="all_false">Không cho phép ai vẽ</option>
+                <!-- Individual viewers will be populated by JS -->
+            </select>
+
+            <label for="wbColorPickerStreamer" class="wb-label">Màu:</label>
+            <input type="color" id="wbColorPickerStreamer" value="#FFFFFF" title="Chọn màu vẽ">
+
+            <label for="wbLineWidthStreamer" class="wb-label">Nét:</label>
+            <input type="range" id="wbLineWidthStreamer" min="1" max="20" value="3" title="Chọn độ dày nét vẽ">
+            <span id="wbLineWidthValueStreamer" class="wb-line-width-value">3</span>
+
+            <button id="wbEraserBtnStreamer" class="control-btn wb-tool-btn" title="Chế độ Tẩy/Bút">
+                <i class="fas fa-eraser"></i>
+            </button>
+            <button id="wbPanToolBtnStreamer" class="control-btn wb-tool-btn" title="Di chuyển bảng vẽ (Pan)">
+                <i class="fas fa-arrows-alt"></i>
+            </button>
+            <button id="wbZoomInBtnStreamer" class="control-btn wb-tool-btn" title="Phóng to">
+                <i class="fas fa-search-plus"></i>
+            </button>
+            <button id="wbZoomOutBtnStreamer" class="control-btn wb-tool-btn" title="Thu nhỏ">
+                <i class="fas fa-search-minus"></i>
+            </button>
+             <button id="wbResetViewBtnStreamer" class="control-btn wb-tool-btn" title="Reset góc nhìn">
+                <i class="fas fa-expand-arrows-alt"></i>
+            </button>
+            <button id="wbToggleGridBtnStreamer" class="control-btn wb-tool-btn" title="Bật/Tắt Lưới">
+                <i class="fas fa-th"></i>
+            </button>
+
+            <!-- Shape Tools -->
+            <div class="wb-tool-dropdown-container">
+                <button id="wbShapeToolToggleBtnStreamer" class="control-btn wb-tool-btn" title="Công cụ Hình dạng">
+                    <i class="fas fa-shapes"></i>
+                </button>
+                <div id="wbShapeOptionsStreamer" class="wb-tool-options">
+                    <button id="wbRectShapeBtnStreamer" class="control-btn wb-option-btn" title="Vẽ Hình chữ nhật"><i class="far fa-square"></i></button>
+                    <button id="wbCircleShapeBtnStreamer" class="control-btn wb-option-btn" title="Vẽ Hình tròn"><i class="far fa-circle"></i></button>
+                    <button id="wbLineShapeBtnStreamer" class="control-btn wb-option-btn" title="Vẽ Đường thẳng"><i class="fas fa-minus"></i></button>
+                </div>
+            </div>
+            <!-- Select/Snip Tools -->
+             <div class="wb-tool-dropdown-container">
+                <button id="wbSelectToolToggleBtnStreamer" class="control-btn wb-tool-btn" title="Công cụ Chọn/Cắt">
+                    <i class="fas fa-mouse-pointer"></i>
+                </button>
+                <div id="wbSnipOptionsStreamer" class="wb-tool-options">
+                    <button id="wbRectangularSnipBtnStreamer" class="control-btn wb-option-btn active" title="Chọn hình chữ nhật"><i class="far fa-square"></i></button>
+                    <button id="wbFreedomSnipBtnStreamer" class="control-btn wb-option-btn" title="Chọn tự do"><i class="fas fa-signature"></i></button>
+                </div>
+            </div>
+            <button id="wbDeleteSelectedBtnStreamer" class="control-btn wb-tool-btn" title="Xóa mục đã chọn" style="display: none;">
+                <i class="fas fa-trash-alt"></i>
+            </button>
+
+
+            <button id="wbClearBtnStreamer" class="control-btn wb-tool-btn" title="Xóa toàn bộ bảng vẽ">
+                <i class="fas fa-trash"></i>
+            </button>
+            <button id="wbCloseBtnStreamer" class="control-btn wb-tool-btn" title="Đóng Bảng Vẽ">
+                <i class="fas fa-times"></i>
+            </button>
+            <span id="wbCoordsDisplayStreamer" class="whiteboard-coords-display" style="display:none;"></span>
+        </div>
+        <div id="sharedWhiteboardCanvasWrapperStreamer">
+            <canvas id="sharedWhiteboardCanvasStreamer"></canvas>
+        </div>
+    </div>
+    <% } %>
+
+
     <!-- Viewer Quiz Overlay -->
-    <div id="viewerQuizOverlay">
+    <div id="viewerQuizOverlay" style="display: none;">
         <button id="closeQuizOverlayBtn" title="Đóng trắc nghiệm">×</button>
         <h4 id="quizQuestionViewerText"></h4>
         <div id="quizOptionsViewerContainer">
@@ -155,14 +261,17 @@
 
     <script>
         // Config for liveRoom.js
-        const liveRoomConfig = {
+        const LIVE_ROOM_CONFIG = {
             roomId: "<%= roomId %>",
-            username: "<%= username %>", // Viewer's username
-            roomOwner: "<%= roomOwner %>", // Streamer's username
+            username: "<%= username %>",
+            roomOwnerUsername: "<%= roomOwner %>", // Make sure this is passed from server
+            isHost: <%= isHost %>,
             peerConfig: JSON.parse('<%- JSON.stringify(peerConfig) %>'),
             glitchProjectUrl: "<%= glitchProjectUrl %>",
-            userIsPro: <%= user.isPro || false %>, // Example: pass pro status
-            reduceMotionParticles: false // Example: allow particles even if OS prefers reduced motion
+            userIsPro: <%= user ? user.isPro : false %>,
+            // Whiteboard specific initial states for the current user
+            initialWhiteboardGloballyVisible: <%= initialWhiteboardGlobalState %>, // Server should provide this
+            initialViewerCanDraw: <%= initialViewerDrawPermission %>, // Server should provide this
         };
     </script>
     <script src="/js/alerts.js"></script>

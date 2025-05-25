@@ -307,52 +307,6 @@ html, body.live-room-body {
     cursor: cell; /* Or a custom eraser cursor */
 }
 
-#sharedWhiteboardOverlayViewer {
-    display: flex;
-    flex-direction: column; /* Stack toolbar on top of canvas wrapper */
-    position: fixed; /* Or absolute, depending on your layout */
-    inset: 0; /* Example: take full screen */
-    /* Or define specific top, left, width, height if not full screen */
-    /* e.g., top: 10%; left: 10%; width: 80%; height: 80%; */
-    background-color: rgba(var(--bg-dark-rgb, 15, 15, 30), 0.85); /* Example background */
-    backdrop-filter: blur(5px);
-    padding: 10px; /* Padding for the overlay itself */
-    box-sizing: border-box;
-    z-index: 500; /* Ensure it's above other content */
-    /* display: none; /* Initial state, JS will toggle to 'flex' */
-}
-
-/* Viewer's Toolbar */
-#whiteboardToolbarViewer {
-    flex-shrink: 0; /* Prevent toolbar from shrinking */
-    width: 100%;    /* Toolbar takes full width of overlay padding box */
-    padding: 8px;
-    background-color: rgba(var(--bg-dark-rgb, 15, 15, 30), 0.9);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-    box-sizing: border-box;
-    /* Add other toolbar styling (flex, gap for buttons) here */
-    display: flex; /* To layout buttons inside */
-    gap: 10px;
-    align-items: center;
-}
-
-/* Wrapper for the canvas (this is canvasElement.parentElement in sharedWhiteboard.js) */
-#sharedWhiteboardCanvasWrapperViewer {
-    flex-grow: 1; /* Crucial: allows this div to take remaining vertical space */
-    width: 100%;  /* Take full available width */
-    position: relative; /* For positioning elements inside if needed (like coordsDisplay) */
-    overflow: hidden;   /* Important: Prevents canvas from overflowing its designated space */
-    background-color: #202333; /* Example background for the canvas area */
-    border-radius: 4px; /* Optional */
-}
-
-/* The actual canvas element */
-#sharedWhiteboardCanvasViewer {
-    display: block; /* Removes extra space below inline elements */
-    width: 100%;    /* Canvas should fill its wrapper */
-    height: 100%;   /* Canvas should fill its wrapper */
-}
-
 /* Coordinate Display (if used) */
 .whiteboard-coords-display {
     position: absolute;
@@ -365,10 +319,6 @@ html, body.live-room-body {
     border-radius: 3px;
     pointer-events: none; /* So it doesn't interfere with drawing */
 }
-
-/* Specific for viewer close/hide button - might be an eye-slash */
-#whiteboardToolbarViewer #closeWhiteboardBtnViewer i { color: var(--text-medium) !important; }
-#whiteboardToolbarViewer #closeWhiteboardBtnViewer:hover i { color: var(--text-light) !important; }
 
 /* Style for the viewer's local whiteboard toggle button */
 .wb-viewer-toggle-btn {
