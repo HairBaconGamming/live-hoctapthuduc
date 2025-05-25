@@ -67,13 +67,32 @@ html, body.live-room-body {
 .viewer-count-widget { display: flex; align-items: center; gap: 8px; color: var(--text-medium); font-size: 0.95rem; background: rgba(255,255,255,0.05); padding: 5px 10px; border-radius: 5px; }
 .viewer-count-widget i { color: var(--primary-color); opacity: 0.9; }
 .viewer-count-live { font-weight: 700; color: var(--text-light); min-width: 25px; text-align: right; }
-.exit-room-btn-v2 {
-    background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.15);
-    color: var(--text-medium); border-radius: 50%; width: 36px; height: 36px;
-    font-size: 1rem; cursor: pointer; transition: all 0.2s ease;
-    display: flex; align-items: center; justify-content: center;
+#exitRoomBtnLive, .exit-room-btn-v2 { /* Target by ID and class for robustness */
+    display: inline-flex; /* Or 'flex' if it's the only item in a container */
+    align-items: center;
+    justify-content: center;
+    padding: 8px 12px;
+    background-color: rgba(var(--danger-color-rgb, 244, 67, 54), 0.8); /* Example styling */
+    color: white;
+    border: 1px solid rgba(var(--danger-color-rgb, 244, 67, 54), 0.9);
+    border-radius: var(--border-radius-small, 4px);
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: background-color 0.2s ease, transform 0.2s ease;
+    /* Ensure it's not accidentally hidden */
+    opacity: 1 !important;
+    visibility: visible !important;
+    /* z-index: 1003; /* Make sure it's above header background but below modals */
 }
-.exit-room-btn-v2:hover { background: rgba(var(--danger-color), 0.2); border-color: rgba(var(--danger-color),0.4); color: var(--danger-color); transform: scale(1.1) rotate(15deg); }
+
+#exitRoomBtnLive:hover, .exit-room-btn-v2:hover {
+    background-color: var(--danger-color, #f44336);
+    transform: scale(1.05);
+}
+
+#exitRoomBtnLive .fas {
+    font-size: 1em; /* Ensure icon is visible */
+}
 
 /* --- Main Layout --- */
 .live-room-main-content {
