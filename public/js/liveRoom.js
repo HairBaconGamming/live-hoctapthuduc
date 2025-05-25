@@ -175,12 +175,32 @@ document.addEventListener("DOMContentLoaded", () => {
     initUIEventListeners();
     initBackgroundParticles();
     initPageAnimations();
-    if (LIVE_ROOM_CONFIG.isHost)
-      console.log("Host-specific UI setup completed in initUIEventListeners.");
-    else
-      console.log(
-        "Viewer-specific UI setup completed in initUIEventListeners."
-      );
+    if (LIVE_ROOM_CONFIG.isHost) {
+      console.log("Host-specific UI setup in progress...");
+      // Host will initiate stream, so placeholder state is usually "waiting for you to start"
+      // or handled by streamer-specific UI.
+      // For now, we assume streamer.js handles the streamer's placeholder.
+      if (elements.placeholder) elements.placeholder.classList.remove("active"); // Host shouldn't see "waiting for stream"
+      hideOverlay(elements.waitingOverlay); // Host is present
+      hideOverlay(elements.playOverlay); // Host controls play directly
+    } else { // Viewer
+      console.log("Viewer-specific UI setup in progress...");
+      // Use the initial state passed from the server via LIVE_ROOM_CONFIG
+      if (LIVE_ROOM_CONFIG.isHostPresent) {
+        // Host is supposedly in the room.
+        hideOverlay(elements.waitingOverlay);
+        // We don't know yet if the stream *data* has arrived, so show "waiting for share".
+        // The 'call' event from PeerJS will eventually trigger handleStreamStart if successful.
+        updateStreamPlaceholder("Chờ chủ phòng chia sẻ màn hình...", "Kết nối đang được thiết lập.");
+        if (elements.placeholder) elements.placeholder.classList.add("active");
+        // Play overlay might still be needed if autoplay fails
+      } else {
+        // Host is not in the room according to initial server data.
+        showOverlay(elements.waitingOverlay); // Shows "Đang chờ Streamer..."
+        updateStreamPlaceholder("Stream đang chờ hoặc đã kết thúc.", "Vui lòng chờ đợi."); // Default placeholder
+        if (elements.placeholder) elements.placeholder.classList.add("active");
+      }
+    }
     console.log("Room Initialization Complete.");
   }
 
@@ -352,7 +372,7 @@ document.addEventListener("DOMContentLoaded", () => {
       customSubMessage || defaultSubMessage
     );
 
-    if (elements.placeholder) elements.placeholder.classList.add("active"); // Show placeholder
+    if (elements.placeholder) elements.placeholder.classList.add("active");
     if (elements.liveIndicator)
       elements.liveIndicator.classList.remove("active");
     // Don't show playOverlay automatically here, let specific events trigger it if needed
@@ -1803,16 +1823,6 @@ document.addEventListener("DOMContentLoaded", () => {
     if (elements.liveIndicator) elements.liveIndicator.classList.add("active");
     hideOverlay(elements.waitingOverlay);
     hideOverlay(elements.playOverlay);
-  }
-  function handleStreamEnd() {
-    /* ... (Your existing logic) ... */ console.log("Handling stream end UI");
-    if (elements.liveVideo && elements.liveVideo.srcObject) {
-      elements.liveVideo.srcObject.getTracks().forEach((track) => track.stop());
-      elements.liveVideo.srcObject = null;
-    }
-    if (elements.placeholder) elements.placeholder.classList.add("active");
-    if (elements.liveIndicator)
-      elements.liveIndicator.classList.remove("active");
   }
 
   // ==================================
