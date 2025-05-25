@@ -23,7 +23,7 @@
  * - wb:deleteElements
  */
 
-function initializeSharedWhiteboard(config) {
+function initializeSharedWhiteboard(canvasId, socket, currentRoomId, currentUserId, isHost) {
   const {
     canvasElement,
     toolbarElements, // { colorPicker, lineWidthRange, lineWidthValueDisplay, eraserBtn, clearBtn, panToolBtn, zoomInBtn, zoomOutBtn, resetViewBtn, toggleGridBtn, shapeToolToggleBtn, shapeOptionsContainer, rectShapeBtn, circleShapeBtn, lineShapeBtn, selectToolToggleBtn, snipOptionsContainer, rectangularSnipBtn, freedomSnipBtn, deleteSelectedBtn, coordsDisplayElement (optional) }
