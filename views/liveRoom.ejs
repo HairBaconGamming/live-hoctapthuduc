@@ -265,13 +265,12 @@
             roomId: "<%= roomId %>",
             username: "<%= username %>",
             roomOwnerUsername: "<%= roomOwner %>", // Make sure this is passed from server
-            isHost: <%= isHost %>,
             peerConfig: JSON.parse('<%- JSON.stringify(peerConfig) %>'),
             glitchProjectUrl: "<%= glitchProjectUrl %>",
-            userIsPro: <%= user ? user.isPro : false %>,
-            // Whiteboard specific initial states for the current user
-            initialWhiteboardGloballyVisible: <%= initialWhiteboardGlobalState %>, // Server should provide this
-            initialViewerCanDraw: <%= initialViewerDrawPermission %>, // Server should provide this
+            userIsPro: <%= userIsPro %>,
+            initialWhiteboardGloballyVisible: <%= initialWhiteboardGlobalState %>,
+            initialViewerCanDraw: <%= initialViewerDrawPermission %>,
+            isHost: <%= isHost %>,
         };
     </script>
     <script src="/js/alerts.js"></script>

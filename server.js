@@ -369,7 +369,7 @@ app.get("/room/:id", checkHoctapAuth, async (req, res) => { // Make it async if 
       isHost: isCurrentUserHost, // CRUCIAL: This defines if the current user is the host
       peerConfig: room.peerConfig, // Use the config from the room object
       glitchProjectUrl: room.glitchProjectUrl,
-      // userIsPro: userMakingRequest.isPro || false, // Pass this if needed by EJS
+      userIsPro: userMakingRequest.isPro || false, // Pass this if needed by EJS
 
       // --- FIX: Define and Pass these variables ---
       initialWhiteboardGlobalState: initialWhiteboardVisibleState,

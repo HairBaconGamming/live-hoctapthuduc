@@ -1314,34 +1314,38 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     });
     elements.chatInputArea?.addEventListener("input", function () {
-      this.style.height = "auto";
-      this.style.height = this.scrollHeight + "px";
-      const rawText = this.value || "";
-      if (
-        elements.chatPreview &&
-        typeof marked !== "undefined" &&
-        typeof katex !== "undefined" &&
-        typeof renderMathInElement !== "undefined"
-      ) {
-        try {
-          let html = marked.parse(rawText);
-          const tempDiv = document.createElement("div");
-          tempDiv.innerHTML = html;
-          renderMathInElement(tempDiv, {
-            delimiters: [
-              { left: "$$", right: "$$", display: true },
-              { left: "$", right: "$", display: false },
-              { left: "\\(", right: "\\)", display: false },
-              { left: "\\[", right: "\\]", display: true },
-            ],
-            throwOnError: false,
-          });
-          elements.chatPreview.innerHTML = tempDiv.innerHTML;
-        } catch (e) {
-          elements.chatPreview.textContent = "Lỗi preview markdown/KaTeX";
-        }
+  this.style.height = "auto"; // Auto-resize textarea
+  this.style.height = this.scrollHeight + "px";
+  const rawText = this.value || "";
+
+  if (elements.chatPreview && typeof marked !== 'undefined' && typeof katex !== 'undefined' && typeof renderMathInElement !== 'undefined') {
+    try {
+      let html = marked.parse(rawText);
+      const tempDiv = document.createElement("div");
+      tempDiv.innerHTML = html;
+      renderMathInElement(tempDiv, {
+        delimiters: [ /* your KaTeX delimiters */ ],
+        throwOnError: false
+      });
+      elements.chatPreview.innerHTML = tempDiv.innerHTML;
+
+      // --- FIX: Ensure preview is visible when there's text ---
+      if (rawText.trim() !== "") {
+          elements.chatPreview.style.display = 'block'; // Or your preferred display style
+          elements.chatPreview.style.opacity = '1'; // If using opacity for hide/show
+      } else {
+          elements.chatPreview.style.display = 'none';
+          elements.chatPreview.style.opacity = '0';
       }
-    });
+      // --- END FIX ---
+
+    } catch (e) {
+      elements.chatPreview.textContent = "Lỗi preview markdown/KaTeX";
+      elements.chatPreview.style.display = 'block'; // Show error
+      elements.chatPreview.style.color = 'var(--danger-color)'; // Make error visible
+    }
+  }
+});
     elements.playButton?.addEventListener("click", (e) => {
       e.stopPropagation();
       elements.liveVideo
