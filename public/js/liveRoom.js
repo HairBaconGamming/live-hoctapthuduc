@@ -152,7 +152,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let selectedAnswerIndexViewer = null;
   let quizOverlayVisible = false;
 
-  let isQuizLocallyVisible = false; // Viewer's preference to see the quiz
+  let isQuizLocallyVisible = true; // Viewer's preference to see the quiz
   let isQuizGloballyVisible = false; // Streamer's setting for the current quiz question
   let currentGlobalQuizQuestionId = null; // Tracks the QID that is globally visible
 
