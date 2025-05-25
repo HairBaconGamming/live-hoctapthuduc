@@ -48,6 +48,10 @@ document.addEventListener("DOMContentLoaded", () => {
     pinnedCommentContainer: document.getElementById("pinnedCommentLive"),
     liveVideo: document.getElementById("liveVideoFeed"),
     placeholder: document.getElementById("streamPlaceholder"),
+    placeholderMessage: document.getElementById("streamPlaceholderMessage"), // NEW
+    placeholderSubMessage: document.getElementById(
+      "streamPlaceholderSubMessage"
+    ), // NEW
     waitingOverlay: document.getElementById("waitingOverlayLive"),
     endedOverlay: document.getElementById("roomEndedOverlayLive"),
     playOverlay: document.getElementById("playOverlayLive"),
@@ -315,6 +319,45 @@ document.addEventListener("DOMContentLoaded", () => {
       });
   }
 
+  // NEW Helper function to update the placeholder text
+  function updateStreamPlaceholder(message, subMessage) {
+    if (elements.placeholderMessage) {
+      elements.placeholderMessage.textContent = message;
+    }
+    if (elements.placeholderSubMessage) {
+      elements.placeholderSubMessage.textContent = subMessage || ""; // Ensure subMessage is optional
+    }
+  }
+
+  function handleStreamStart() {
+    console.log("Handling stream start UI");
+    if (elements.placeholder) elements.placeholder.classList.remove("active"); // Hide placeholder
+    if (elements.liveIndicator) elements.liveIndicator.classList.add("active");
+    hideOverlay(elements.waitingOverlay);
+    hideOverlay(elements.playOverlay);
+  }
+
+  function handleStreamEnd(customMessage, customSubMessage) {
+    console.log("Handling stream end UI");
+    if (elements.liveVideo && elements.liveVideo.srcObject) {
+      elements.liveVideo.srcObject.getTracks().forEach((track) => track.stop());
+      elements.liveVideo.srcObject = null;
+    }
+
+    // Update placeholder text based on context
+    const defaultMessage = "Stream đã kết thúc hoặc bị gián đoạn.";
+    const defaultSubMessage = "Vui lòng chờ hoặc thử làm mới trang.";
+    updateStreamPlaceholder(
+      customMessage || defaultMessage,
+      customSubMessage || defaultSubMessage
+    );
+
+    if (elements.placeholder) elements.placeholder.classList.add("active"); // Show placeholder
+    if (elements.liveIndicator)
+      elements.liveIndicator.classList.remove("active");
+    // Don't show playOverlay automatically here, let specific events trigger it if needed
+  }
+
   // ==================================
   // SOCKET.IO
   // ==================================
@@ -383,6 +426,13 @@ document.addEventListener("DOMContentLoaded", () => {
     });
     socket.on("hostJoined", () => {
       hideOverlay(elements.waitingOverlay);
+      if (elements.liveVideo && !elements.liveVideo.srcObject) {
+        updateStreamPlaceholder(
+          "Chờ chủ phòng chia sẻ màn hình...",
+          "Buổi live sẽ sớm bắt đầu."
+        );
+        if (elements.placeholder) elements.placeholder.classList.add("active"); // Ensure placeholder is shown
+      }
       if (
         !LIVE_ROOM_CONFIG.isHost &&
         sharedWhiteboardInstance &&
@@ -403,6 +453,11 @@ document.addEventListener("DOMContentLoaded", () => {
         showOverlay(elements.waitingOverlay);
         elements.waitingOverlay.querySelector("h2").textContent =
           "Host đã rời đi. Đang chờ kết nối lại...";
+        updateStreamPlaceholder(
+          "Buổi live có thể đã kết thúc.",
+          "Chủ phòng đã rời đi."
+        );
+        if (elements.placeholder) elements.placeholder.classList.add("active");
       }
     });
     socket.on("roomEnded", () => {
@@ -447,6 +502,36 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!state.isHostPresent) showOverlay(elements.waitingOverlay);
         else hideOverlay(elements.waitingOverlay);
       }
+      if (state.isHostPresent) {
+        hideOverlay(elements.waitingOverlay);
+        // Host is present, check if stream is active (srcObject on video element)
+        if (elements.liveVideo && !elements.liveVideo.srcObject) {
+          updateStreamPlaceholder(
+            "Chờ chủ phòng chia sẻ màn hình...",
+            "Buổi live sẽ sớm bắt đầu."
+          );
+          if (elements.placeholder)
+            elements.placeholder.classList.add("active");
+        } else if (elements.liveVideo && elements.liveVideo.srcObject) {
+          // Stream already active when viewer joined
+          handleStreamStart(); // This should hide the placeholder
+        }
+      } else {
+        // Host is not present at all
+        showOverlay(elements.waitingOverlay); // This overlay says "Đang chờ Streamer..."
+        updateStreamPlaceholder(
+          "Stream đang chờ hoặc đã kết thúc.",
+          "Vui lòng chờ đợi hoặc thử lại sau."
+        ); // Reset placeholder to default
+        if (elements.placeholder) elements.placeholder.classList.add("active"); // Default placeholder active
+      }
+    });
+    socket.on("streamEnded", () => {
+      // This is when streamer explicitly stops screen share
+      handleStreamEnd(
+        "Chủ phòng đã dừng chia sẻ màn hình.",
+        "Có thể sẽ sớm chia sẻ lại hoặc kết thúc buổi live."
+      );
     });
     socket.on("wb:toggleVisibility", ({ isVisible }) => {
       console.log(
@@ -507,15 +592,18 @@ document.addEventListener("DOMContentLoaded", () => {
       console.log(
         `VIEWER: Received quiz:visibilityChanged - isVisible: ${isVisible}, QID: ${questionId}`
       );
-      isQuizGloballyVisible = isVisible;
-      currentGlobalQuizQuestionId = questionId; // Store the QID that this visibility state applies to
+      const oldGlobalQuizQuestionId = currentGlobalQuizQuestionId;
+      isQuizGloballyVisible = isVisible; // This is the primary source for global state
+      currentGlobalQuizQuestionId = questionId;
 
       if (elements.toggleViewerQuizOverlayBtn) {
-        elements.toggleViewerQuizOverlayBtn.disabled = !isVisible;
+        // Button is enabled only if quiz is globally visible
+        elements.toggleViewerQuizOverlayBtn.disabled = !isQuizGloballyVisible;
         const btnTextEl =
           elements.toggleViewerQuizOverlayBtn.querySelector(".btn-text");
+
         if (btnTextEl) {
-          if (isVisible) {
+          if (isQuizGloballyVisible) {
             btnTextEl.textContent = isQuizLocallyVisible
               ? "Ẩn Trắc Nghiệm"
               : "Hiện Trắc Nghiệm";
@@ -523,53 +611,54 @@ document.addEventListener("DOMContentLoaded", () => {
               ? "Ẩn trắc nghiệm"
               : "Hiện trắc nghiệm (Chủ phòng đang bật)";
           } else {
+            // If globally not visible (could be temporarily hidden by host, or quiz ended)
             btnTextEl.textContent = "Trắc Nghiệm";
-            elements.toggleViewerQuizOverlayBtn.title =
-              "Trắc nghiệm (Chủ phòng đang tắt)";
+            // Title will be updated by quiz:ended if that's the cause
+            if (currentGlobalQuizQuestionId === null) {
+              // If QID is null, likely ended
+              elements.toggleViewerQuizOverlayBtn.title =
+                "Phiên trắc nghiệm đã kết thúc";
+            } else {
+              elements.toggleViewerQuizOverlayBtn.title =
+                "Trắc nghiệm (Chủ phòng đang tắt)";
+            }
           }
         }
         elements.toggleViewerQuizOverlayBtn.classList.toggle(
           "active",
-          isQuizLocallyVisible && isVisible
+          isQuizLocallyVisible && isQuizGloballyVisible
         );
       }
 
-      if (isVisible) {
-        // Streamer wants quiz shown. If viewer also wants it shown, display it.
-        // The quiz:newQuestion event (or initial state) should provide the actual content.
-        // If this client already has the question data for `currentGlobalQuizQuestionId`, display it.
-        if (
-          isQuizLocallyVisible &&
-          currentQuizIdViewer === currentGlobalQuizQuestionId && elements.quizQuestionViewerText.textContent
-        ) {
-          if (elements.viewerQuizOverlay)
-            elements.viewerQuizOverlay.style.display = "block";
-          quizOverlayVisible = true;
-          // Optional: Animation if it wasn't visible before
-        } else if (
-          isQuizLocallyVisible &&
-          currentQuizIdViewer !== currentGlobalQuizQuestionId
-        ) {
-          // Globally visible, locally should be shown, but we don't have the right question yet.
-          // This might happen if viewer joined mid-quiz or a new question was pushed while they had it hidden.
-          // The server should re-send quiz:newQuestion if isVisible is true.
-          // For now, we just enable the button and wait for newQuestion.
-          console.log(
-            "Quiz globally visible, viewer wants to see it, waiting for newQuestion event for QID:",
-            currentGlobalQuizQuestionId
-          );
+      if (isQuizGloballyVisible) {
+        if (isQuizLocallyVisible) {
+          if (
+            currentQuizIdViewer === currentGlobalQuizQuestionId &&
+            elements.quizQuestionViewerText.textContent
+          ) {
+            if (
+              elements.viewerQuizOverlay &&
+              elements.viewerQuizOverlay.style.display !== "block"
+            ) {
+              elements.viewerQuizOverlay.style.display = "block";
+              quizOverlayVisible = true; // DOM element is visible
+              if (!prefersReducedMotion && typeof gsap !== "undefined")
+                gsap.fromTo(
+                  elements.viewerQuizOverlay,
+                  { autoAlpha: 0, y: 20 },
+                  { autoAlpha: 1, y: 0, duration: 0.3, ease: "power1.out" }
+                );
+            }
+          } else {
+            if (socket && currentGlobalQuizQuestionId) {
+              socket.emit("quiz:requestCurrentQuestion", {
+                roomId: LIVE_ROOM_CONFIG.roomId,
+              });
+            }
+          }
         }
       } else {
-        // Streamer hid the quiz globally. Force hide for viewer.
-        clearQuizOverlayViewer(true); // Pass true to force hide without animation if desired
-        isQuizLocallyVisible = false; // Update local state
-        if (elements.toggleViewerQuizOverlayBtn) {
-          // Update button again
-          const btnTextEl =
-            elements.toggleViewerQuizOverlayBtn.querySelector(".btn-text");
-          if (btnTextEl) btnTextEl.textContent = "Trắc Nghiệm";
-          elements.toggleViewerQuizOverlayBtn.classList.remove("active");
-        }
+        clearQuizOverlayViewer(true); // Force hide if globally turned off
       }
     });
     socket.on("quiz:answerSubmitted", ({ questionId, answerIndex }) => {
@@ -625,7 +714,26 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     socket.on("quiz:ended", () => {
-      clearQuizOverlayViewer(); // Now fully close and reset the quiz overlay
+      console.log("VIEWER: Received quiz:ended");
+      clearQuizOverlayViewer(true); // Force hide and clear content
+      isQuizLocallyVisible = false; // Reset local state
+      isQuizGloballyVisible = false; // Quiz is no longer globally active
+      currentGlobalQuizQuestionId = null; // No active global question
+
+      // --- FIX: Update and disable the header toggle button ---
+      if (elements.toggleViewerQuizOverlayBtn) {
+        elements.toggleViewerQuizOverlayBtn.disabled = true; // Disable the button
+        const btnTextEl =
+          elements.toggleViewerQuizOverlayBtn.querySelector(".btn-text");
+        if (btnTextEl) {
+          btnTextEl.textContent = "Trắc Nghiệm"; // Reset text
+        }
+        elements.toggleViewerQuizOverlayBtn.classList.remove("active"); // Remove active class
+        elements.toggleViewerQuizOverlayBtn.title =
+          "Phiên trắc nghiệm đã kết thúc"; // Update title
+      }
+      // --- END FIX ---
+
       if (typeof showAlert === "function")
         showAlert("Phiên trắc nghiệm đã kết thúc.", "info", 3000);
     });
@@ -1359,7 +1467,14 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!elements.viewerQuizOverlay) return;
 
     // If not forcing hide, only clear if it's locally and globally visible (or was intended to be)
-    console.log("forceHide:"+forceHide+", quizOverlayVisible:"+quizOverlayVisible+", isQuizGloballyVisible:"+isQuizGloballyVisible);
+    console.log(
+      "forceHide:" +
+        forceHide +
+        ", quizOverlayVisible:" +
+        quizOverlayVisible +
+        ", isQuizGloballyVisible:" +
+        isQuizGloballyVisible
+    );
     if (forceHide) {
       // It's already hidden or shouldn't be shown, just ensure state is clean
       gsap.to(elements.viewerQuizOverlay, {
@@ -1367,7 +1482,7 @@ document.addEventListener("DOMContentLoaded", () => {
         autoAlpha: 0,
         y: 50,
         ease: "power1.in",
-        onComplete: () => elements.viewerQuizOverlay.style.display = "none",
+        onComplete: () => (elements.viewerQuizOverlay.style.display = "none"),
       });
       quizOverlayVisible = false;
       return;
@@ -1903,7 +2018,8 @@ document.addEventListener("DOMContentLoaded", () => {
         // displayQuizQuestion should be called if a new question arrived or from initial state
         // If question data is already loaded for currentGlobalQuizQuestionId, show it.
         if (
-          currentQuizIdViewer === currentGlobalQuizQuestionId && elements.quizQuestionViewerText.textContent
+          currentQuizIdViewer === currentGlobalQuizQuestionId &&
+          elements.quizQuestionViewerText.textContent
         ) {
           if (elements.viewerQuizOverlay)
             elements.viewerQuizOverlay.style.display = "block";
@@ -1946,7 +2062,31 @@ document.addEventListener("DOMContentLoaded", () => {
         : "Hiện trắc nghiệm (Chủ phòng đang bật)";
     });
     elements.closeQuizOverlayBtn?.addEventListener("click", () => {
-      clearQuizOverlayViewer(true);
+      playButtonFeedback(elements.closeQuizOverlayBtn); // Optional feedback
+
+      // --- FIX STARTS HERE ---
+      clearQuizOverlayViewer(true); // false = local hide, preserve content IF quiz is still globally visible
+      // If quiz became globally invisible while overlay was open, content will be cleared.
+      isQuizLocallyVisible = false; // Explicitly set local visibility to false
+
+      // Update the main header toggle button to reflect this change
+      if (elements.toggleViewerQuizOverlayBtn) {
+        const btnTextEl =
+          elements.toggleViewerQuizOverlayBtn.querySelector(".btn-text");
+        if (btnTextEl) btnTextEl.textContent = "Hiện Trắc Nghiệm"; // Reset text
+        elements.toggleViewerQuizOverlayBtn.classList.remove("active"); // Deactivate
+
+        // Update title based on current global state
+        if (isQuizGloballyVisible) {
+          elements.toggleViewerQuizOverlayBtn.title =
+            "Hiện trắc nghiệm (Chủ phòng đang bật)";
+          elements.toggleViewerQuizOverlayBtn.disabled = false;
+        } else {
+          elements.toggleViewerQuizOverlayBtn.title =
+            "Trắc nghiệm (Chủ phòng đang tắt)";
+          elements.toggleViewerQuizOverlayBtn.disabled = true;
+        }
+      }
     });
   }
 
