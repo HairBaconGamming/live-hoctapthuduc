@@ -246,7 +246,7 @@ app.post("/api/createStream", (req, res) => {
     hostSocketId: null, // To track the current host's socket
     // peerJS server config for clients
     peerConfig: {
-      host: process.env.PROJECT_DOMAIN + ".glitch.me", // Glitch domain
+      host: "https://live-hoctap-9a3.glitch.me", // Glitch domain
       port: 443, // Glitch uses 443 for WSS
       path: "/peerjs/myapp", // Match ExpressPeerServer path
       secure: true,
@@ -266,7 +266,7 @@ app.post("/api/createStream", (req, res) => {
         ],
       },
     },
-    glitchProjectUrl: `https://${process.env.PROJECT_DOMAIN}.glitch.me`, // For redirects
+    glitchProjectUrl: `https://live-hoctap-9a3.glitch.me`, // For redirects
   };
   liveRooms.push(newRoom);
   console.log("✅ Room created:", {
