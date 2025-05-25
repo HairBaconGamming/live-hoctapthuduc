@@ -540,9 +540,7 @@ document.addEventListener("DOMContentLoaded", () => {
         // If this client already has the question data for `currentGlobalQuizQuestionId`, display it.
         if (
           isQuizLocallyVisible &&
-          currentQuizIdViewer === currentGlobalQuizQuestionId &&
-          elements.quizQuestionViewerText
-            .textContent /* check if question already loaded */
+          currentQuizIdViewer === currentGlobalQuizQuestionId
         ) {
           if (elements.viewerQuizOverlay)
             elements.viewerQuizOverlay.style.display = "block";
@@ -1361,6 +1359,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!elements.viewerQuizOverlay) return;
 
     // If not forcing hide, only clear if it's locally and globally visible (or was intended to be)
+    console.log("forceHide"+forceHide+", quizOverlayVisible"+quizOverlayVisible+",")
     if (!forceHide && (!quizOverlayVisible || !isQuizGloballyVisible)) {
       // It's already hidden or shouldn't be shown, just ensure state is clean
       elements.viewerQuizOverlay.style.display = "none";
@@ -1898,8 +1897,7 @@ document.addEventListener("DOMContentLoaded", () => {
         // displayQuizQuestion should be called if a new question arrived or from initial state
         // If question data is already loaded for currentGlobalQuizQuestionId, show it.
         if (
-          currentQuizIdViewer === currentGlobalQuizQuestionId &&
-          elements.quizQuestionViewerText.textContent
+          currentQuizIdViewer === currentGlobalQuizQuestionId
         ) {
           if (elements.viewerQuizOverlay)
             elements.viewerQuizOverlay.style.display = "block";
@@ -1913,6 +1911,8 @@ document.addEventListener("DOMContentLoaded", () => {
             );
         } else if (currentGlobalQuizQuestionId) {
           // We might need to re-request the question data if not already loaded
+          console.log(currentQuizIdViewer);
+          console.log(elements.quizQuestionViewerText.textContent);
           console.log(
             "Viewer wants to see quiz, but current question data might be stale or missing. QID:",
             currentGlobalQuizQuestionId
