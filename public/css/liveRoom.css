@@ -340,6 +340,28 @@ html, body.live-room-body {
 .wb-viewer-toggle-btn i {
     margin-right: 6px;
 }
+.wb-viewer-toggle-btn.active {
+    background-color: rgba(var(--primary-color-rgb, 120, 115, 245), 0.2);
+    border-color: var(--primary-color, #7873f5);
+    color: var(--primary-color-light, #a78bfa);
+    box-shadow: 0 0 8px rgba(var(--primary-color-rgb, 120, 115, 245), 0.2);
+}
+.wb-viewer-toggle-btn.active .fas {
+    color: var(--primary-color, #7873f5);
+    opacity: 1;
+}
+
+.quiz-viewer-toggle-btn.active {
+    background-color: rgba(var(--accent-color-rgb, 255, 221, 87), 0.2); /* Use accent color for quiz */
+    border-color: var(--accent-color, #ffdd57);
+    color: var(--accent-color, #ffdd57); /* Or a contrasting light color */
+    box-shadow: 0 0 8px rgba(var(--accent-color-rgb, 255, 221, 87), 0.2);
+}
+
+.quiz-viewer-toggle-btn.active .fas {
+    color: var(--accent-color, #ffdd57); /* Icon matches active state color */
+    opacity: 1;
+}
 
 /* --- WHITEBOARD OVERLAY & LAYOUT --- */
 #sharedWhiteboardOverlayViewer {
@@ -529,6 +551,43 @@ html, body.live-room-body {
     color: var(--primary-color-light, #a78bfa); /* Lighter text for selected state */
     font-weight: 600;
     box-shadow: 0 0 10px rgba(var(--primary-color-rgb, 120, 115, 245), 0.2); /* Subtle glow */
+}
+
+.header-stats .control-btn {
+    background-color: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: var(--text-medium, #a0a0c0);
+    padding: 8px 12px;
+    border-radius: var(--border-radius-small, 4px);
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+    white-space: nowrap; /* Prevent text wrapping */
+}
+
+.header-stats .control-btn:hover:not(:disabled) {
+    background-color: rgba(255, 255, 255, 0.12);
+    border-color: rgba(var(--primary-color-rgb, 120, 115, 245), 0.5);
+    color: var(--text-light, #e0e0e0);
+}
+
+.header-stats .control-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    background-color: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.1);
+}
+
+.header-stats .control-btn .fas { /* Icon inside the button */
+    font-size: 0.9em; /* Relative to button font size */
+    opacity: 0.8;
+}
+.header-stats .control-btn:hover:not(:disabled) .fas {
+    opacity: 1;
 }
 
 @media (max-width: 600px) {
