@@ -540,7 +540,7 @@ document.addEventListener("DOMContentLoaded", () => {
         // If this client already has the question data for `currentGlobalQuizQuestionId`, display it.
         if (
           isQuizLocallyVisible &&
-          currentQuizIdViewer === currentGlobalQuizQuestionId
+          currentQuizIdViewer === currentGlobalQuizQuestionId && elements.quizQuestionViewerText.textContent
         ) {
           if (elements.viewerQuizOverlay)
             elements.viewerQuizOverlay.style.display = "block";
@@ -1103,7 +1103,7 @@ document.addEventListener("DOMContentLoaded", () => {
       console.error("Quiz UI elements missing for displayQuizQuestion");
       return;
     }
-    if (!isQuizGloballyVisible || !isQuizLocallyVisible) {
+    if (!isQuizGloballyVisible) {
       console.log(
         `displayQuizQuestion for QID ${questionId} skipped. Global: ${isQuizGloballyVisible}, Local: ${isQuizLocallyVisible}`
       );
@@ -1359,10 +1359,16 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!elements.viewerQuizOverlay) return;
 
     // If not forcing hide, only clear if it's locally and globally visible (or was intended to be)
-    console.log("forceHide"+forceHide+", quizOverlayVisible"+quizOverlayVisible+",")
-    if (!forceHide && (!quizOverlayVisible || !isQuizGloballyVisible)) {
+    console.log("forceHide:"+forceHide+", quizOverlayVisible:"+quizOverlayVisible+", isQuizGloballyVisible:"+isQuizGloballyVisible);
+    if (forceHide) {
       // It's already hidden or shouldn't be shown, just ensure state is clean
-      elements.viewerQuizOverlay.style.display = "none";
+      gsap.to(elements.viewerQuizOverlay, {
+        duration: 0.4,
+        autoAlpha: 0,
+        y: 50,
+        ease: "power1.in",
+        onComplete: () => elements.viewerQuizOverlay.style.display = "none",
+      });
       quizOverlayVisible = false;
       return;
     }
@@ -1897,7 +1903,7 @@ document.addEventListener("DOMContentLoaded", () => {
         // displayQuizQuestion should be called if a new question arrived or from initial state
         // If question data is already loaded for currentGlobalQuizQuestionId, show it.
         if (
-          currentQuizIdViewer === currentGlobalQuizQuestionId
+          currentQuizIdViewer === currentGlobalQuizQuestionId && elements.quizQuestionViewerText.textContent
         ) {
           if (elements.viewerQuizOverlay)
             elements.viewerQuizOverlay.style.display = "block";
@@ -1940,7 +1946,7 @@ document.addEventListener("DOMContentLoaded", () => {
         : "Hiện trắc nghiệm (Chủ phòng đang bật)";
     });
     elements.closeQuizOverlayBtn?.addEventListener("click", () => {
-      clearQuizOverlayViewer();
+      clearQuizOverlayViewer(true);
     });
   }
 
