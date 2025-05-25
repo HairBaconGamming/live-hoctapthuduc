@@ -1,44 +1,44 @@
+// public/js/sharedWhiteboard.js
+
 /**
  * Shared Whiteboard Module
  * Manages whiteboard state, drawing, pan/zoom, tools, and socket communication.
  *
- * Events Emitted by this module (via provided socket instance):
- * - wb:draw (for lines and eraser strokes)
- * - wb:drawShape (for finalized shapes like rect, circle, line)
- * - wb:clear
- * - wb:moveElements
- * - wb:deleteElements
- * - wb:toggleGlobalVisibility (streamer only)
- * - wb:toggleViewerDrawPermission (streamer only)
- * - wb:requestInitialState (on init or when visibility is toggled on)
- *
- * Events Listened To by this module (via provided socket instance):
- * - wb:draw
- * - wb:drawShape
- * - wb:clear
- * - wb:initState
- * - wb:permissionUpdate (for viewers)
- * - wb:toggleVisibility (global visibility changes)
- * - wb:moveElements
- * - wb:deleteElements
+ * @param {object} config - Configuration object for the whiteboard.
+ * @param {HTMLCanvasElement} config.canvasElement - The HTML canvas element.
+ * @param {object} config.toolbarElements - Object containing DOM elements for toolbar controls.
+ * @param {object} config.socket - The Socket.IO client instance.
+ * @param {string} config.roomId - The ID of the current room.
+ * @param {string} config.username - The username of the current user.
+ * @param {boolean} config.isStreamer - True if the current user is the streamer/host.
+ * @param {boolean} config.initialCanDraw - Initial drawing permission (esp. for viewers).
+ * @param {boolean} config.initialIsGloballyVisible - Initial global visibility state (esp. for viewers).
+ * @param {function(string, string, number?): void} config.showNotificationCallback - Function to show notifications.
+ * @param {function(string, string?, string?, string?): Promise<boolean>} config.confirmActionCallback - Function for confirmation dialogs.
+ * @param {function(boolean, boolean?): void} config.onVisibilityChangeCallback - Callback when local or global visibility changes.
+ * @param {function(boolean): void} config.onPermissionChangeCallback - Callback when viewer's draw permission changes.
+ * @param {function(string): void} config.onToolChangeCallback - Callback when the active tool changes.
+ * @param {function(HTMLElement): void} config.playButtonFeedbackCallback - Callback for button press visual/audio feedback.
+ * @param {function(): string} config.getRoomOwnerUsername - Function to get the room owner's username.
+ * @returns {object|null} The public API of the whiteboard module or null if initialization fails.
  */
-
-function initializeSharedWhiteboard(canvasId, socket, currentRoomId, currentUserId, isHost) {
+function initializeSharedWhiteboard(config) {
   const {
     canvasElement,
-    toolbarElements, // { colorPicker, lineWidthRange, lineWidthValueDisplay, eraserBtn, clearBtn, panToolBtn, zoomInBtn, zoomOutBtn, resetViewBtn, toggleGridBtn, shapeToolToggleBtn, shapeOptionsContainer, rectShapeBtn, circleShapeBtn, lineShapeBtn, selectToolToggleBtn, snipOptionsContainer, rectangularSnipBtn, freedomSnipBtn, deleteSelectedBtn, coordsDisplayElement (optional) }
+    toolbarElements, // { colorPicker, lineWidthRange, lineWidthValueDisplay, eraserBtn, clearBtn, panToolBtn, zoomInBtn, zoomOutBtn, resetViewBtn, toggleGridBtn, shapeToolToggleBtn, shapeOptionsContainer, rectShapeBtn, circleShapeBtn, lineShapeBtn, selectToolToggleBtn, snipOptionsContainer, rectangularSnipBtn, freedomSnipBtn, deleteSelectedBtn, coordsDisplayElement, closeWhiteboardBtn, mainToolbar (streamer and viewer versions might be different elements) }
     socket,
     roomId,
     username,
-    isStreamer, // boolean
-    initialCanDraw, // boolean, relevant for viewer
-    showNotificationCallback, // (message, type, duration) -> typically window.showAlert
-    confirmActionCallback, // (message, confirmText, cancelText, iconClass) -> typically showArtisticConfirm or window.confirm
-    onVisibilityChangeCallback, // (isVisible: boolean) -> for parent to update its UI
-    onPermissionChangeCallback, // (canDraw: boolean) -> for viewer parent to update UI
-    onToolChangeCallback, // (activeTool: string) -> for parent if it needs to know
+    isStreamer,
+    initialCanDraw,
+    initialIsGloballyVisible,
+    showNotificationCallback,
+    confirmActionCallback,
+    onVisibilityChangeCallback,
+    onPermissionChangeCallback,
+    onToolChangeCallback,
     playButtonFeedbackCallback,
-    getRoomOwnerUsername, // () => string
+    getRoomOwnerUsername,
   } = config;
 
   if (!canvasElement || !socket) {
@@ -61,14 +61,14 @@ function initializeSharedWhiteboard(canvasId, socket, currentRoomId, currentUser
   // --- State ---
   let isActive = false; // Is the whiteboard overlay currently displayed and interactive for THIS client
   let isGloballyVisibleByStreamer = isStreamer
-    ? false
-    : initialIsGloballyVisible; // For viewer, what server says
-  let canDraw = initialCanDraw;
+    ? false // Streamer's whiteboard starts off for OTHERS by default. They turn it on.
+    : initialIsGloballyVisible; // For viewer, what server/initial config says
+  let canDraw = isStreamer ? true : initialCanDraw; // Streamer can always draw, viewer depends on initial permission
 
-  let drawingHistory = []; // {type: 'draw'/'shape'/'clear'/'delete'/'move', ...data}
+  let drawingHistory = [];
   let isDrawing = false;
-  let currentTool = "pen"; // 'pen', 'eraser', 'shape', 'select', 'pan'
-  let currentShapeMode = null; // 'rectangle', 'circle', 'line' (if currentTool is 'shape')
+  let currentTool = "pen";
+  let currentShapeMode = null;
   let isDrawingShape = false;
   let shapeStartX = 0,
     shapeStartY = 0;
@@ -79,14 +79,14 @@ function initializeSharedWhiteboard(canvasId, socket, currentRoomId, currentUser
     10
   );
   const ERASER_COLOR_INTERNAL =
-    canvasElement.style.backgroundColor || "#202333"; // Match canvas CSS bg for eraser effect
+    canvasElement.style.backgroundColor || "rgba(32,35,51,1)"; // Match canvas CSS bg for eraser
 
-  // Pan & Zoom State (World Coordinates)
-  const MAX_WORLD_WIDTH = 4096; // Virtual canvas size
-  const MAX_WORLD_HEIGHT = 4096;
+  // Pan & Zoom State
+  const MAX_WORLD_WIDTH = 8192; // Increased virtual canvas size
+  const MAX_WORLD_HEIGHT = 8192;
   const camera = {
-    x: MAX_WORLD_WIDTH / 4, // Initial pan X (world coord at top-left of viewport)
-    y: MAX_WORLD_HEIGHT / 4, // Initial pan Y
+    x: MAX_WORLD_WIDTH / 2 - canvasElement.width / 2 / 0.5, // Center initial view in a 0.5 scaled world
+    y: MAX_WORLD_HEIGHT / 2 - canvasElement.height / 2 / 0.5,
     scale: 0.5,
     isPanning: false,
     lastPanMouseX: 0,
@@ -94,28 +94,28 @@ function initializeSharedWhiteboard(canvasId, socket, currentRoomId, currentUser
     lastPinchDistance: 0,
     isPinching: false,
   };
-  const MIN_SCALE = 0.05;
+  const MIN_SCALE = 0.02;
   const MAX_SCALE = 10.0;
   let lastWorldX = 0,
-    lastWorldY = 0; // For drawing
+    lastWorldY = 0;
 
   // Grid State
   let showGrid = false;
   const GRID_SIZE_WORLD = 50;
 
   // Select & Snip Tool State
-  let currentSnipMode = null; // 'rectangular', 'freedom'
+  let currentSnipMode = null;
   let isSnipping = false;
-  let snipPath = []; // For freedom snip: array of {x,y} in world coords
-  let snipRect = null; // For rectangular snip: {startX, startY, currentX, currentY} in world coords
+  let snipPath = [];
+  let snipRect = null;
   let selectedElementIndices = [];
   let isDraggingSelection = false;
   let selectionDragStartX = 0,
     selectionDragStartY = 0;
-  let selectionBoundingBox = null; // {minX, minY, maxX, maxY} of selected elements in world coords
+  let selectionBoundingBox = null;
 
   let eventThrottleTimer = null;
-  const THROTTLE_INTERVAL = 16; // ms
+  const THROTTLE_INTERVAL = 16; // ms (approx 60fps)
 
   // --- Helper Functions ---
   function worldToScreen(worldX, worldY) {
@@ -140,10 +140,9 @@ function initializeSharedWhiteboard(canvasId, socket, currentRoomId, currentUser
       clientX = evt.clientX;
       clientY = evt.clientY;
     }
-    // Screen coordinates relative to the canvas element
     const screenX = clientX - rect.left;
     const screenY = clientY - rect.top;
-    return screenToWorld(screenX, screenY); // Return world coordinates
+    return screenToWorld(screenX, screenY);
   }
 
   function updateCoordsDisplay(worldX, worldY, clientX, clientY) {
@@ -161,7 +160,6 @@ function initializeSharedWhiteboard(canvasId, socket, currentRoomId, currentUser
       toolbarElements.coordsDisplayElement.style.display = "block";
     }
   }
-
   function hideCoordsDisplay() {
     if (toolbarElements.coordsDisplayElement) {
       toolbarElements.coordsDisplayElement.style.display = "none";
@@ -173,29 +171,41 @@ function initializeSharedWhiteboard(canvasId, socket, currentRoomId, currentUser
     if (!showGrid) return;
     ctx.save();
     ctx.strokeStyle = "rgba(255, 255, 255, 0.08)";
-    ctx.lineWidth = 1 / camera.scale; // Keep grid lines thin
+    const scaledGridSize = GRID_SIZE_WORLD * camera.scale;
+    // Only draw grid if scaled size is reasonable to avoid performance issues
+    if (scaledGridSize < 5) {
+      ctx.restore();
+      return;
+    }
+    ctx.lineWidth = 1; // Always 1px in screen space for fine grid lines
 
-    const worldViewLeft = camera.x;
-    const worldViewTop = camera.y;
-    const worldViewRight = camera.x + canvasElement.width / camera.scale;
-    const worldViewBottom = camera.y + canvasElement.height / camera.scale;
+    const screenViewLeft = 0;
+    const screenViewTop = 0;
+    const screenViewRight = canvasElement.width;
+    const screenViewBottom = canvasElement.height;
 
-    const startX =
-      Math.floor(worldViewLeft / GRID_SIZE_WORLD) * GRID_SIZE_WORLD;
-    const startY = Math.floor(worldViewTop / GRID_SIZE_WORLD) * GRID_SIZE_WORLD;
+    const worldOriginScreen = worldToScreen(0, 0);
 
     ctx.beginPath();
-    for (let x = startX; x < worldViewRight; x += GRID_SIZE_WORLD) {
-      if (x > -MAX_WORLD_WIDTH / 2 && x < MAX_WORLD_WIDTH / 2) {
-        // Optional: constrain grid to world bounds
-        ctx.moveTo(x, worldViewTop);
-        ctx.lineTo(x, worldViewBottom);
+    // Vertical lines
+    let currentScreenX = worldOriginScreen.x % scaledGridSize;
+    if (worldOriginScreen.x > 0) currentScreenX -= scaledGridSize; // Adjust if origin is off-screen
+
+    for (let x = currentScreenX; x < screenViewRight; x += scaledGridSize) {
+      if (x > screenViewLeft - scaledGridSize) {
+        // Draw lines slightly off-screen to avoid gaps when panning
+        ctx.moveTo(x, screenViewTop);
+        ctx.lineTo(x, screenViewBottom);
       }
     }
-    for (let y = startY; y < worldViewBottom; y += GRID_SIZE_WORLD) {
-      if (y > -MAX_WORLD_HEIGHT / 2 && y < MAX_WORLD_HEIGHT / 2) {
-        ctx.moveTo(worldViewLeft, y);
-        ctx.lineTo(worldViewRight, y);
+    // Horizontal lines
+    let currentScreenY = worldOriginScreen.y % scaledGridSize;
+    if (worldOriginScreen.y > 0) currentScreenY -= scaledGridSize;
+
+    for (let y = currentScreenY; y < screenViewBottom; y += scaledGridSize) {
+      if (y > screenViewTop - scaledGridSize) {
+        ctx.moveTo(screenViewLeft, y);
+        ctx.lineTo(screenViewRight, y);
       }
     }
     ctx.stroke();
@@ -206,26 +216,30 @@ function initializeSharedWhiteboard(canvasId, socket, currentRoomId, currentUser
     if (!isActive || !ctx) return;
 
     ctx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+
+    drawGrid(); // Draw grid first, in screen space
+
     ctx.save();
     ctx.scale(camera.scale, camera.scale);
     ctx.translate(-camera.x, -camera.y);
-
-    drawGrid();
 
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
 
     drawingHistory.forEach((item, index) => {
       const isSelected = selectedElementIndices.includes(index);
-      ctx.save(); // Save context state for each item
+      ctx.save();
       if (item.isEraser) {
-        ctx.globalCompositeOperation = "destination-out";
-        // Use the canvas background color for "erasing" if destination-out is not enough or for visual consistency
-        // This requires knowing the actual background color used by the canvas CSS
-        // For this example, we assume destination-out is sufficient.
-        // If not, you'd do: ctx.strokeStyle = ERASER_COLOR_INTERNAL;
+        // For eraser, we need to "punch out" content.
+        // This requires drawing on an offscreen canvas and then compositing.
+        // Or, if the background is solid, drawing with the background color.
+        // Simplest for now: draw with ERASER_COLOR_INTERNAL with source-over.
+        // More robust: destination-out, but requires careful handling of alpha.
+        ctx.strokeStyle = ERASER_COLOR_INTERNAL; // This will draw the background color
+        ctx.globalCompositeOperation = "source-over"; // Ensure it draws over existing content
       } else {
         ctx.strokeStyle = isSelected ? "rgba(0, 150, 255, 0.9)" : item.color;
+        ctx.globalCompositeOperation = "source-over";
       }
       ctx.lineWidth =
         (item.isEraser ? item.lineWidth + 10 : item.lineWidth) +
@@ -257,11 +271,9 @@ function initializeSharedWhiteboard(canvasId, socket, currentRoomId, currentUser
         }
         ctx.stroke();
       }
-      // Handle other types like 'clear', 'image' if added to history
-      ctx.restore(); // Restore to default composite operation and styles
+      ctx.restore();
     });
 
-    // Draw selection bounding box
     if (selectedElementIndices.length > 0 && selectionBoundingBox) {
       ctx.strokeStyle = "rgba(0, 150, 255, 0.9)";
       ctx.lineWidth = 1.5 / camera.scale;
@@ -274,7 +286,7 @@ function initializeSharedWhiteboard(canvasId, socket, currentRoomId, currentUser
       );
       ctx.setLineDash([]);
     }
-    ctx.restore(); // Restore from initial save
+    ctx.restore();
   }
 
   function drawSegment(
@@ -283,11 +295,10 @@ function initializeSharedWhiteboard(canvasId, socket, currentRoomId, currentUser
     worldX1,
     worldY1,
     color,
-    lineWidth,
+    lineWidthVal,
     isEraserStroke
   ) {
     if (!isActive || !ctx) return;
-
     ctx.save();
     ctx.scale(camera.scale, camera.scale);
     ctx.translate(-camera.x, -camera.y);
@@ -296,14 +307,12 @@ function initializeSharedWhiteboard(canvasId, socket, currentRoomId, currentUser
     ctx.moveTo(worldX0, worldY0);
     ctx.lineTo(worldX1, worldY1);
     ctx.strokeStyle = isEraserStroke ? ERASER_COLOR_INTERNAL : color;
-    ctx.lineWidth = isEraserStroke ? lineWidth + 10 : lineWidth;
-    ctx.globalCompositeOperation = isEraserStroke
-      ? "destination-out"
-      : "source-over";
+    ctx.lineWidth = isEraserStroke ? lineWidthVal + 10 : lineWidthVal;
+    // For eraser, we draw with the background color directly
+    ctx.globalCompositeOperation = "source-over"; // Always draw over for this method
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
     ctx.stroke();
-
     ctx.restore();
   }
 
@@ -331,7 +340,6 @@ function initializeSharedWhiteboard(canvasId, socket, currentRoomId, currentUser
     drawingHistory.push(drawData);
     if (drawingHistory.length > 500)
       drawingHistory.splice(0, drawingHistory.length - 500);
-
     socket.emit("wb:draw", { roomId, drawData });
   }
 
@@ -345,35 +353,34 @@ function initializeSharedWhiteboard(canvasId, socket, currentRoomId, currentUser
     lineWidthVal
   ) {
     const shapeData = {
-      type: "shape", // Distinguish from simple draw lines in history
-      shapeType: shapeType,
+      type: "shape",
+      shapeType,
       startX: wStartX,
       startY: wStartY,
       endX: wEndX,
       endY: wEndY,
       color: colorVal,
       lineWidth: lineWidthVal,
-      isEraser: false, // Shapes are not erasers
+      isEraser: false,
       timestamp: Date.now(),
       drawnBy: username,
     };
     drawingHistory.push(shapeData);
     if (drawingHistory.length > 500)
       drawingHistory.splice(0, drawingHistory.length - 500);
-
     socket.emit("wb:drawShape", { roomId, shapeData });
-    redrawFullCanvas(); // Redraw to show the finalized shape from history
+    redrawFullCanvas();
   }
 
   // --- Tool Activation & UI Updates ---
   function setActiveTool(toolName, shapeSubMode = null) {
     const previousTool = currentTool;
+    const previousShapeMode = currentShapeMode;
     currentTool = toolName;
     currentShapeMode = toolName === "shape" ? shapeSubMode : null;
     currentSnipMode =
-      toolName === "select" ? currentSnipMode || "rectangular" : null; // Keep current snip mode or default
+      toolName === "select" ? currentSnipMode || "rectangular" : null;
 
-    // Deactivate all tool buttons visually
     const allToolButtons = [
       toolbarElements.eraserBtn,
       toolbarElements.panToolBtn,
@@ -387,9 +394,8 @@ function initializeSharedWhiteboard(canvasId, socket, currentRoomId, currentUser
     ];
     allToolButtons.forEach((btn) => btn?.classList.remove("active"));
 
-    // Activate the current tool button
     if (toolName === "pen") {
-      /* No specific button for pen, it's the default */
+      /* Default */
     } else if (toolName === "eraser" && toolbarElements.eraserBtn)
       toolbarElements.eraserBtn.classList.add("active");
     else if (toolName === "pan" && toolbarElements.panToolBtn)
@@ -415,25 +421,27 @@ function initializeSharedWhiteboard(canvasId, socket, currentRoomId, currentUser
         toolbarElements.freedomSnipBtn.classList.add("active");
     }
 
-    // Update cursor
-    if (toolName === "pan") canvasElement.style.cursor = "grab";
-    else if (toolName === "eraser") canvasElement.style.cursor = "cell";
-    else canvasElement.style.cursor = "crosshair"; // pen, shape, select
+    canvasElement.style.cursor =
+      toolName === "pan"
+        ? "grab"
+        : toolName === "eraser"
+        ? "cell"
+        : "crosshair";
 
-    updateToolbarForCurrentTool(); // Update visibility of sub-tool containers
+    updateToolbarForCurrentTool();
 
     if (toolName !== "select") {
       selectedElementIndices = [];
       selectionBoundingBox = null;
       if (isStreamer && toolbarElements.deleteSelectedBtn)
         toolbarElements.deleteSelectedBtn.style.display = "none";
-      if (isActive) redrawFullCanvas(); // Clear selection visuals only if active
+      if (isActive) redrawFullCanvas();
     }
 
     if (
       showNotificationCallback &&
-      previousTool !== currentTool &&
-      (previousTool !== "shape" || currentShapeMode !== shapeSubMode)
+      (previousTool !== currentTool ||
+        (currentTool === "shape" && previousShapeMode !== currentShapeMode))
     ) {
       let toolFriendlyName = "Bút vẽ";
       if (currentTool === "eraser") toolFriendlyName = "Tẩy";
@@ -445,12 +453,37 @@ function initializeSharedWhiteboard(canvasId, socket, currentRoomId, currentUser
           toolFriendlyName = "Vẽ Hình tròn";
         else if (currentShapeMode === "line")
           toolFriendlyName = "Vẽ Đường thẳng";
-        else toolFriendlyName = "Công cụ Hình dạng"; // When only main shape toggle is hit
+        else toolFriendlyName = "Công cụ Hình dạng";
       } else if (currentTool === "select")
         toolFriendlyName = "Công cụ Chọn/Cắt";
       showNotificationCallback(`Chế độ: ${toolFriendlyName}`, "info", 1500);
     }
     if (onToolChangeCallback) onToolChangeCallback(currentTool);
+  }
+
+  function updateToolbarForCurrentTool() {
+    if (isStreamer) {
+      if (toolbarElements.shapeOptionsContainer) {
+        toolbarElements.shapeOptionsContainer.style.display =
+          currentTool === "shape" &&
+          toolbarElements.shapeToolToggleBtn?.classList.contains("active")
+            ? "flex"
+            : "none";
+      }
+      if (toolbarElements.snipOptionsContainer) {
+        toolbarElements.snipOptionsContainer.style.display =
+          currentTool === "select" &&
+          toolbarElements.selectToolToggleBtn?.classList.contains("active")
+            ? "flex"
+            : "none";
+      }
+      if (toolbarElements.deleteSelectedBtn) {
+        toolbarElements.deleteSelectedBtn.style.display =
+          currentTool === "select" && selectedElementIndices.length > 0
+            ? "inline-flex"
+            : "none";
+      }
+    }
   }
 
   // --- Event Handlers (Mouse, Touch, Wheel) ---
@@ -461,7 +494,7 @@ function initializeSharedWhiteboard(canvasId, socket, currentRoomId, currentUser
     lastWorldX = worldPos.x;
     lastWorldY = worldPos.y;
 
-    if (currentTool === "pan" || event.button === 1 /* Middle mouse */) {
+    if (currentTool === "pan" || event.button === 1) {
       camera.isPanning = true;
       camera.lastPanMouseX = event.clientX;
       camera.lastPanMouseY = event.clientY;
@@ -473,7 +506,6 @@ function initializeSharedWhiteboard(canvasId, socket, currentRoomId, currentUser
           currentTool === "eraser" ? ERASER_COLOR_INTERNAL : currentColor;
         const effectiveLineWidth =
           currentTool === "eraser" ? currentLineWidth + 10 : currentLineWidth;
-        // Draw a dot for the start
         drawSegment(
           lastWorldX - 0.01 / camera.scale,
           lastWorldY - 0.01 / camera.scale,
@@ -488,7 +520,7 @@ function initializeSharedWhiteboard(canvasId, socket, currentRoomId, currentUser
           lastWorldY - 0.01 / camera.scale,
           lastWorldX,
           lastWorldY,
-          currentColor, // Always emit original color for pen
+          currentColor,
           currentLineWidth,
           currentTool === "eraser"
         );
@@ -498,26 +530,16 @@ function initializeSharedWhiteboard(canvasId, socket, currentRoomId, currentUser
         shapeStartY = lastWorldY;
       } else if (currentTool === "select" && currentSnipMode) {
         isSnipping = true;
-        snipPath = []; // Reset for freedom snip
+        snipPath = [];
         snipRect = {
           startX: lastWorldX,
           startY: lastWorldY,
           currentX: lastWorldX,
           currentY: lastWorldY,
         };
-        if (currentSnipMode === "freedom") {
+        if (currentSnipMode === "freedom")
           snipPath.push({ x: lastWorldX, y: lastWorldY });
-        }
-        // Clear previous selection when starting a new one, unless dragging
-        if (!isDraggingSelection) {
-          selectedElementIndices = [];
-          selectionBoundingBox = null;
-          if (toolbarElements.deleteSelectedBtn)
-            toolbarElements.deleteSelectedBtn.style.display = "none";
-          redrawFullCanvas();
-        }
 
-        // Check if clicking inside existing selection to start drag
         if (
           selectionBoundingBox &&
           lastWorldX >= selectionBoundingBox.minX &&
@@ -526,14 +548,12 @@ function initializeSharedWhiteboard(canvasId, socket, currentRoomId, currentUser
           lastWorldY <= selectionBoundingBox.maxY
         ) {
           isDraggingSelection = true;
-          isSnipping = false; // Not a new snip, it's a drag
+          isSnipping = false;
           selectionDragStartX = lastWorldX;
           selectionDragStartY = lastWorldY;
-          // Store original positions of selected elements
           selectedElementIndices.forEach((index) => {
             const item = drawingHistory[index];
             if (item) {
-              // Should always exist
               if (item.type === "draw") {
                 item.originalX0 = item.x0;
                 item.originalY0 = item.y0;
@@ -549,12 +569,11 @@ function initializeSharedWhiteboard(canvasId, socket, currentRoomId, currentUser
           });
           canvasElement.style.cursor = "move";
         } else {
-          // Start new snip
           selectedElementIndices = [];
           selectionBoundingBox = null;
           if (toolbarElements.deleteSelectedBtn)
             toolbarElements.deleteSelectedBtn.style.display = "none";
-          redrawFullCanvas(); // Redraw to clear previous selection highlights
+          redrawFullCanvas();
         }
       }
     }
@@ -597,495 +616,12 @@ function initializeSharedWhiteboard(canvasId, socket, currentRoomId, currentUser
           }
         }
       });
-      calculateSelectionBoundingBox(); // Update bounding box as elements move
-      redrawFullCanvas();
-    } else if (
-      isDrawing &&
-      (currentTool === "pen" || currentTool === "eraser") &&
-      canDraw
-    ) {
-      if (eventThrottleTimer) return;
-      eventThrottleTimer = setTimeout(() => {
-        const effectiveColor =
-          currentTool === "eraser" ? ERASER_COLOR_INTERNAL : currentColor;
-        const effectiveLineWidth =
-          currentTool === "eraser" ? currentLineWidth + 10 : currentLineWidth;
-        drawSegment(
-          lastWorldX,
-          lastWorldY,
-          worldPos.x,
-          worldPos.y,
-          effectiveColor,
-          effectiveLineWidth,
-          currentTool === "eraser"
-        );
-        addDrawToHistoryAndEmit(
-          lastWorldX,
-          lastWorldY,
-          worldPos.x,
-          worldPos.y,
-          currentColor,
-          currentLineWidth,
-          currentTool === "eraser"
-        );
-        lastWorldX = worldPos.x;
-        lastWorldY = worldPos.y;
-        eventThrottleTimer = null;
-      }, THROTTLE_INTERVAL);
-    } else if (
-      isDrawingShape &&
-      currentTool === "shape" &&
-      currentShapeMode &&
-      canDraw
-    ) {
-      redrawFullCanvas(); // Clear previous preview
-      // Draw temporary shape preview
-      ctx.save();
-      ctx.scale(camera.scale, camera.scale);
-      ctx.translate(-camera.x, -camera.y);
-      ctx.strokeStyle = currentColor;
-      ctx.lineWidth = currentLineWidth;
-      ctx.setLineDash([5 / camera.scale, 5 / camera.scale]);
-      ctx.beginPath();
-      if (currentShapeMode === "rectangle") {
-        ctx.rect(
-          shapeStartX,
-          shapeStartY,
-          worldPos.x - shapeStartX,
-          worldPos.y - shapeStartY
-        );
-      } else if (currentShapeMode === "circle") {
-        const radius = Math.sqrt(
-          Math.pow(worldPos.x - shapeStartX, 2) +
-            Math.pow(worldPos.y - shapeStartY, 2)
-        );
-        ctx.arc(shapeStartX, shapeStartY, radius, 0, 2 * Math.PI);
-      } else if (currentShapeMode === "line") {
-        ctx.moveTo(shapeStartX, shapeStartY);
-        ctx.lineTo(worldPos.x, worldPos.y);
-      }
-      ctx.stroke();
-      ctx.setLineDash([]);
-      ctx.restore();
-    } else if (
-      isSnipping &&
-      currentTool === "select" &&
-      currentSnipMode &&
-      canDraw
-    ) {
-      redrawFullCanvas(); // Clear previous snip preview
-      ctx.save();
-      ctx.scale(camera.scale, camera.scale);
-      ctx.translate(-camera.x, -camera.y);
-      ctx.strokeStyle = "rgba(0, 150, 255, 0.7)";
-      ctx.lineWidth = 1.5 / camera.scale;
-      ctx.setLineDash([6 / camera.scale, 3 / camera.scale]);
-      ctx.beginPath();
-      if (currentSnipMode === "rectangular" && snipRect) {
-        snipRect.currentX = worldPos.x;
-        snipRect.currentY = worldPos.y;
-        ctx.rect(
-          snipRect.startX,
-          snipRect.startY,
-          snipRect.currentX - snipRect.startX,
-          snipRect.currentY - snipRect.startY
-        );
-      } else if (currentSnipMode === "freedom") {
-        // For live preview of freedom snip, add current point and draw path
-        // This point is temporary for preview, only add to snipPath on mouseup if needed or keep adding here
-        if (snipPath.length > 0) {
-          ctx.moveTo(snipPath[0].x, snipPath[0].y);
-          for (let i = 1; i < snipPath.length; i++) {
-            ctx.lineTo(snipPath[i].x, snipPath[i].y);
-          }
-          ctx.lineTo(worldPos.x, worldPos.y); // Line to current mouse position
-        }
-      }
-      ctx.stroke();
-      ctx.setLineDash([]);
-      ctx.restore();
-    }
-  }
-
-  function handleMouseUp(event) {
-    if (!isActive) return;
-    const worldPos = getMousePos(event); // Get final world position
-
-    if (camera.isPanning) {
-      camera.isPanning = false;
-      canvasElement.style.cursor = currentTool === "pan" ? "grab" : "crosshair"; // Revert cursor
-    }
-
-    if (isDraggingSelection && canDraw) {
-      isDraggingSelection = false;
-      canvasElement.style.cursor = "crosshair"; // or specific select cursor
-
-      const movedItemsData = selectedElementIndices.map((index) => {
-        const item = drawingHistory[index];
-        // Ensure we have the latest data after drag
-        return {
-          index: index,
-          newItemData: {
-            ...item,
-            originalX0: undefined,
-            originalY0: undefined,
-            originalX1: undefined,
-            originalY1: undefined,
-            originalStartX: undefined,
-            originalStartY: undefined,
-            originalEndX: undefined,
-            originalEndY: undefined,
-          },
-        };
-      });
-
-      if (movedItemsData.length > 0) {
-        socket.emit("wb:moveElements", { roomId, movedItemsData });
-      }
-      // Clean up temporary original positions
-      selectedElementIndices.forEach((index) => {
-        const item = drawingHistory[index];
-        if (item) {
-          delete item.originalX0;
-          delete item.originalY0;
-          delete item.originalX1;
-          delete item.originalY1;
-          delete item.originalStartX;
-          delete item.originalStartY;
-          delete item.originalEndX;
-          delete item.originalEndY;
-        }
-      });
-      redrawFullCanvas(); // Final redraw
-    } else if (isDrawing) {
-      isDrawing = false;
-      clearTimeout(eventThrottleTimer);
-      eventThrottleTimer = null;
-    } else if (
-      isDrawingShape &&
-      currentTool === "shape" &&
-      currentShapeMode &&
-      canDraw
-    ) {
-      isDrawingShape = false;
-      finalizeAndEmitShape(
-        currentShapeMode,
-        shapeStartX,
-        shapeStartY,
-        worldPos.x,
-        worldPos.y,
-        currentColor,
-        currentLineWidth
-      );
-      // Optionally, revert to pen tool or keep shape tool active
-      // setActiveTool('pen'); // Example: revert to pen
-    } else if (
-      isSnipping &&
-      currentTool === "select" &&
-      currentSnipMode &&
-      canDraw
-    ) {
-      isSnipping = false;
-      if (currentSnipMode === "rectangular" && snipRect) {
-        selectElementsInRect(
-          snipRect.startX,
-          snipRect.startY,
-          worldPos.x, // Use final worldPos
-          worldPos.y
-        );
-      } else if (currentSnipMode === "freedom") {
-        snipPath.push({ x: worldPos.x, y: worldPos.y }); // Add final point
-        if (snipPath.length > 2) {
-          // Close the path for selection logic
-          snipPath.push({ x: snipPath[0].x, y: snipPath[0].y });
-          selectElementsInPath(snipPath);
-        }
-        snipPath = []; // Reset for next snip
-      }
-      snipRect = null;
-      redrawFullCanvas(); // Redraw to show selection highlights
-      if (toolbarElements.deleteSelectedBtn) {
-        toolbarElements.deleteSelectedBtn.style.display =
-          selectedElementIndices.length > 0 ? "inline-flex" : "none";
-      }
-    }
-  }
-
-  function handleMouseOut(event) {
-    if (isDrawing) {
-      isDrawing = false;
-      clearTimeout(eventThrottleTimer);
-      eventThrottleTimer = null;
-    }
-    if (isDrawingShape) {
-      // If mouse out during shape drawing, finalize with current position or cancel
-      // For simplicity, let's finalize. User can undo/delete if needed.
-      const worldPos = getMousePos(event);
-      finalizeAndEmitShape(
-        currentShapeMode,
-        shapeStartX,
-        shapeStartY,
-        worldPos.x,
-        worldPos.y,
-        currentColor,
-        currentLineWidth
-      );
-      isDrawingShape = false;
-    }
-    if (isSnipping) {
-      // Similar to shape drawing, finalize snip or clear
-      // For now, let's clear/reset the snip if mouse leaves during active snipping
-      isSnipping = false;
-      snipPath = [];
-      snipRect = null;
-      redrawFullCanvas(); // Remove preview
-    }
-    // Do not reset camera.isPanning on mouseout, as user might be holding button and moving outside then back in.
-    hideCoordsDisplay();
-  }
-
-  function handleWheelZoom(event) {
-    if (!isActive) return;
-    event.preventDefault();
-
-    const zoomFactor = 1.1;
-    const oldScale = camera.scale;
-    const mouseWorldPosBeforeZoom = getMousePos(event);
-
-    if (event.deltaY < 0) camera.scale *= zoomFactor;
-    else camera.scale /= zoomFactor;
-    camera.scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, camera.scale));
-
-    // Adjust camera.x, camera.y to keep the point under the mouse cursor fixed
-    camera.x =
-      mouseWorldPosBeforeZoom.x -
-      (mouseWorldPosBeforeZoom.x - camera.x) * (oldScale / camera.scale);
-    camera.y =
-      mouseWorldPosBeforeZoom.y -
-      (mouseWorldPosBeforeZoom.y - camera.y) * (oldScale / camera.scale);
-
-    redrawFullCanvas();
-  }
-
-  // Touch event cache
-  let activeTouches = [];
-  function cacheTouch(touch) {
-    const idx = activeTouches.findIndex(
-      (t) => t.identifier === touch.identifier
-    );
-    const newTouch = {
-      identifier: touch.identifier,
-      clientX: touch.clientX,
-      clientY: touch.clientY,
-    };
-    if (idx > -1) activeTouches[idx] = newTouch;
-    else activeTouches.push(newTouch);
-  }
-  function removeCachedTouch(touch) {
-    const idx = activeTouches.findIndex(
-      (t) => t.identifier === touch.identifier
-    );
-    if (idx > -1) activeTouches.splice(idx, 1);
-  }
-  function getPinchDistance() {
-    if (activeTouches.length < 2) return 0;
-    const t1 = activeTouches[0];
-    const t2 = activeTouches[1];
-    return Math.sqrt(
-      Math.pow(t2.clientX - t1.clientX, 2) +
-        Math.pow(t2.clientY - t1.clientY, 2)
-    );
-  }
-  function getPinchCenter() {
-    if (activeTouches.length < 2) return null;
-    const t1 = activeTouches[0];
-    const t2 = activeTouches[1];
-    return {
-      clientX: (t1.clientX + t2.clientX) / 2,
-      clientY: (t1.clientY + t2.clientY) / 2,
-    };
-  }
-
-  function handleTouchStart(event) {
-    if (!isActive) return;
-    event.preventDefault();
-    Array.from(event.changedTouches).forEach(cacheTouch);
-
-    if (activeTouches.length === 1) {
-      const touch = activeTouches[0];
-      const worldPos = getMousePos(touch);
-      lastWorldX = worldPos.x;
-      lastWorldY = worldPos.y;
-
-      if (currentTool === "pan") {
-        camera.isPanning = true;
-        camera.lastPanMouseX = touch.clientX;
-        camera.lastPanMouseY = touch.clientY;
-      } else if (canDraw) {
-        if (currentTool === "pen" || currentTool === "eraser") {
-          isDrawing = true;
-          const effectiveColor =
-            currentTool === "eraser" ? ERASER_COLOR_INTERNAL : currentColor;
-          const effectiveLineWidth =
-            currentTool === "eraser" ? currentLineWidth + 10 : currentLineWidth;
-          drawSegment(
-            lastWorldX - 0.01 / camera.scale,
-            lastWorldY - 0.01 / camera.scale,
-            lastWorldX,
-            lastWorldY,
-            effectiveColor,
-            effectiveLineWidth,
-            currentTool === "eraser"
-          );
-          addDrawToHistoryAndEmit(
-            lastWorldX - 0.01 / camera.scale,
-            lastWorldY - 0.01 / camera.scale,
-            lastWorldX,
-            lastWorldY,
-            currentColor,
-            currentLineWidth,
-            currentTool === "eraser"
-          );
-        } else if (currentTool === "shape" && currentShapeMode) {
-          isDrawingShape = true;
-          shapeStartX = lastWorldX;
-          shapeStartY = lastWorldY;
-        } else if (currentTool === "select" && currentSnipMode) {
-          // Similar logic to mousedown for select/snip with touch
-          isSnipping = true;
-          snipPath = [];
-          snipRect = {
-            startX: lastWorldX,
-            startY: lastWorldY,
-            currentX: lastWorldX,
-            currentY: lastWorldY,
-          };
-          if (currentSnipMode === "freedom")
-            snipPath.push({ x: lastWorldX, y: lastWorldY });
-
-          if (
-            selectionBoundingBox &&
-            lastWorldX >= selectionBoundingBox.minX &&
-            lastWorldX <= selectionBoundingBox.maxX &&
-            lastWorldY >= selectionBoundingBox.minY &&
-            lastWorldY <= selectionBoundingBox.maxY
-          ) {
-            isDraggingSelection = true;
-            isSnipping = false;
-            selectionDragStartX = lastWorldX;
-            selectionDragStartY = lastWorldY;
-            selectedElementIndices.forEach((index) => {
-              const item = drawingHistory[index];
-              if (item) {
-                if (item.type === "draw") {
-                  item.originalX0 = item.x0;
-                  item.originalY0 = item.y0;
-                  item.originalX1 = item.x1;
-                  item.originalY1 = item.y1;
-                } else if (item.type === "shape") {
-                  item.originalStartX = item.startX;
-                  item.originalStartY = item.startY;
-                  item.originalEndX = item.endX;
-                  item.originalEndY = item.endY;
-                }
-              }
-            });
-          } else {
-            selectedElementIndices = [];
-            selectionBoundingBox = null;
-            if (toolbarElements.deleteSelectedBtn)
-              toolbarElements.deleteSelectedBtn.style.display = "none";
-            redrawFullCanvas();
-          }
-        }
-      }
-    } else if (activeTouches.length >= 2) {
-      isDrawing = false; // Stop drawing if multiple touches
-      isDrawingShape = false;
-      isSnipping = false;
-      isDraggingSelection = false;
-      camera.isPanning = false; // Prefer pinch zoom over pan with 2 fingers
-      camera.isPinching = true;
-      camera.lastPinchDistance = getPinchDistance();
-    }
-  }
-
-  function handleTouchMove(event) {
-    if (!isActive) return;
-    event.preventDefault();
-    const oldTouchCacheForThisMove = [...activeTouches]; // Cache current state for this specific move event
-    Array.from(event.changedTouches).forEach(cacheTouch); // Update global activeTouches
-
-    if (activeTouches.length === 0) return;
-
-    const primaryTouch = activeTouches[0]; // Use the first active touch for general coordinates
-    const worldPos = getMousePos(primaryTouch);
-    updateCoordsDisplay(
-      worldPos.x,
-      worldPos.y,
-      primaryTouch.clientX,
-      primaryTouch.clientY
-    );
-
-    if (camera.isPinching && activeTouches.length >= 2) {
-      const newDist = getPinchDistance();
-      if (camera.lastPinchDistance > 0 && newDist > 0) {
-        const oldScale = camera.scale;
-        camera.scale *= newDist / camera.lastPinchDistance;
-        camera.scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, camera.scale));
-
-        const pinchCenterClient = getPinchCenter();
-        if (pinchCenterClient) {
-          const pinchCenterWorld = getMousePos(pinchCenterClient); // Convert client center to world
-          camera.x =
-            pinchCenterWorld.x -
-            (pinchCenterWorld.x - camera.x) * (oldScale / camera.scale);
-          camera.y =
-            pinchCenterWorld.y -
-            (pinchCenterWorld.y - camera.y) * (oldScale / camera.scale);
-        }
-      }
-      camera.lastPinchDistance = newDist;
-      redrawFullCanvas();
-    } else if (camera.isPanning && activeTouches.length === 1) {
-      const dx = primaryTouch.clientX - camera.lastPanMouseX;
-      const dy = primaryTouch.clientY - camera.lastPanMouseY;
-      camera.x -= dx / camera.scale;
-      camera.y -= dy / camera.scale;
-      camera.lastPanMouseX = primaryTouch.clientX;
-      camera.lastPanMouseY = primaryTouch.clientY;
-      redrawFullCanvas();
-    } else if (
-      isDraggingSelection &&
-      selectedElementIndices.length > 0 &&
-      canDraw &&
-      activeTouches.length === 1
-    ) {
-      const deltaX = worldPos.x - selectionDragStartX;
-      const deltaY = worldPos.y - selectionDragStartY;
-      selectedElementIndices.forEach((index) => {
-        const item = drawingHistory[index];
-        if (item) {
-          if (item.type === "draw") {
-            item.x0 = item.originalX0 + deltaX;
-            item.y0 = item.originalY0 + deltaY;
-            item.x1 = item.originalX1 + deltaX;
-            item.y1 = item.originalY1 + deltaY;
-          } else if (item.type === "shape") {
-            item.startX = item.originalStartX + deltaX;
-            item.startY = item.originalStartY + deltaY;
-            item.endX = item.originalEndX + deltaX;
-            item.endY = item.originalEndY + deltaY;
-          }
-        }
-      });
       calculateSelectionBoundingBox();
       redrawFullCanvas();
     } else if (
       isDrawing &&
       (currentTool === "pen" || currentTool === "eraser") &&
-      canDraw &&
-      activeTouches.length === 1
+      canDraw
     ) {
       if (eventThrottleTimer) return;
       eventThrottleTimer = setTimeout(() => {
@@ -1119,8 +655,7 @@ function initializeSharedWhiteboard(canvasId, socket, currentRoomId, currentUser
       isDrawingShape &&
       currentTool === "shape" &&
       currentShapeMode &&
-      canDraw &&
-      activeTouches.length === 1
+      canDraw
     ) {
       redrawFullCanvas();
       ctx.save();
@@ -1154,8 +689,7 @@ function initializeSharedWhiteboard(canvasId, socket, currentRoomId, currentUser
       isSnipping &&
       currentTool === "select" &&
       currentSnipMode &&
-      canDraw &&
-      activeTouches.length === 1
+      canDraw
     ) {
       redrawFullCanvas();
       ctx.save();
@@ -1188,63 +722,18 @@ function initializeSharedWhiteboard(canvasId, socket, currentRoomId, currentUser
     }
   }
 
-  function handleTouchEnd(event) {
+  function handleMouseUp(event) {
     if (!isActive) return;
-    // event.preventDefault(); // Not always needed for touchend
-    Array.from(event.changedTouches).forEach(removeCachedTouch);
+    const worldPos = getMousePos(event);
 
-    const finalWorldPos =
-      event.changedTouches.length > 0
-        ? getMousePos(event.changedTouches[0])
-        : { x: lastWorldX, y: lastWorldY };
+    if (camera.isPanning) {
+      camera.isPanning = false;
+      canvasElement.style.cursor = currentTool === "pan" ? "grab" : "crosshair";
+    }
 
-    if (isDrawing) {
-      isDrawing = false;
-      clearTimeout(eventThrottleTimer);
-      eventThrottleTimer = null;
-    }
-    if (
-      isDrawingShape &&
-      currentTool === "shape" &&
-      currentShapeMode &&
-      canDraw
-    ) {
-      isDrawingShape = false;
-      finalizeAndEmitShape(
-        currentShapeMode,
-        shapeStartX,
-        shapeStartY,
-        finalWorldPos.x,
-        finalWorldPos.y,
-        currentColor,
-        currentLineWidth
-      );
-    }
-    if (isSnipping && currentTool === "select" && currentSnipMode && canDraw) {
-      isSnipping = false;
-      if (currentSnipMode === "rectangular" && snipRect) {
-        selectElementsInRect(
-          snipRect.startX,
-          snipRect.startY,
-          finalWorldPos.x,
-          finalWorldPos.y
-        );
-      } else if (currentSnipMode === "freedom") {
-        snipPath.push({ x: finalWorldPos.x, y: finalWorldPos.y });
-        if (snipPath.length > 2) {
-          snipPath.push({ x: snipPath[0].x, y: snipPath[0].y }); // Close path for selection
-          selectElementsInPath(snipPath);
-        }
-        snipPath = [];
-      }
-      snipRect = null;
-      redrawFullCanvas();
-      if (toolbarElements.deleteSelectedBtn)
-        toolbarElements.deleteSelectedBtn.style.display =
-          selectedElementIndices.length > 0 ? "inline-flex" : "none";
-    }
     if (isDraggingSelection && canDraw) {
       isDraggingSelection = false;
+      canvasElement.style.cursor = "crosshair";
       const movedItemsData = selectedElementIndices.map((index) => {
         const item = drawingHistory[index];
         return {
@@ -1262,9 +751,8 @@ function initializeSharedWhiteboard(canvasId, socket, currentRoomId, currentUser
           },
         };
       });
-      if (movedItemsData.length > 0) {
+      if (movedItemsData.length > 0)
         socket.emit("wb:moveElements", { roomId, movedItemsData });
-      }
       selectedElementIndices.forEach((index) => {
         const item = drawingHistory[index];
         if (item) {
@@ -1279,15 +767,202 @@ function initializeSharedWhiteboard(canvasId, socket, currentRoomId, currentUser
         }
       });
       redrawFullCanvas();
+    } else if (isDrawing) {
+      isDrawing = false;
+      clearTimeout(eventThrottleTimer);
+      eventThrottleTimer = null;
+    } else if (
+      isDrawingShape &&
+      currentTool === "shape" &&
+      currentShapeMode &&
+      canDraw
+    ) {
+      isDrawingShape = false;
+      finalizeAndEmitShape(
+        currentShapeMode,
+        shapeStartX,
+        shapeStartY,
+        worldPos.x,
+        worldPos.y,
+        currentColor,
+        currentLineWidth
+      );
+    } else if (
+      isSnipping &&
+      currentTool === "select" &&
+      currentSnipMode &&
+      canDraw
+    ) {
+      isSnipping = false;
+      if (currentSnipMode === "rectangular" && snipRect)
+        selectElementsInRect(
+          snipRect.startX,
+          snipRect.startY,
+          worldPos.x,
+          worldPos.y
+        );
+      else if (currentSnipMode === "freedom") {
+        snipPath.push({ x: worldPos.x, y: worldPos.y });
+        if (snipPath.length > 2) {
+          snipPath.push({ x: snipPath[0].x, y: snipPath[0].y });
+          selectElementsInPath(snipPath);
+        }
+        snipPath = [];
+      }
+      snipRect = null;
+      redrawFullCanvas();
+      if (toolbarElements.deleteSelectedBtn)
+        toolbarElements.deleteSelectedBtn.style.display =
+          selectedElementIndices.length > 0 ? "inline-flex" : "none";
     }
+  }
+
+  function handleMouseOut(event) {
+    if (isDrawing) {
+      isDrawing = false;
+      clearTimeout(eventThrottleTimer);
+      eventThrottleTimer = null;
+    }
+    if (isDrawingShape) {
+      const worldPos = getMousePos(event);
+      finalizeAndEmitShape(
+        currentShapeMode,
+        shapeStartX,
+        shapeStartY,
+        worldPos.x,
+        worldPos.y,
+        currentColor,
+        currentLineWidth
+      );
+      isDrawingShape = false;
+    }
+    if (isSnipping) {
+      isSnipping = false;
+      snipPath = [];
+      snipRect = null;
+      redrawFullCanvas();
+    }
+    hideCoordsDisplay();
+  }
+
+  function handleWheelZoom(event) {
+    if (!isActive) return;
+    event.preventDefault();
+    const zoomFactor = 1.1;
+    const oldScale = camera.scale;
+    const mouseWorldPosBeforeZoom = getMousePos(event);
+    if (event.deltaY < 0) camera.scale *= zoomFactor;
+    else camera.scale /= zoomFactor;
+    camera.scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, camera.scale));
+    camera.x =
+      mouseWorldPosBeforeZoom.x -
+      (mouseWorldPosBeforeZoom.x - camera.x) * (oldScale / camera.scale);
+    camera.y =
+      mouseWorldPosBeforeZoom.y -
+      (mouseWorldPosBeforeZoom.y - camera.y) * (oldScale / camera.scale);
+    redrawFullCanvas();
+  }
+
+  // Touch Handlers (Simplified, but keeping core logic)
+  let activeTouches = [];
+  function cacheTouch(touch) {
+    const idx = activeTouches.findIndex(
+      (t) => t.identifier === touch.identifier
+    );
+    const nt = {
+      id: touch.identifier,
+      clientX: touch.clientX,
+      clientY: touch.clientY,
+    };
+    if (idx > -1) activeTouches[idx] = nt;
+    else activeTouches.push(nt);
+  }
+  function removeCachedTouch(touch) {
+    const idx = activeTouches.findIndex(
+      (t) => t.identifier === touch.identifier
+    );
+    if (idx > -1) activeTouches.splice(idx, 1);
+  }
+  function getPinchDistance() {
+    if (activeTouches.length < 2) return 0;
+    const t1 = activeTouches[0],
+      t2 = activeTouches[1];
+    return Math.sqrt(
+      Math.pow(t2.clientX - t1.clientX, 2) +
+        Math.pow(t2.clientY - t1.clientY, 2)
+    );
+  }
+  function getPinchCenter() {
+    if (activeTouches.length < 2) return null;
+    const t1 = activeTouches[0],
+      t2 = activeTouches[1];
+    return {
+      clientX: (t1.clientX + t2.clientX) / 2,
+      clientY: (t1.clientY + t2.clientY) / 2,
+    };
+  }
+
+  function handleTouchStart(event) {
+    if (!isActive) return;
+    event.preventDefault();
+    Array.from(event.changedTouches).forEach(cacheTouch);
+    if (activeTouches.length === 1) {
+      const touch = activeTouches[0];
+      handleMouseDown(touch); // Simulate mousedown
+    } else if (activeTouches.length >= 2) {
+      isDrawing =
+        isDrawingShape =
+        isSnipping =
+        isDraggingSelection =
+        camera.isPanning =
+          false;
+      camera.isPinching = true;
+      camera.lastPinchDistance = getPinchDistance();
+    }
+  }
+  function handleTouchMove(event) {
+    if (!isActive) return;
+    event.preventDefault();
+    Array.from(event.changedTouches).forEach(cacheTouch);
+    if (activeTouches.length === 0) return;
+    const primaryTouch = activeTouches[0];
+    if (camera.isPinching && activeTouches.length >= 2) {
+      const newDist = getPinchDistance();
+      if (camera.lastPinchDistance > 0 && newDist > 0) {
+        const oldScale = camera.scale;
+        camera.scale *= newDist / camera.lastPinchDistance;
+        camera.scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, camera.scale));
+        const pinchCenterClient = getPinchCenter();
+        if (pinchCenterClient) {
+          const pinchCenterWorld = getMousePos(pinchCenterClient);
+          camera.x =
+            pinchCenterWorld.x -
+            (pinchCenterWorld.x - camera.x) * (oldScale / camera.scale);
+          camera.y =
+            pinchCenterWorld.y -
+            (pinchCenterWorld.y - camera.y) * (oldScale / camera.scale);
+        }
+      }
+      camera.lastPinchDistance = newDist;
+      redrawFullCanvas();
+    } else if (activeTouches.length === 1) {
+      handleMouseMove(primaryTouch); // Simulate mousemove
+    }
+  }
+  function handleTouchEnd(event) {
+    if (!isActive) return;
+    Array.from(event.changedTouches).forEach(removeCachedTouch);
+    const lastTouchUp =
+      event.changedTouches[0] ||
+      (activeTouches.length > 0 ? activeTouches[0] : null);
+    if (lastTouchUp) handleMouseUp(lastTouchUp); // Simulate mouseup
 
     if (activeTouches.length < 2) camera.isPinching = false;
     if (activeTouches.length < 1) camera.isPanning = false;
-
     if (activeTouches.length === 0) {
       hideCoordsDisplay();
       if (!camera.isPanning && currentTool === "pan")
-        canvasElement.style.cursor = "grab"; // Reset pan cursor if needed
+        canvasElement.style.cursor = "grab";
     }
   }
 
@@ -1301,53 +976,42 @@ function initializeSharedWhiteboard(canvasId, socket, currentRoomId, currentUser
       minY = Infinity,
       maxX = -Infinity,
       maxY = -Infinity;
-
     selectedElementIndices.forEach((index) => {
       const item = drawingHistory[index];
       if (!item) return;
-
       if (item.type === "draw") {
         minX = Math.min(minX, item.x0, item.x1);
         minY = Math.min(minY, item.y0, item.y1);
         maxX = Math.max(maxX, item.x0, item.x1);
         maxY = Math.max(maxY, item.y0, item.y1);
       } else if (item.type === "shape") {
-        if (item.shapeType === "rectangle") {
+        if (item.shapeType === "rectangle" || item.shapeType === "line") {
           minX = Math.min(minX, item.startX, item.endX);
           minY = Math.min(minY, item.startY, item.endY);
           maxX = Math.max(maxX, item.startX, item.endX);
           maxY = Math.max(maxY, item.startY, item.endY);
         } else if (item.shapeType === "circle") {
-          const radius = Math.sqrt(
+          const r = Math.sqrt(
             Math.pow(item.endX - item.startX, 2) +
               Math.pow(item.endY - item.startY, 2)
           );
-          minX = Math.min(minX, item.startX - radius);
-          minY = Math.min(minY, item.startY - radius);
-          maxX = Math.max(maxX, item.startX + radius);
-          maxY = Math.max(maxY, item.startY + radius);
-        } else if (item.shapeType === "line") {
-          minX = Math.min(minX, item.startX, item.endX);
-          minY = Math.min(minY, item.startY, item.endY);
-          maxX = Math.max(maxX, item.startX, item.endX);
-          maxY = Math.max(maxY, item.startY, item.endY);
+          minX = Math.min(minX, item.startX - r);
+          minY = Math.min(minY, item.startY - r);
+          maxX = Math.max(maxX, item.startX + r);
+          maxY = Math.max(maxY, item.startY + r);
         }
       }
     });
-
     if (minX !== Infinity) {
-      const padding = 5 / camera.scale;
+      const p = 5 / camera.scale;
       selectionBoundingBox = {
-        minX: minX - padding,
-        minY: minY - padding,
-        maxX: maxX + padding,
-        maxY: maxY + padding,
+        minX: minX - p,
+        minY: minY - p,
+        maxX: maxX + p,
+        maxY: maxY + p,
       };
-    } else {
-      selectionBoundingBox = null;
-    }
+    } else selectionBoundingBox = null;
   }
-
   function isPointInPolygon(point, polygonVertices) {
     if (!polygonVertices || polygonVertices.length < 3) return false;
     let inside = false;
@@ -1362,26 +1026,21 @@ function initializeSharedWhiteboard(canvasId, socket, currentRoomId, currentUser
         yi = polygonVertices[i].y;
       const xj = polygonVertices[j].x,
         yj = polygonVertices[j].y;
-      const intersect =
-        yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi;
-      if (intersect) inside = !inside;
+      if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi)
+        inside = !inside;
     }
     return inside;
   }
-
   function selectElementsInRect(wStartX, wStartY, wEndX, wEndY) {
     selectedElementIndices = [];
-    const rX1 = Math.min(wStartX, wEndX);
-    const rY1 = Math.min(wStartY, wEndY);
-    const rX2 = Math.max(wStartX, wEndX);
-    const rY2 = Math.max(wStartY, wEndY);
-
+    const rX1 = Math.min(wStartX, wEndX),
+      rY1 = Math.min(wStartY, wEndY),
+      rX2 = Math.max(wStartX, wEndX),
+      rY2 = Math.max(wStartY, wEndY);
     drawingHistory.forEach((item, index) => {
       if (item.type === "draw") {
-        // Basic check: if any part of the line segment is within the rect.
-        // More precise would be line-rectangle intersection.
-        const midX = (item.x0 + item.x1) / 2;
-        const midY = (item.y0 + item.y1) / 2;
+        const midX = (item.x0 + item.x1) / 2,
+          midY = (item.y0 + item.y1) / 2;
         if (
           (item.x0 >= rX1 &&
             item.x0 <= rX2 &&
@@ -1392,36 +1051,33 @@ function initializeSharedWhiteboard(canvasId, socket, currentRoomId, currentUser
             item.y1 >= rY1 &&
             item.y1 <= rY2) ||
           (midX >= rX1 && midX <= rX2 && midY >= rY1 && midY <= rY2)
-        ) {
+        )
           selectedElementIndices.push(index);
-        }
       } else if (item.type === "shape") {
-        // Check if shape's bounding box intersects with selection rect
-        let shapeMinX, shapeMinY, shapeMaxX, shapeMaxY;
+        let sMinX, sMinY, sMaxX, sMaxY;
         if (item.shapeType === "rectangle" || item.shapeType === "line") {
-          shapeMinX = Math.min(item.startX, item.endX);
-          shapeMinY = Math.min(item.startY, item.endY);
-          shapeMaxX = Math.max(item.startX, item.endX);
-          shapeMaxY = Math.max(item.startY, item.endY);
+          sMinX = Math.min(item.startX, item.endX);
+          sMinY = Math.min(item.startY, item.endY);
+          sMaxX = Math.max(item.startX, item.endX);
+          sMaxY = Math.max(item.startY, item.endY);
         } else if (item.shapeType === "circle") {
-          const radius = Math.sqrt(
+          const r = Math.sqrt(
             Math.pow(item.endX - item.startX, 2) +
               Math.pow(item.endY - item.startY, 2)
           );
-          shapeMinX = item.startX - radius;
-          shapeMinY = item.startY - radius;
-          shapeMaxX = item.startX + radius;
-          shapeMaxY = item.startY + radius;
+          sMinX = item.startX - r;
+          sMinY = item.startY - r;
+          sMaxX = item.startX + r;
+          sMaxY = item.startY + r;
         }
-
         if (
-          shapeMinX <= rX2 &&
-          shapeMaxX >= rX1 &&
-          shapeMinY <= rY2 &&
-          shapeMaxY >= rY1
-        ) {
-          selectedElementIndices.push(index); // Bounding box intersection
-        }
+          sMinX !== undefined &&
+          sMinX <= rX2 &&
+          sMaxX >= rX1 &&
+          sMinY <= rY2 &&
+          sMaxY >= rY1
+        )
+          selectedElementIndices.push(index);
       }
     });
     calculateSelectionBoundingBox();
@@ -1432,67 +1088,34 @@ function initializeSharedWhiteboard(canvasId, socket, currentRoomId, currentUser
         1500
       );
   }
-
-  function updateToolbarForCurrentTool() {
-    // ... existing logic to activate/deactivate tool buttons ...
-
-    // Manage visibility of sub-tool containers for streamer
-    if (isStreamer) {
-      if (toolbarElements.shapeOptionsContainer) {
-        toolbarElements.shapeOptionsContainer.style.display =
-          currentTool === "shape" &&
-          toolbarElements.shapeToolToggleBtn?.classList.contains("active")
-            ? "flex"
-            : "none";
-      }
-      if (toolbarElements.snipOptionsContainer) {
-        toolbarElements.snipOptionsContainer.style.display =
-          currentTool === "select" &&
-          toolbarElements.selectToolToggleBtn?.classList.contains("active")
-            ? "flex"
-            : "none";
-      }
-      if (toolbarElements.deleteSelectedBtn) {
-        toolbarElements.deleteSelectedBtn.style.display =
-          currentTool === "select" && selectedElementIndices.length > 0
-            ? "inline-flex"
-            : "none";
-      }
-    }
-  }
-
   function selectElementsInPath(worldPathPoints) {
     selectedElementIndices = [];
     if (worldPathPoints.length < 3) return;
-
     drawingHistory.forEach((item, index) => {
       if (item.type === "draw") {
-        const p0 = { x: item.x0, y: item.y0 };
-        const p1 = { x: item.x1, y: item.y1 };
-        const mid = { x: (item.x0 + item.x1) / 2, y: (item.y0 + item.y1) / 2 };
+        const p0 = { x: item.x0, y: item.y0 },
+          p1 = { x: item.x1, y: item.y1 },
+          mid = { x: (item.x0 + item.x1) / 2, y: (item.y0 + item.y1) / 2 };
         if (
           isPointInPolygon(p0, worldPathPoints) ||
           isPointInPolygon(p1, worldPathPoints) ||
           isPointInPolygon(mid, worldPathPoints)
-        ) {
+        )
           selectedElementIndices.push(index);
-        }
       } else if (item.type === "shape") {
-        // For shapes, check if their center point is within the polygon
-        let centerX, centerY;
+        let cX, cY;
         if (item.shapeType === "rectangle" || item.shapeType === "line") {
-          centerX = (item.startX + item.endX) / 2;
-          centerY = (item.startY + item.endY) / 2;
+          cX = (item.startX + item.endX) / 2;
+          cY = (item.startY + item.endY) / 2;
         } else if (item.shapeType === "circle") {
-          centerX = item.startX;
-          centerY = item.startY;
+          cX = item.startX;
+          cY = item.startY;
         }
         if (
-          centerX !== undefined &&
-          isPointInPolygon({ x: centerX, y: centerY }, worldPathPoints)
-        ) {
+          cX !== undefined &&
+          isPointInPolygon({ x: cX, y: cY }, worldPathPoints)
+        )
           selectedElementIndices.push(index);
-        }
       }
     });
     calculateSelectionBoundingBox();
@@ -1503,15 +1126,11 @@ function initializeSharedWhiteboard(canvasId, socket, currentRoomId, currentUser
         1500
       );
   }
-
   function deleteSelected() {
     if (selectedElementIndices.length === 0 || !canDraw) return;
-
-    const indicesToDelete = [...selectedElementIndices].sort((a, b) => b - a); // Sort descending
+    const indicesToDelete = [...selectedElementIndices].sort((a, b) => b - a);
     indicesToDelete.forEach((index) => drawingHistory.splice(index, 1));
-
     socket.emit("wb:deleteElements", { roomId, indices: indicesToDelete });
-
     selectedElementIndices = [];
     selectionBoundingBox = null;
     if (toolbarElements.deleteSelectedBtn)
@@ -1527,7 +1146,7 @@ function initializeSharedWhiteboard(canvasId, socket, currentRoomId, currentUser
 
   // --- Socket Event Handlers ---
   function handleSocketDraw(data) {
-    if (data.drawnBy === username) return; // Don't redraw own actions if server echoes
+    if (data.drawnBy === username) return;
     const item = data.drawData;
     if (item.type === "draw") {
       drawSegment(
@@ -1539,86 +1158,59 @@ function initializeSharedWhiteboard(canvasId, socket, currentRoomId, currentUser
         item.lineWidth,
         item.isEraser
       );
-      drawingHistory.push(item); // Add to local history for redraws
+      drawingHistory.push(item);
       if (drawingHistory.length > 500)
         drawingHistory.splice(0, drawingHistory.length - 500);
     }
   }
-
   function handleSocketDrawShape(data) {
     if (data.drawnBy === username) return;
     const shapeData = data.shapeData;
-    // Add to history and redraw. The redrawFullCanvas will handle drawing shapes.
     drawingHistory.push(shapeData);
     if (drawingHistory.length > 500)
       drawingHistory.splice(0, drawingHistory.length - 500);
     redrawFullCanvas();
   }
-
   function handleSocketClear() {
-    drawingHistory = [{ type: "clear", timestamp: Date.now() }]; // Keep a clear marker if needed, or just empty array
-    redrawFullCanvas(); // This will clear the canvas
-    if (showNotificationCallback && isStreamer)
-      showNotificationCallback("Bảng vẽ đã được xóa bởi người khác.", "info");
+    drawingHistory = [{ type: "clear", timestamp: Date.now() }];
+    redrawFullCanvas();
+    if (showNotificationCallback && !isStreamer)
+      showNotificationCallback("Bảng vẽ đã được xóa bởi chủ phòng.", "info"); // Notify viewer only
   }
-
   function handleSocketInitState(state) {
     if (state && Array.isArray(state.history)) {
-      drawingHistory = state.history.map((item) => ({ ...item })); // Deep copy
-      console.log(
-        `SharedWhiteboard: State restored from history. Items: ${drawingHistory.length}`
-      );
-    } else if (state && state.dataUrl) {
-      // dataUrl restoration is more complex with pan/zoom as it's a flat image.
-      // For now, prioritize history. If only dataUrl, we'd need to draw it as a base image.
-      // This example focuses on history-based sync.
-      console.warn(
-        "SharedWhiteboard: dataUrl in initState not fully implemented with pan/zoom. History preferred."
-      );
-      drawingHistory = [
-        { type: "image", dataUrl: state.dataUrl, timestamp: Date.now() },
-      ]; // Simplistic handling
+      drawingHistory = state.history.map((item) => ({ ...item }));
+      console.log(`WB: State restored. Items: ${drawingHistory.length}`);
     } else {
       drawingHistory = [];
-      console.log("SharedWhiteboard: Received empty/invalid initial state.");
+      console.log("WB: Received empty/invalid initial state.");
     }
-    selectedElementIndices = []; // Clear selection on new state
+    selectedElementIndices = [];
     selectionBoundingBox = null;
     if (toolbarElements.deleteSelectedBtn)
       toolbarElements.deleteSelectedBtn.style.display = "none";
     redrawFullCanvas();
   }
-
   function handleSocketMoveElements(data) {
     if (!data || !Array.isArray(data.movedItemsData)) return;
     data.movedItemsData.forEach((movedItem) => {
-      if (drawingHistory[movedItem.index]) {
-        // Check if the item being moved is by the current user and is currently selected by them.
-        // This is to prevent conflicts if multiple users try to move the same thing simultaneously.
-        // For simplicity, we'll allow any move for now, assuming server might mediate or last-write-wins.
+      if (drawingHistory[movedItem.index])
         Object.assign(drawingHistory[movedItem.index], movedItem.newItemData);
-      }
     });
-    // If the current user had these items selected, their local selectionBoundingBox also needs update
     if (
       selectedElementIndices.some((idx) =>
         data.movedItemsData.find((m) => m.index === idx)
       )
-    ) {
+    )
       calculateSelectionBoundingBox();
-    }
     redrawFullCanvas();
   }
-
   function handleSocketDeleteElements(data) {
     if (!data || !Array.isArray(data.indices)) return;
-    const indicesToDelete = [...data.indices].sort((a, b) => b - a); // Sort descending
+    const indicesToDelete = [...data.indices].sort((a, b) => b - a);
     indicesToDelete.forEach((index) => {
-      if (drawingHistory[index]) {
-        drawingHistory.splice(index, 1);
-      }
+      if (drawingHistory[index]) drawingHistory.splice(index, 1);
     });
-    // If any of the deleted items were selected locally, clear that selection
     selectedElementIndices = selectedElementIndices.filter(
       (idx) => !indicesToDelete.includes(idx)
     );
@@ -1626,24 +1218,21 @@ function initializeSharedWhiteboard(canvasId, socket, currentRoomId, currentUser
       selectionBoundingBox = null;
       if (toolbarElements.deleteSelectedBtn)
         toolbarElements.deleteSelectedBtn.style.display = "none";
-    } else {
-      calculateSelectionBoundingBox();
-    }
+    } else calculateSelectionBoundingBox();
     redrawFullCanvas();
   }
 
   // --- Public API & Lifecycle ---
   function resizeCanvas() {
     if (!isActive || !canvasElement.parentElement) return;
-
-    const mainToolbarElement = isStreamer
+    const mainToolbar = isStreamer
       ? toolbarElements.mainToolbar
-      : toolbarElements.mainToolbar; // Use correct toolbar ref
+      : toolbarElements.viewerToolbar; // Use appropriate toolbar
     const toolbarHeight =
-      mainToolbarElement && mainToolbarElement.style.display !== "none"
-        ? mainToolbarElement.offsetHeight
+      mainToolbar && mainToolbar.style.display !== "none"
+        ? mainToolbar.offsetHeight
         : 0;
-    const overlayPadding = 10;
+    const overlayPadding = 0; // Using inset for overlay, padding handled by canvas parent
 
     let viewportWidth =
       canvasElement.parentElement.clientWidth - 2 * overlayPadding;
@@ -1651,10 +1240,7 @@ function initializeSharedWhiteboard(canvasId, socket, currentRoomId, currentUser
       canvasElement.parentElement.clientHeight -
       toolbarHeight -
       2 * overlayPadding -
-      (mainToolbarElement && mainToolbarElement.style.display !== "none"
-        ? 5
-        : 0); /* extra gap for toolbar */
-
+      (mainToolbar && mainToolbar.style.display !== "none" ? 5 : 0);
     viewportWidth = Math.max(100, viewportWidth);
     viewportHeight = Math.max(100, viewportHeight);
 
@@ -1665,11 +1251,12 @@ function initializeSharedWhiteboard(canvasId, socket, currentRoomId, currentUser
       canvasElement.width = viewportWidth;
       canvasElement.height = viewportHeight;
     }
-    canvasElement.style.width = `${viewportWidth}px`;
-    canvasElement.style.height = `${viewportHeight}px`;
+    // These might not be needed if CSS handles canvas size correctly with parent
+    // canvasElement.style.width = `${viewportWidth}px`;
+    // canvasElement.style.height = `${viewportHeight}px`;
 
-    if (mainToolbarElement && mainToolbarElement.style.display !== "none") {
-      mainToolbarElement.style.width = `${viewportWidth}px`;
+    if (mainToolbar && mainToolbar.style.display !== "none") {
+      mainToolbar.style.width = `${viewportWidth}px`;
     }
     redrawFullCanvas();
   }
@@ -1677,101 +1264,97 @@ function initializeSharedWhiteboard(canvasId, socket, currentRoomId, currentUser
   function show() {
     if (isActive) return;
     isActive = true;
-    canvasElement.parentElement.style.opacity = 0;
+    if (!canvasElement.parentElement) {
+      console.error("Canvas parent element not found for showing whiteboard.");
+      return;
+    }
+    canvasElement.parentElement.style.opacity = "0"; // Start transparent for GSAP
     canvasElement.parentElement.style.display = "flex";
 
-    // Make the correct toolbar visible
-    const mainToolbarElement = isStreamer
+    const currentMainToolbar = isStreamer
       ? toolbarElements.mainToolbar
-      : toolbarElements.mainToolbar; // toolbarElements.mainToolbar should be the correct one passed in config
-    if (mainToolbarElement) {
-      mainToolbarElement.style.display = "flex"; // Or "block" depending on its CSS
-    }
+      : toolbarElements.viewerToolbar;
+    if (currentMainToolbar) currentMainToolbar.style.display = "flex";
 
-    resizeCanvas(); // Set initial size and draw
+    resizeCanvas();
 
-    if (!prefersReducedMotion) {
+    if (!prefersReducedMotion && typeof gsap !== "undefined") {
       gsap.to(canvasElement.parentElement, {
         duration: 0.5,
         autoAlpha: 1,
         ease: "power2.out",
       });
-      // Optionally animate toolbar entrance if desired
-      if (mainToolbarElement) {
+      if (currentMainToolbar)
         gsap.fromTo(
-          mainToolbarElement,
+          currentMainToolbar,
           { opacity: 0, y: -10 },
           { opacity: 1, y: 0, duration: 0.4, delay: 0.1, ease: "power2.out" }
         );
-      }
     } else {
       gsap.set(canvasElement.parentElement, { autoAlpha: 1 });
-      if (mainToolbarElement)
-        gsap.set(mainToolbarElement, { opacity: 1, y: 0 });
+      if (currentMainToolbar)
+        gsap.set(currentMainToolbar, { opacity: 1, y: 0 });
     }
     window.addEventListener("resize", resizeCanvas);
-    if (onVisibilityChangeCallback) onVisibilityChangeCallback(true);
+    if (onVisibilityChangeCallback)
+      onVisibilityChangeCallback(true, isGloballyVisibleByStreamer);
     if (socket.connected) socket.emit("wb:requestInitialState", { roomId });
     console.log(
-      `SharedWhiteboard shown for ${isStreamer ? "streamer" : "viewer"}`
+      `WB shown for ${
+        isStreamer ? "streamer" : "viewer"
+      }. Global: ${isGloballyVisibleByStreamer}, CanDraw: ${canDraw}`
     );
   }
 
   function hide() {
     if (!isActive) return;
     const parentOverlay = canvasElement.parentElement;
-    const mainToolbarElement = isStreamer
+    const currentMainToolbar = isStreamer
       ? toolbarElements.mainToolbar
-      : toolbarElements.mainToolbar;
+      : toolbarElements.viewerToolbar;
 
     const onHideComplete = () => {
       isActive = false;
-      parentOverlay.style.display = "none";
-      if (mainToolbarElement) {
-        mainToolbarElement.style.display = "none";
-        // Also hide sub-option containers if they exist and are for streamer
-        if (isStreamer) {
-          if (toolbarElements.shapeOptionsContainer)
-            toolbarElements.shapeOptionsContainer.style.display = "none";
-          if (toolbarElements.snipOptionsContainer)
-            toolbarElements.snipOptionsContainer.style.display = "none";
-          if (toolbarElements.deleteSelectedBtn)
-            toolbarElements.deleteSelectedBtn.style.display = "none";
-        }
+      if (parentOverlay) parentOverlay.style.display = "none";
+      if (currentMainToolbar) currentMainToolbar.style.display = "none";
+      if (isStreamer) {
+        // Also hide sub-tool containers for streamer
+        if (toolbarElements.shapeOptionsContainer)
+          toolbarElements.shapeOptionsContainer.style.display = "none";
+        if (toolbarElements.snipOptionsContainer)
+          toolbarElements.snipOptionsContainer.style.display = "none";
+        if (toolbarElements.deleteSelectedBtn)
+          toolbarElements.deleteSelectedBtn.style.display = "none";
       }
       window.removeEventListener("resize", resizeCanvas);
-      if (onVisibilityChangeCallback) onVisibilityChangeCallback(false);
-      console.log(
-        `SharedWhiteboard hidden for ${isStreamer ? "streamer" : "viewer"}`
-      );
+      if (onVisibilityChangeCallback)
+        onVisibilityChangeCallback(false, isGloballyVisibleByStreamer);
+      console.log(`WB hidden. Global: ${isGloballyVisibleByStreamer}`);
     };
 
-    if (!prefersReducedMotion) {
-      // Animate toolbar out first or simultaneously
-      if (mainToolbarElement) {
-        gsap.to(mainToolbarElement, {
+    if (!prefersReducedMotion && typeof gsap !== "undefined") {
+      if (currentMainToolbar)
+        gsap.to(currentMainToolbar, {
           opacity: 0,
           y: -10,
           duration: 0.3,
           ease: "power1.in",
         });
-      }
       gsap.to(parentOverlay, {
         duration: 0.4,
         autoAlpha: 0,
-        delay: mainToolbarElement ? 0.1 : 0, // Slight delay if toolbar is animating out
+        delay: currentMainToolbar ? 0.1 : 0,
         ease: "power1.in",
         onComplete: onHideComplete,
       });
     } else {
       gsap.set(parentOverlay, { autoAlpha: 0 });
-      if (mainToolbarElement) gsap.set(mainToolbarElement, { opacity: 0 });
+      if (currentMainToolbar) gsap.set(currentMainToolbar, { opacity: 0 });
       onHideComplete();
     }
   }
 
   function setupEventListeners() {
-    // Drawing surface listeners
     canvasElement.addEventListener("mousedown", handleMouseDown);
     canvasElement.addEventListener("mousemove", handleMouseMove);
     canvasElement.addEventListener("mouseup", handleMouseUp);
@@ -1788,95 +1371,94 @@ function initializeSharedWhiteboard(canvasId, socket, currentRoomId, currentUser
     canvasElement.addEventListener("touchend", handleTouchEnd);
     canvasElement.addEventListener("touchcancel", handleTouchEnd);
 
-    // Toolbar listeners
     if (toolbarElements.colorPicker) {
-      toolbarElements.colorPicker.value = currentColor; // Set initial value
+      toolbarElements.colorPicker.value = currentColor;
       toolbarElements.colorPicker.addEventListener("input", (e) => {
         currentColor = e.target.value;
-        if (currentTool === "eraser") setActiveTool("pen"); // Switch from eraser if color changed
+        if (currentTool === "eraser") setActiveTool("pen");
       });
     }
     if (toolbarElements.lineWidthRange) {
-      toolbarElements.lineWidthRange.value = currentLineWidth; // Set initial value
+      toolbarElements.lineWidthRange.value = String(currentLineWidth);
       if (toolbarElements.lineWidthValueDisplay)
-        toolbarElements.lineWidthValueDisplay.textContent = currentLineWidth;
+        toolbarElements.lineWidthValueDisplay.textContent =
+          String(currentLineWidth);
       toolbarElements.lineWidthRange.addEventListener("input", (e) => {
         currentLineWidth = parseInt(e.target.value, 10);
         if (toolbarElements.lineWidthValueDisplay)
-          toolbarElements.lineWidthValueDisplay.textContent = currentLineWidth;
+          toolbarElements.lineWidthValueDisplay.textContent =
+            String(currentLineWidth);
       });
     }
     if (toolbarElements.eraserBtn) {
       toolbarElements.eraserBtn.addEventListener("click", () => {
+        playButtonFeedbackCallback?.(toolbarElements.eraserBtn);
         setActiveTool(currentTool === "eraser" ? "pen" : "eraser");
       });
     }
     if (toolbarElements.clearBtn && isStreamer) {
-      // Only streamer can clear globally by default via button
       toolbarElements.clearBtn.addEventListener("click", () => {
-        if (confirmActionCallback) {
-          confirmActionCallback(
-            "Xóa toàn bộ nội dung bảng vẽ? Hành động này không thể hoàn tác.",
-            "Xóa",
-            "Hủy",
-            "fas fa-trash-alt"
-          ).then((confirmed) => {
-            if (confirmed) {
-              drawingHistory = [{ type: "clear", timestamp: Date.now() }]; // Local clear
-              redrawFullCanvas();
-              socket.emit("wb:clear", { roomId }); // Global clear
-            }
-          });
-        } else if (window.confirm("Xóa toàn bộ nội dung bảng vẽ?")) {
-          drawingHistory = [{ type: "clear", timestamp: Date.now() }];
-          redrawFullCanvas();
-          socket.emit("wb:clear", { roomId });
-        }
+        playButtonFeedbackCallback?.(toolbarElements.clearBtn);
+        (confirmActionCallback || window.confirm)(
+          "Xóa toàn bộ nội dung bảng vẽ? Hành động này không thể hoàn tác.",
+          "Xóa",
+          "Hủy",
+          "fas fa-trash-alt"
+        ).then((confirmed) => {
+          if (confirmed) {
+            drawingHistory = [{ type: "clear", timestamp: Date.now() }];
+            redrawFullCanvas();
+            socket.emit("wb:clear", { roomId });
+          }
+        });
       });
     }
-
-    // Pan/Zoom tools
     if (toolbarElements.panToolBtn) {
-      toolbarElements.panToolBtn.addEventListener("click", () =>
-        setActiveTool(currentTool === "pan" ? "pen" : "pan")
-      );
+      toolbarElements.panToolBtn.addEventListener("click", () => {
+        playButtonFeedbackCallback?.(toolbarElements.panToolBtn);
+        setActiveTool(currentTool === "pan" ? "pen" : "pan");
+      });
     }
     if (toolbarElements.zoomInBtn) {
       toolbarElements.zoomInBtn.addEventListener("click", () => {
-        const oldScale = camera.scale;
+        playButtonFeedbackCallback?.(toolbarElements.zoomInBtn);
+        const oS = camera.scale;
         camera.scale = Math.min(MAX_SCALE, camera.scale * 1.2);
-        const worldCenter = screenToWorld(
+        const wC = screenToWorld(
           canvasElement.width / 2,
           canvasElement.height / 2
         );
-        camera.x = worldCenter.x - canvasElement.width / 2 / camera.scale;
-        camera.y = worldCenter.y - canvasElement.height / 2 / camera.scale;
+        camera.x = wC.x - canvasElement.width / 2 / camera.scale;
+        camera.y = wC.y - canvasElement.height / 2 / camera.scale;
         redrawFullCanvas();
       });
     }
     if (toolbarElements.zoomOutBtn) {
       toolbarElements.zoomOutBtn.addEventListener("click", () => {
-        const oldScale = camera.scale;
+        playButtonFeedbackCallback?.(toolbarElements.zoomOutBtn);
+        const oS = camera.scale;
         camera.scale = Math.max(MIN_SCALE, camera.scale / 1.2);
-        const worldCenter = screenToWorld(
+        const wC = screenToWorld(
           canvasElement.width / 2,
           canvasElement.height / 2
         );
-        camera.x = worldCenter.x - canvasElement.width / 2 / camera.scale;
-        camera.y = worldCenter.y - canvasElement.height / 2 / camera.scale;
+        camera.x = wC.x - canvasElement.width / 2 / camera.scale;
+        camera.y = wC.y - canvasElement.height / 2 / camera.scale;
         redrawFullCanvas();
       });
     }
     if (toolbarElements.resetViewBtn) {
       toolbarElements.resetViewBtn.addEventListener("click", () => {
-        camera.x = MAX_WORLD_WIDTH / 4;
-        camera.y = MAX_WORLD_HEIGHT / 4;
+        playButtonFeedbackCallback?.(toolbarElements.resetViewBtn);
+        camera.x = MAX_WORLD_WIDTH / 2 - canvasElement.width / 2 / 0.5;
+        camera.y = MAX_WORLD_HEIGHT / 2 - canvasElement.height / 2 / 0.5;
         camera.scale = 0.5;
         redrawFullCanvas();
       });
     }
     if (toolbarElements.toggleGridBtn) {
       toolbarElements.toggleGridBtn.addEventListener("click", () => {
+        playButtonFeedbackCallback?.(toolbarElements.toggleGridBtn);
         showGrid = !showGrid;
         toolbarElements.toggleGridBtn.classList.toggle("active", showGrid);
         redrawFullCanvas();
@@ -1889,82 +1471,65 @@ function initializeSharedWhiteboard(canvasId, socket, currentRoomId, currentUser
       });
     }
 
-    // Shape tools
-    if (toolbarElements.shapeToolToggleBtn) {
-      toolbarElements.shapeToolToggleBtn.addEventListener("click", () => {
-        if (currentTool === "shape") {
-          // If shape tool already active, toggle it off (back to pen)
-          setActiveTool("pen");
-        } else {
-          // Activate shape tool (default to rect or last used shape)
-          setActiveTool("shape", currentShapeMode || "rectangle");
-        }
-      });
-    }
-    const shapeButtonsConfig = [
-      { btn: toolbarElements.rectShapeBtn, mode: "rectangle" },
-      { btn: toolbarElements.circleShapeBtn, mode: "circle" },
-      { btn: toolbarElements.lineShapeBtn, mode: "line" },
-    ];
-    shapeButtonsConfig.forEach((config) => {
-      if (config.btn) {
-        config.btn.addEventListener("click", () =>
-          setActiveTool("shape", config.mode)
-        );
-      }
-    });
-
-    // Select/Snip tools
-    if (toolbarElements.selectToolToggleBtn) {
-      toolbarElements.selectToolToggleBtn.addEventListener("click", () => {
-        if (currentTool === "select") {
-          setActiveTool("pen"); // Toggle off to pen
-        } else {
-          setActiveTool("select", currentSnipMode || "rectangular"); // Toggle on
-        }
-      });
-    }
-    const snipButtonsConfig = [
-      { btn: toolbarElements.rectangularSnipBtn, mode: "rectangular" },
-      { btn: toolbarElements.freedomSnipBtn, mode: "freedom" },
-    ];
-    snipButtonsConfig.forEach((config) => {
-      if (config.btn) {
-        config.btn.addEventListener("click", () => {
-          if (currentTool !== "select") setActiveTool("select", config.mode);
-          // Ensure select tool is active
-          else currentSnipMode = config.mode; // Just change sub-mode
-
-          // Update active state for snip sub-buttons
-          if (toolbarElements.rectangularSnipBtn)
-            toolbarElements.rectangularSnipBtn.classList.toggle(
-              "active",
-              currentSnipMode === "rectangular"
-            );
-          if (toolbarElements.freedomSnipBtn)
-            toolbarElements.freedomSnipBtn.classList.toggle(
-              "active",
-              currentSnipMode === "freedom"
-            );
-          if (showNotificationCallback)
-            showNotificationCallback(
-              `Chế độ cắt: ${
-                config.mode === "rectangular" ? "Hình chữ nhật" : "Tự do"
-              }`,
-              "info",
-              1500
-            );
+    if (isStreamer) {
+      // Streamer-only toolbar interactions
+      if (toolbarElements.shapeToolToggleBtn) {
+        toolbarElements.shapeToolToggleBtn.addEventListener("click", () => {
+          playButtonFeedbackCallback?.(toolbarElements.shapeToolToggleBtn);
+          if (currentTool === "shape") setActiveTool("pen");
+          else setActiveTool("shape", currentShapeMode || "rectangle");
+          updateToolbarForCurrentTool();
         });
       }
-    });
-    if (toolbarElements.deleteSelectedBtn) {
-      toolbarElements.deleteSelectedBtn.addEventListener(
-        "click",
-        deleteSelected
-      );
+      [
+        { btn: toolbarElements.rectShapeBtn, mode: "rectangle" },
+        { btn: toolbarElements.circleShapeBtn, mode: "circle" },
+        { btn: toolbarElements.lineShapeBtn, mode: "line" },
+      ].forEach((c) => {
+        if (c.btn)
+          c.btn.addEventListener("click", () => {
+            playButtonFeedbackCallback?.(c.btn);
+            setActiveTool("shape", c.mode);
+            updateToolbarForCurrentTool();
+          });
+      });
+      if (toolbarElements.selectToolToggleBtn) {
+        toolbarElements.selectToolToggleBtn.addEventListener("click", () => {
+          playButtonFeedbackCallback?.(toolbarElements.selectToolToggleBtn);
+          if (currentTool === "select") setActiveTool("pen");
+          else setActiveTool("select", currentSnipMode || "rectangular");
+          updateToolbarForCurrentTool();
+        });
+      }
+      [
+        { btn: toolbarElements.rectangularSnipBtn, mode: "rectangular" },
+        { btn: toolbarElements.freedomSnipBtn, mode: "freedom" },
+      ].forEach((c) => {
+        if (c.btn)
+          c.btn.addEventListener("click", () => {
+            playButtonFeedbackCallback?.(c.btn);
+            setActiveTool("select", c.mode);
+            updateToolbarForCurrentTool();
+          });
+      });
+      if (toolbarElements.deleteSelectedBtn) {
+        toolbarElements.deleteSelectedBtn.addEventListener("click", () => {
+          playButtonFeedbackCallback?.(toolbarElements.deleteSelectedBtn);
+          deleteSelected();
+        });
+      }
+    }
+    if (toolbarElements.closeWhiteboardBtn) {
+      toolbarElements.closeWhiteboardBtn.addEventListener("click", () => {
+        playButtonFeedbackCallback?.(toolbarElements.closeWhiteboardBtn);
+        if (isStreamer) {
+          publicApi.setGlobalVisibility(false); // Streamer's close button hides it globally
+        } else {
+          hide(); // Viewer's close button just hides it locally
+        }
+      });
     }
 
-    // Socket listeners for whiteboard events
     socket.on("wb:draw", handleSocketDraw);
     socket.on("wb:drawShape", handleSocketDrawShape);
     socket.on("wb:clear", handleSocketClear);
@@ -1977,171 +1542,82 @@ function initializeSharedWhiteboard(canvasId, socket, currentRoomId, currentUser
         if (data.viewerUsername === username) {
           canDraw = data.canDraw;
           if (onPermissionChangeCallback) onPermissionChangeCallback(canDraw);
-          // If lost permission while a drawing tool was active, switch to a neutral state (e.g., pan or disable drawing)
           if (
             !canDraw &&
             (currentTool === "pen" ||
               currentTool === "eraser" ||
               currentTool === "shape" ||
               currentTool === "select")
-          ) {
-            // Optionally switch to pan tool or just update cursor and disable drawing inputs
-            // setActiveTool('pan'); // Or a new 'view_only' tool state
+          )
             canvasElement.style.cursor = "default";
-          } else if (canDraw && currentTool !== "pan") {
-            // If gained permission and not in pan mode
+          else if (canDraw && currentTool !== "pan")
             canvasElement.style.cursor =
               currentTool === "eraser" ? "cell" : "crosshair";
-          }
         }
       });
       socket.on("wb:toggleVisibility", (data) => {
-        console.log(
-          `SharedWB ${username}: Received wb:toggleVisibility - isVisible: ${data.isVisible}`
-        );
         const oldGlobalVisibility = isGloballyVisibleByStreamer;
         isGloballyVisibleByStreamer = data.isVisible;
-
-        if (isStreamer) {
-          // Streamer's own client also listens to this to keep its UI in sync if changed by another instance
-          if (isGloballyVisibleByStreamer && !isActive) show();
-          else if (!isGloballyVisibleByStreamer && isActive) hide();
-          // onVisibilityChangeCallback in streamer's config will update button
-        } else {
-          // Viewer logic
-          if (isGloballyVisibleByStreamer) {
-            // Streamer turned it ON. Viewer can now choose to see it.
-            // The onVisibilityChangeCallback will update the viewer's toggle button state.
-            if (onVisibilityChangeCallback)
-              onVisibilityChangeCallback(isActive, isGloballyVisibleByStreamer);
-          } else {
-            // Streamer turned it OFF. Force hide for viewer if it was locally visible.
-            if (isActive) {
-              hide(); // This will call onVisibilityChangeCallback(false, false)
-            } else {
-              // If already locally hidden, just update button state via callback
-              if (onVisibilityChangeCallback)
-                onVisibilityChangeCallback(false, false);
-            }
-          }
-        }
+        console.log(
+          `WB VIEWER ${username}: Global visibility is NOW ${isGloballyVisibleByStreamer}`
+        );
+        if (onVisibilityChangeCallback)
+          onVisibilityChangeCallback(isActive, isGloballyVisibleByStreamer);
+        if (!isGloballyVisibleByStreamer && isActive) hide(); // Force hide if streamer turned it off globally
       });
-    }
-    if (toolbarElements.closeWhiteboardBtn) { // Check if it was passed
-        toolbarElements.closeWhiteboardBtn.addEventListener("click", () => {
-            if (isStreamer) {
-                // Streamer's close button should set global visibility to false
-                publicApi.setGlobalVisibility(false);
-            } else {
-                // Viewer's close button just hides it locally
-                hide();
-            }
-        });
-    }
-    if (isStreamer) {
-      // Streamer specific tool buttons
-      if (toolbarElements.shapeToolToggleBtn) {
-        toolbarElements.shapeToolToggleBtn.addEventListener("click", () => {
-          if (playButtonFeedbackCallback)
-            playButtonFeedbackCallback(toolbarElements.shapeToolToggleBtn);
-          const isCurrentlyShapeTool =
-            toolbarElements.shapeToolToggleBtn.classList.contains("active");
-          if (isCurrentlyShapeTool && !currentShapeMode) {
-            // If main toggle active but no sub-shape, turn off
-            setActiveTool("pen");
-          } else if (isCurrentlyShapeTool && currentShapeMode) {
-            // If sub-shape active, turn off all shapes
-            setActiveTool("pen");
-          } else {
-            // Activate shape tool, default to rectangle or last used if available
-            setActiveTool("shape", currentShapeMode || "rectangle");
-          }
-          updateToolbarForCurrentTool();
-        });
-      }
-
-      const shapeButtonsConfig = [
-        { btn: toolbarElements.rectShapeBtn, mode: "rectangle" },
-        { btn: toolbarElements.circleShapeBtn, mode: "circle" },
-        { btn: toolbarElements.lineShapeBtn, mode: "line" },
-      ];
-      shapeButtonsConfig.forEach((config) => {
-        if (config.btn) {
-          config.btn.addEventListener("click", () => {
-            if (playButtonFeedbackCallback)
-              playButtonFeedbackCallback(config.btn);
-            setActiveTool("shape", config.mode);
-            updateToolbarForCurrentTool();
-          });
-        }
-      });
-
-      if (toolbarElements.selectToolToggleBtn) {
-        toolbarElements.selectToolToggleBtn.addEventListener("click", () => {
-          if (playButtonFeedbackCallback)
-            playButtonFeedbackCallback(toolbarElements.selectToolToggleBtn);
-          const isCurrentlySelectTool =
-            toolbarElements.selectToolToggleBtn.classList.contains("active");
-          if (isCurrentlySelectTool) {
-            setActiveTool("pen"); // Toggle off to pen
-          } else {
-            setActiveTool("select", currentSnipMode || "rectangular"); // Toggle on
-          }
-          updateToolbarForCurrentTool();
-        });
-      }
-      const snipButtonsConfig = [
-        { btn: toolbarElements.rectangularSnipBtn, mode: "rectangular" },
-        { btn: toolbarElements.freedomSnipBtn, mode: "freedom" },
-      ];
-      snipButtonsConfig.forEach((config) => {
-        if (config.btn) {
-          config.btn.addEventListener("click", () => {
-            if (playButtonFeedbackCallback)
-              playButtonFeedbackCallback(config.btn);
-            setActiveTool("select", config.mode); // This will set currentTool and currentSnipMode
-            updateToolbarForCurrentTool(); // This will update active classes for snip buttons
-          });
-        }
-      });
-      if (toolbarElements.deleteSelectedBtn) {
-        toolbarElements.deleteSelectedBtn.addEventListener("click", () => {
-          if (playButtonFeedbackCallback)
-            playButtonFeedbackCallback(toolbarElements.deleteSelectedBtn);
-          deleteSelected();
-        });
-      }
     }
   }
+
   setupEventListeners();
+  setActiveTool(isStreamer ? "pen" : "pan"); // Default tool
 
-  // Set initial tool (e.g., pen)
-  setActiveTool("pen");
+  // Initial visibility setup
+  if (isStreamer) {
+    // Streamer starts with WB locally hidden, must explicitly show it (which also sets global)
+    hide(); // This will call onVisibilityChangeCallback(false, false)
+  } else {
+    // Viewer: if it's globally visible, show it. Otherwise, keep it hidden.
+    if (isGloballyVisibleByStreamer) {
+      show();
+    } else {
+      hide();
+    }
+  }
 
-  // Return public API
   const publicApi = {
     show,
     hide,
     resize: resizeCanvas,
     isActive: () => isActive,
-    isGloballyVisible: () => isGloballyVisible,
-    setGlobalVisibility: (visible) => {
+    isGloballyVisible: () => isGloballyVisibleByStreamer, // Reflects streamer's choice
+    setGlobalVisibility: (visible) => { // Parameter is 'visible'
       if (!isStreamer) return;
-      isGloballyVisibleByStreamer = visible; // Update the module's sense of global state
+      const changed = isGloballyVisibleByStreamer !== visible;
+      isGloballyVisibleByStreamer = visible;
+
+      // CORRECTED LINE: Use the 'visible' parameter
       socket.emit("wb:toggleGlobalVisibility", {
         roomId,
-        isVisible: isGloballyVisibleByStreamer,
+        isVisible: visible, // Use the 'visible' parameter here
       });
 
-      if (isGloballyVisibleByStreamer) {
-        if (!isActive) show(); // If streamer turns it on globally, their local view also shows
-      } else {
-        if (isActive) hide(); // If streamer turns it off globally, their local view also hides
+      if (changed) { // Only show/hide if state actually changed
+          if (visible) {
+            show();
+          } else {
+            hide();
+          }
       }
-      // The onVisibilityChangeCallback will be called by show/hide to update streamer's button
+      // onVisibilityChangeCallback is called by show/hide
+      // Ensure the callback is also called if the state didn't change but an explicit setGlobalVisibility happened
+      // This might be redundant if show/hide always call it, but good for explicit calls.
+      // However, if show/hide already call it, this might double-call.
+      // Let's rely on show()/hide() to call onVisibilityChangeCallback.
+      // if (!changed && onVisibilityChangeCallback) {
+      //     onVisibilityChangeCallback(isActive, isGloballyVisibleByStreamer);
+      // }
     },
     setViewerDrawPermission: (viewerUsernameToSet, newPermission) => {
-      // For streamer to call
       if (!isStreamer) return;
       socket.emit("wb:toggleViewerDrawPermission", {
         roomId,
@@ -2150,12 +1626,10 @@ function initializeSharedWhiteboard(canvasId, socket, currentRoomId, currentUser
       });
     },
     forceRequestInitialState: () => {
-      // Useful if connection drops and re-establishes
       if (socket.connected) socket.emit("wb:requestInitialState", { roomId });
     },
-    getDrawingHistory: () => [...drawingHistory], // For debugging or saving state locally
+    getDrawingHistory: () => [...drawingHistory],
     loadDrawingHistory: (history) => {
-      // For restoring state
       if (Array.isArray(history)) {
         drawingHistory = [...history];
         redrawFullCanvas();
@@ -2187,23 +1661,6 @@ function initializeSharedWhiteboard(canvasId, socket, currentRoomId, currentUser
       console.log("SharedWhiteboard destroyed.");
     },
   };
-
-  if (isStreamer) {
-    isGloballyVisible = false; // Streamer starts with WB off unless state says otherwise
-    canDraw = true;
-    // Streamer can call publicApi.setGlobalVisibility(true) to start.
-  } else {
-    // Viewer waits for wb:toggleVisibility or wb:initState
-    // If it's already supposed to be visible from server state, it will be handled
-  }
-
-  if (isStreamer) {
-    setActiveTool("pen"); // Default tool for streamer
-  } else {
-    // For viewer, default tool doesn't matter much until they get draw permission
-    // but cursor should be 'default' if no permission.
-    canvasElement.style.cursor = initialCanDraw ? "crosshair" : "default";
-  }
 
   return publicApi;
 }

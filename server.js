@@ -258,7 +258,7 @@ app.post("/api/createStream", (req, res) => {
           { urls: "stun:stun2.l.google.com:19302" },
           { urls: "stun:stun.services.mozilla.com" },
           {
-            urls: "relay1.expressturn.com:3480", // Or turn: or turns:
+            urls: "turn:relay1.expressturn.com:3480", // Or turn: or turns:
             username: "efENPNJI04ST2ENN3C",
             credential: "udPrjk4AqDfSh8SY",
           },
