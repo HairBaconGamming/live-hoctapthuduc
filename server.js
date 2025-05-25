@@ -681,13 +681,42 @@ io.on("connection", (socket) => {
     }
   });
 
-  socket.on("endRoom", ({ roomId }) => {
+  socket.on("endRoom", async ({ roomId }) => { // Make the handler async
     const room = findRoom(roomId);
     if (room && socket.id === room.hostSocketId) {
-      io.to(roomId).emit("roomEnded"); // Notify all clients in the room
+      console.log(`Host ${socket.username} is ending room ${roomId}.`);
+
+      // 1. Notify all clients in the room that it's ending
+      io.to(roomId).emit("roomEnded", "Buổi live đã được chủ phòng kết thúc.");
+
+      // 2. Iterate over sockets in the room and disconnect them
+      try {
+        const socketsInRoom = await io.in(roomId).allSockets(); // Get all socket IDs in the room
+        if (socketsInRoom) {
+          socketsInRoom.forEach(socketIdInRoom => {
+            const clientSocket = io.sockets.sockets.get(socketIdInRoom);
+            if (clientSocket) {
+              // Optionally, you can send a final "you are being disconnected" message
+              // clientSocket.emit("forceDisconnect", "Phòng đã kết thúc, bạn sẽ bị ngắt kết nối.");
+              clientSocket.disconnect(true); // true for 'closeConnection'
+              console.log(`Disconnected socket ${socketIdInRoom} from ended room ${roomId}.`);
+            }
+          });
+        }
+      } catch (e) {
+        console.error(`Error disconnecting sockets from room ${roomId}:`, e);
+      }
+
+      // 3. Remove the room from the active list
       liveRooms = liveRooms.filter((r) => r.id !== roomId);
-      console.log(`✅ Room ${roomId} was ended by host ${socket.username}.`);
-      // Sockets in the room will be disconnected by client-side redirect or on their own.
+      console.log(`✅ Room ${roomId} was ended and removed by host ${socket.username}.`);
+
+    } else if (room) {
+      console.warn(`Attempt to end room ${roomId} by non-host ${socket.username} (Socket ID: ${socket.id}). Host is ${room.hostSocketId}`);
+      socket.emit("errorMessage", "Chỉ chủ phòng mới có thể kết thúc buổi live.");
+    } else {
+      console.warn(`Attempt to end non-existent room ${roomId} by ${socket.username}`);
+      socket.emit("errorMessage", "Phòng không tồn tại.");
     }
   });
 
