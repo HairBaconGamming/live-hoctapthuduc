@@ -1225,41 +1225,51 @@ function initializeSharedWhiteboard(config) {
   // --- Public API & Lifecycle ---
   function resizeCanvas() {
     if (!isActive || !canvasElement.parentElement) return;
-    const mainToolbar = isStreamer
-      ? toolbarElements.mainToolbar
-      : toolbarElements.viewerToolbar; // Use appropriate toolbar
-    const toolbarHeight =
-      mainToolbar && mainToolbar.style.display !== "none"
-        ? mainToolbar.offsetHeight
-        : 0;
-    const overlayPadding = 0; // Using inset for overlay, padding handled by canvas parent
 
-    let viewportWidth =
-      canvasElement.parentElement.clientWidth - 2 * overlayPadding;
-    let viewportHeight =
-      canvasElement.parentElement.clientHeight -
-      toolbarHeight -
-      2 * overlayPadding -
-      (mainToolbar && mainToolbar.style.display !== "none" ? 5 : 0);
-    viewportWidth = Math.max(100, viewportWidth);
-    viewportHeight = Math.max(100, viewportHeight);
+    // Determine which toolbar is active for height calculation
+    const currentMainToolbar = isStreamer ? toolbarElements.mainToolbar : toolbarElements.viewerToolbar;
+
+    const toolbarHeight =
+        currentMainToolbar && currentMainToolbar.style.display !== "none" // Check if toolbar is visible
+            ? currentMainToolbar.offsetHeight // Get its actual rendered height
+            : 0;
+
+    const overlayPaddingTop = parseFloat(getComputedStyle(canvasElement.parentElement.parentElement).paddingTop) || 0;
+    const overlayPaddingBottom = parseFloat(getComputedStyle(canvasElement.parentElement.parentElement).paddingBottom) || 0;
+    const wrapperMarginTop = parseFloat(getComputedStyle(canvasElement.parentElement).marginTop) || 0;
+    const wrapperMarginBottom = parseFloat(getComputedStyle(canvasElement.parentElement).marginBottom) || 0;
+
+
+    // Calculate available height for the canvas WRAPPER
+    // canvasElement.parentElement.parentElement is sharedWhiteboardOverlayViewer
+    let availableHeightForWrapper = canvasElement.parentElement.parentElement.clientHeight -
+                                  toolbarHeight -
+                                  overlayPaddingTop - overlayPaddingBottom - // Account for overlay padding
+                                  wrapperMarginTop - wrapperMarginBottom; // Account for wrapper margins
+
+    // Canvas dimensions should be based on its immediate parent (the wrapper)
+    let viewportWidth = canvasElement.parentElement.clientWidth;
+    let viewportHeight = Math.max(100, availableHeightForWrapper); // Use calculated height for wrapper
+
+    // Set the wrapper's height explicitly if the overlay uses flex-direction: column
+    // The wrapper needs to know its height so the canvas (width/height 100%) can fill it.
+    // This is only strictly necessary if the wrapper's height isn't naturally determined by flex-grow.
+    // With flex-grow: 1 on the wrapper, this might be redundant but can help in some cases.
+    // canvasElement.parentElement.style.height = `${viewportHeight}px`;
+
 
     if (
-      canvasElement.width !== viewportWidth ||
-      canvasElement.height !== viewportHeight
+        canvasElement.width !== viewportWidth ||
+        canvasElement.height !== viewportHeight // Canvas buffer should match its wrapper's final size
     ) {
-      canvasElement.width = viewportWidth;
-      canvasElement.height = viewportHeight;
+        canvasElement.width = viewportWidth;
+        canvasElement.height = viewportHeight;
     }
-    // These might not be needed if CSS handles canvas size correctly with parent
-    // canvasElement.style.width = `${viewportWidth}px`;
-    // canvasElement.style.height = `${viewportHeight}px`;
+    // CSS should make the canvas display at 100% width/height of its wrapper
+    // So, no need to set canvasElement.style.width/height here usually.
 
-    if (mainToolbar && mainToolbar.style.display !== "none") {
-      mainToolbar.style.width = `${viewportWidth}px`;
-    }
     redrawFullCanvas();
-  }
+}
 
   function show() {
     if (isActive) return;

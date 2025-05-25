@@ -307,71 +307,63 @@ html, body.live-room-body {
     cursor: cell; /* Or a custom eraser cursor */
 }
 
-
-#whiteboardToolbarViewer {
-    display: flex; /* JS will toggle to 'flex' if viewerCanDraw */
-    align-items: center;
-    gap: 10px;
-    padding: 10px 12px;
-    background-color: rgba(var(--bg-panel-rgb, 28, 28, 50), 0.85); /* Viewer toolbar slightly different */
-    border-radius: var(--border-radius-base) var(--border-radius-base) 0 0;
-    border: 1px solid var(--border-color);
-    border-bottom: none;
+#sharedWhiteboardOverlayViewer {
+    display: flex;
+    flex-direction: column; /* Stack toolbar on top of canvas wrapper */
+    position: fixed; /* Or absolute, depending on your layout */
+    inset: 0; /* Example: take full screen */
+    /* Or define specific top, left, width, height if not full screen */
+    /* e.g., top: 10%; left: 10%; width: 80%; height: 80%; */
+    background-color: rgba(var(--bg-dark-rgb, 15, 15, 30), 0.85); /* Example background */
+    backdrop-filter: blur(5px);
+    padding: 10px; /* Padding for the overlay itself */
     box-sizing: border-box;
-    margin-bottom: 0;
-    flex-wrap: wrap;
+    z-index: 500; /* Ensure it's above other content */
+    /* display: none; /* Initial state, JS will toggle to 'flex' */
 }
 
-#whiteboardToolbarViewer .wb-label {
-    color: var(--text-medium);
-    font-size: 0.85em;
+/* Viewer's Toolbar */
+#whiteboardToolbarViewer {
+    flex-shrink: 0; /* Prevent toolbar from shrinking */
+    width: 100%;    /* Toolbar takes full width of overlay padding box */
+    padding: 8px;
+    background-color: rgba(var(--bg-dark-rgb, 15, 15, 30), 0.9);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    box-sizing: border-box;
+    /* Add other toolbar styling (flex, gap for buttons) here */
+    display: flex; /* To layout buttons inside */
+    gap: 10px;
+    align-items: center;
 }
 
-#whiteboardToolbarViewer input[type="color"] {
-    width: 32px;
-    height: 26px;
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
-    cursor: pointer;
-    padding: 2px;
-    background-color: transparent;
-}
-#whiteboardToolbarViewer input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
-#whiteboardToolbarViewer input[type="color"]::-webkit-color-swatch { border: none; border-radius: 3px;}
-#whiteboardToolbarViewer input[type="color"]::-moz-color-swatch { border: none; border-radius: 3px;}
-
-
-#whiteboardToolbarViewer input[type="range"] {
-    cursor: pointer;
-    width: 80px;
-}
-#whiteboardToolbarViewer #wbLineWidthValueDisplayViewer {
-    color: var(--text-light);
-    font-weight: 500;
+/* Wrapper for the canvas (this is canvasElement.parentElement in sharedWhiteboard.js) */
+#sharedWhiteboardCanvasWrapperViewer {
+    flex-grow: 1; /* Crucial: allows this div to take remaining vertical space */
+    width: 100%;  /* Take full available width */
+    position: relative; /* For positioning elements inside if needed (like coordsDisplay) */
+    overflow: hidden;   /* Important: Prevents canvas from overflowing its designated space */
+    background-color: #202333; /* Example background for the canvas area */
+    border-radius: 4px; /* Optional */
 }
 
-#whiteboardToolbarViewer .wb-tool-btn {
-    padding: 5px 8px !important;
-    background-color: rgba(var(--secondary-color-rgb), 0.1) !important; /* Viewer tools different accent */
-    border: 1px solid rgba(var(--secondary-color-rgb), 0.4) !important;
+/* The actual canvas element */
+#sharedWhiteboardCanvasViewer {
+    display: block; /* Removes extra space below inline elements */
+    width: 100%;    /* Canvas should fill its wrapper */
+    height: 100%;   /* Canvas should fill its wrapper */
 }
-#whiteboardToolbarViewer .wb-tool-btn:hover {
-     background-color: rgba(var(--secondary-color-rgb), 0.2) !important;
-}
-#whiteboardToolbarViewer .wb-tool-btn i {
-    font-size: 0.9rem !important;
-    margin-bottom: 0 !important;
-    color: var(--text-medium) !important;
-}
-#whiteboardToolbarViewer .wb-tool-btn:hover i {
-    color: var(--secondary-color) !important;
-}
-#whiteboardToolbarViewer .wb-tool-btn.active {
-    background-color: rgba(var(--accent-color-rgb), 0.25) !important; /* Active viewer tool different again */
-    border-color: var(--accent-color) !important;
-}
-#whiteboardToolbarViewer .wb-tool-btn.active i {
-    color: var(--accent-color) !important;
+
+/* Coordinate Display (if used) */
+.whiteboard-coords-display {
+    position: absolute;
+    bottom: 5px;
+    left: 5px;
+    background-color: rgba(0, 0, 0, 0.5);
+    color: white;
+    padding: 2px 5px;
+    font-size: 10px;
+    border-radius: 3px;
+    pointer-events: none; /* So it doesn't interfere with drawing */
 }
 
 /* Specific for viewer close/hide button - might be an eye-slash */
@@ -397,6 +389,83 @@ html, body.live-room-body {
 }
 .wb-viewer-toggle-btn i {
     margin-right: 6px;
+}
+
+/* --- WHITEBOARD OVERLAY & LAYOUT --- */
+#sharedWhiteboardOverlayViewer {
+    position: fixed; /* Or absolute if contained within another element */
+    inset: 0; /* Default: full screen. Adjust if it's a smaller popup. */
+    /* Example for a smaller, centered popup:
+    top: 50%; left: 50%; transform: translate(-50%, -50%);
+    width: 80vw; height: 80vh; max-width: 1000px; max-height: 700px;
+    border-radius: 10px; box-shadow: 0 5px 25px rgba(0,0,0,0.3);
+    */
+    background-color: rgba(var(--bg-dark-rgb, 15, 15, 30), 0.9); /* Darker, more opaque */
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    z-index: 1002; /* Ensure it's above other page content but potentially below modals */
+    display: none; /* JS will change to 'flex' when active */
+    flex-direction: column; /* CRUCIAL: Stack toolbar and canvas wrapper vertically */
+    overflow: hidden; /* Prevent content from spilling */
+    padding: 10px; /* Optional padding around the entire overlay */
+    box-sizing: border-box;
+}
+
+/* VIEWER'S TOOLBAR */
+#whiteboardToolbarViewer {
+    width: 100%; /* Take full width within the overlay's padding */
+    flex-shrink: 0; /* IMPORTANT: Prevent the toolbar from shrinking */
+    padding: 10px 15px;
+    background-color: rgba(10, 10, 20, 0.95); /* Slightly different background for definition */
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    position: relative; /* For z-index if needed, though usually not for top bar */
+    z-index: 10; /* Ensure toolbar is above canvas wrapper if any absolute positioning issues */
+}
+
+/* Styling for buttons inside the toolbar */
+#whiteboardToolbarViewer button {
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: var(--text-light, #e0e0e0);
+    padding: 6px 10px;
+    border-radius: var(--border-radius-small, 4px);
+    cursor: pointer;
+    transition: background-color 0.2s, border-color 0.2s;
+}
+#whiteboardToolbarViewer button:hover {
+    background: rgba(255, 255, 255, 0.2);
+    border-color: rgba(255, 255, 255, 0.3);
+}
+#whiteboardToolbarViewer .whiteboard-coords-display {
+    margin-left: auto; /* Push coords to the right */
+    font-size: 0.75rem;
+    color: var(--text-medium, #a0a0c0);
+    background-color: transparent;
+    padding: 0;
+}
+
+
+/* CANVAS WRAPPER (Parent of the canvas element) */
+#sharedWhiteboardCanvasWrapperViewer {
+    width: 100%; /* Take full width within the overlay's padding */
+    flex-grow: 1; /* CRUCIAL: This makes the wrapper fill the REMAINING vertical space */
+    position: relative; /* For absolute positioning of canvas or other elements inside */
+    overflow: hidden; /* Ensure canvas doesn't overflow this designated space */
+    background-color: #202333; /* Background for the drawing area (ERASER_COLOR_INTERNAL should match this) */
+    border-radius: var(--border-radius-medium, 8px); /* Optional rounding for the canvas area */
+    margin-top: 5px; /* Optional small gap between toolbar and canvas wrapper */
+}
+
+/* THE CANVAS ELEMENT ITSELF */
+#sharedWhiteboardCanvasViewer {
+    display: block; /* Removes potential extra space below canvas */
+    width: 100%;    /* Make canvas fill its wrapper horizontally */
+    height: 100%;   /* Make canvas fill its wrapper vertically */
+    cursor: default; /* Default cursor, tool logic will override */
 }
 
 /* --- Viewer Quiz Overlay Styles --- */
