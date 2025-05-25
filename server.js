@@ -978,6 +978,7 @@ io.on("connection", (socket) => {
           showCorrectAnswer: false,
         };
         room.quiz.isGloballyVisible = true;
+        room.quiz.currentQuestionId = questionId;
         io.to(roomId).emit("quiz:newQuestion", {
           questionId,
           text: questionText,

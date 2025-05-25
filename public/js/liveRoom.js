@@ -486,6 +486,8 @@ document.addEventListener("DOMContentLoaded", () => {
       // This event now implies the quiz question is *available*.
       // Visibility is controlled by 'quiz:visibilityChanged'.
       // We still need to store the question details if it's the current global one.
+      isQuizGloballyVisible = true;
+      currentGlobalQuizQuestionId = questionId;
       if (questionId === currentGlobalQuizQuestionId && isQuizGloballyVisible) {
         displayQuizQuestion(questionId, text, options); // This will show it if locally toggled on
       } else if (
