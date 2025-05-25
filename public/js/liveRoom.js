@@ -95,6 +95,9 @@ document.addEventListener("DOMContentLoaded", () => {
     toggleGlobalVisibilityBtn: document.getElementById(
       "wbToggleGlobalVisibilityBtn"
     ),
+    toggleViewerQuizOverlayBtn: document.getElementById(
+      "toggleViewerQuizOverlayBtn"
+    ),
     viewerPermissionsList: document.getElementById("wbViewerPermissionsList"),
     colorPickerStreamer: document.getElementById("wbColorPickerStreamer"),
     lineWidthStreamer: document.getElementById("wbLineWidthStreamer"),
@@ -148,6 +151,10 @@ document.addEventListener("DOMContentLoaded", () => {
   let currentQuizIdViewer = null;
   let selectedAnswerIndexViewer = null;
   let quizOverlayVisible = false;
+
+  let isQuizLocallyVisible = false; // Viewer's preference to see the quiz
+  let isQuizGloballyVisible = false; // Streamer's setting for the current quiz question
+  let currentGlobalQuizQuestionId = null; // Tracks the QID that is globally visible
 
   // ==================================
   // INITIALIZATION
@@ -476,7 +483,94 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     });
     socket.on("quiz:newQuestion", ({ questionId, text, options }) => {
-      displayQuizQuestion(questionId, text, options);
+      // This event now implies the quiz question is *available*.
+      // Visibility is controlled by 'quiz:visibilityChanged'.
+      // We still need to store the question details if it's the current global one.
+      if (questionId === currentGlobalQuizQuestionId && isQuizGloballyVisible) {
+        displayQuizQuestion(questionId, text, options); // This will show it if locally toggled on
+      } else if (
+        questionId === currentGlobalQuizQuestionId &&
+        !isQuizGloballyVisible
+      ) {
+        // Quiz is globally off, but we received a question (e.g., host started then immediately hid)
+        // Store it but don't display yet.
+        currentQuizIdViewer = questionId; // So we know what to display if it becomes visible
+        // Clear UI just in case
+        if (elements.viewerQuizOverlay)
+          elements.viewerQuizOverlay.style.display = "none";
+        quizOverlayVisible = false;
+      }
+    });
+    socket.on("quiz:visibilityChanged", ({ isVisible, questionId }) => {
+      console.log(
+        `VIEWER: Received quiz:visibilityChanged - isVisible: ${isVisible}, QID: ${questionId}`
+      );
+      isQuizGloballyVisible = isVisible;
+      currentGlobalQuizQuestionId = questionId; // Store the QID that this visibility state applies to
+
+      if (elements.toggleViewerQuizOverlayBtn) {
+        elements.toggleViewerQuizOverlayBtn.disabled = !isVisible;
+        const btnTextEl =
+          elements.toggleViewerQuizOverlayBtn.querySelector(".btn-text");
+        if (btnTextEl) {
+          if (isVisible) {
+            btnTextEl.textContent = isQuizLocallyVisible
+              ? "Ẩn Trắc Nghiệm"
+              : "Hiện Trắc Nghiệm";
+            elements.toggleViewerQuizOverlayBtn.title = isQuizLocallyVisible
+              ? "Ẩn trắc nghiệm"
+              : "Hiện trắc nghiệm (Chủ phòng đang bật)";
+          } else {
+            btnTextEl.textContent = "Trắc Nghiệm";
+            elements.toggleViewerQuizOverlayBtn.title =
+              "Trắc nghiệm (Chủ phòng đang tắt)";
+          }
+        }
+        elements.toggleViewerQuizOverlayBtn.classList.toggle(
+          "active",
+          isQuizLocallyVisible && isVisible
+        );
+      }
+
+      if (isVisible) {
+        // Streamer wants quiz shown. If viewer also wants it shown, display it.
+        // The quiz:newQuestion event (or initial state) should provide the actual content.
+        // If this client already has the question data for `currentGlobalQuizQuestionId`, display it.
+        if (
+          isQuizLocallyVisible &&
+          currentQuizIdViewer === currentGlobalQuizQuestionId &&
+          elements.quizQuestionViewerText
+            .textContent /* check if question already loaded */
+        ) {
+          if (elements.viewerQuizOverlay)
+            elements.viewerQuizOverlay.style.display = "block";
+          quizOverlayVisible = true;
+          // Optional: Animation if it wasn't visible before
+        } else if (
+          isQuizLocallyVisible &&
+          currentQuizIdViewer !== currentGlobalQuizQuestionId
+        ) {
+          // Globally visible, locally should be shown, but we don't have the right question yet.
+          // This might happen if viewer joined mid-quiz or a new question was pushed while they had it hidden.
+          // The server should re-send quiz:newQuestion if isVisible is true.
+          // For now, we just enable the button and wait for newQuestion.
+          console.log(
+            "Quiz globally visible, viewer wants to see it, waiting for newQuestion event for QID:",
+            currentGlobalQuizQuestionId
+          );
+        }
+      } else {
+        // Streamer hid the quiz globally. Force hide for viewer.
+        clearQuizOverlayViewer(true); // Pass true to force hide without animation if desired
+        isQuizLocallyVisible = false; // Update local state
+        if (elements.toggleViewerQuizOverlayBtn) {
+          // Update button again
+          const btnTextEl =
+            elements.toggleViewerQuizOverlayBtn.querySelector(".btn-text");
+          if (btnTextEl) btnTextEl.textContent = "Trắc Nghiệm";
+          elements.toggleViewerQuizOverlayBtn.classList.remove("active");
+        }
+      }
     });
     socket.on("quiz:answerSubmitted", ({ questionId, answerIndex }) => {
       // This confirms to the *submitting* user their answer was noted.
@@ -1009,6 +1103,18 @@ document.addEventListener("DOMContentLoaded", () => {
       console.error("Quiz UI elements missing for displayQuizQuestion");
       return;
     }
+    if (!isQuizGloballyVisible || !isQuizLocallyVisible) {
+      console.log(
+        `displayQuizQuestion for QID ${questionId} skipped. Global: ${isQuizGloballyVisible}, Local: ${isQuizLocallyVisible}`
+      );
+      // Store the data in case it becomes visible later
+      currentQuizIdViewer = questionId; // Update to the latest available question
+      // Ensure overlay is hidden
+      if (elements.viewerQuizOverlay)
+        elements.viewerQuizOverlay.style.display = "none";
+      quizOverlayVisible = false;
+      return;
+    }
     currentQuizIdViewer = questionId;
     selectedAnswerIndexViewer = null; // Reset viewer's selection for new question
     elements.quizQuestionViewerText.textContent = text;
@@ -1249,11 +1355,17 @@ document.addEventListener("DOMContentLoaded", () => {
       elements.quizViewerFeedback.textContent = feedbackText;
     }
   }
-  function clearQuizOverlayViewer() {
-    /* ... (Your existing logic, same as before) ... */ if (
-      !elements.viewerQuizOverlay
-    )
+  function clearQuizOverlayViewer(forceHide = false) {
+    if (!elements.viewerQuizOverlay) return;
+
+    // If not forcing hide, only clear if it's locally and globally visible (or was intended to be)
+    if (!forceHide && (!quizOverlayVisible || !isQuizGloballyVisible)) {
+      // It's already hidden or shouldn't be shown, just ensure state is clean
+      elements.viewerQuizOverlay.style.display = "none";
+      quizOverlayVisible = false;
       return;
+    }
+
     const onHideComplete = () => {
       if (elements.quizQuestionViewerText)
         elements.quizQuestionViewerText.textContent = "";
@@ -1263,11 +1375,16 @@ document.addEventListener("DOMContentLoaded", () => {
         elements.quizViewerFeedback.textContent = "";
       if (elements.viewerQuizOverlay)
         elements.viewerQuizOverlay.style.display = "none";
-      currentQuizIdViewer = null;
-      selectedAnswerIndexViewer = null;
+      // Don't reset currentQuizIdViewer here if clearCurrent is for "next question"
+      // Reset selectedAnswerIndexViewer for the new question setup by displayQuizQuestion
       quizOverlayVisible = false;
     };
-    if (quizOverlayVisible && !prefersReducedMotion)
+
+    if (
+      !prefersReducedMotion &&
+      quizOverlayVisible &&
+      typeof gsap !== "undefined"
+    ) {
       gsap.to(elements.viewerQuizOverlay, {
         duration: 0.4,
         autoAlpha: 0,
@@ -1275,8 +1392,11 @@ document.addEventListener("DOMContentLoaded", () => {
         ease: "power1.in",
         onComplete: onHideComplete,
       });
-    else {
-      gsap.set(elements.viewerQuizOverlay, { autoAlpha: 0, display: "none" });
+    } else {
+      if (typeof gsap !== "undefined")
+        gsap.set(elements.viewerQuizOverlay, { autoAlpha: 0, display: "none" });
+      else if (elements.viewerQuizOverlay)
+        elements.viewerQuizOverlay.style.display = "none";
       onHideComplete();
     }
   }
@@ -1762,6 +1882,61 @@ document.addEventListener("DOMContentLoaded", () => {
         }
       });
     }
+    elements.toggleViewerQuizOverlayBtn?.addEventListener("click", () => {
+      playButtonFeedback(elements.toggleViewerQuizOverlayBtn);
+      if (!isQuizGloballyVisible) {
+        showAlert("Chủ phòng hiện đang tắt trắc nghiệm.", "info");
+        return;
+      }
+
+      isQuizLocallyVisible = !isQuizLocallyVisible; // Toggle local preference
+
+      if (isQuizLocallyVisible) {
+        // User wants to see it, and it's globally available.
+        // displayQuizQuestion should be called if a new question arrived or from initial state
+        // If question data is already loaded for currentGlobalQuizQuestionId, show it.
+        if (
+          currentQuizIdViewer === currentGlobalQuizQuestionId &&
+          elements.quizQuestionViewerText.textContent
+        ) {
+          if (elements.viewerQuizOverlay)
+            elements.viewerQuizOverlay.style.display = "block";
+          quizOverlayVisible = true;
+          // Optional: animation if it wasn't shown
+          if (!prefersReducedMotion)
+            gsap.fromTo(
+              elements.viewerQuizOverlay,
+              { autoAlpha: 0, y: 20 },
+              { autoAlpha: 1, y: 0, duration: 0.3, ease: "power1.out" }
+            );
+        } else if (currentGlobalQuizQuestionId) {
+          // We might need to re-request the question data if not already loaded
+          console.log(
+            "Viewer wants to see quiz, but current question data might be stale or missing. QID:",
+            currentGlobalQuizQuestionId
+          );
+          // For now, it will show if displayQuizQuestion gets called by a newQuestion event matching currentGlobalQuizQuestionId
+        }
+      } else {
+        // User wants to hide it locally
+        clearQuizOverlayViewer(true); // Force hide locally
+      }
+
+      // Update button text/state
+      const btnTextEl =
+        elements.toggleViewerQuizOverlayBtn.querySelector(".btn-text");
+      if (btnTextEl)
+        btnTextEl.textContent = isQuizLocallyVisible
+          ? "Ẩn Trắc Nghiệm"
+          : "Hiện Trắc Nghiệm";
+      elements.toggleViewerQuizOverlayBtn.classList.toggle(
+        "active",
+        isQuizLocallyVisible
+      );
+      elements.toggleViewerQuizOverlayBtn.title = isQuizLocallyVisible
+        ? "Ẩn trắc nghiệm"
+        : "Hiện trắc nghiệm (Chủ phòng đang bật)";
+    });
     elements.closeQuizOverlayBtn?.addEventListener("click", () => {
       clearQuizOverlayViewer();
     });

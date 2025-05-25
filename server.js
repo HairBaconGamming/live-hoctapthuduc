@@ -310,24 +310,28 @@ app.get("/api/rooms", (req, res) => {
 /* =============================
     PAGE RENDERING ROUTES
 ============================= */
-app.get("/room/:id", checkHoctapAuth, async (req, res) => { // Make it async if fetching room details
+app.get("/room/:id", checkHoctapAuth, async (req, res) => {
+  // Make it async if fetching room details
   try {
     const roomId = req.params.id;
     const userMakingRequest = req.user; // User object from checkHoctapAuth middleware
 
     if (!userMakingRequest || !userMakingRequest.userId) {
-        // This case should ideally be handled by checkHoctapAuth redirecting to login
-        console.error("User not authenticated or userId missing for room access.");
-        // req.flash is not available in this server.js context, send plain error or redirect
-        return res.status(401).send("Authentication required to access room.");
+      // This case should ideally be handled by checkHoctapAuth redirecting to login
+      console.error(
+        "User not authenticated or userId missing for room access."
+      );
+      // req.flash is not available in this server.js context, send plain error or redirect
+      return res.status(401).send("Authentication required to access room.");
     }
 
     const room = findRoom(roomId);
     if (!room) {
-      return res.status(404).render("errorPage", { // Assuming you have an errorPage.ejs
+      return res.status(404).render("errorPage", {
+        // Assuming you have an errorPage.ejs
         message: "Phòng live không tồn tại hoặc đã kết thúc.",
         projectUrl: `https://${process.env.PROJECT_DOMAIN}.glitch.me`,
-        user: userMakingRequest // Pass user if your error page uses it
+        user: userMakingRequest, // Pass user if your error page uses it
       });
     }
 
@@ -335,11 +339,12 @@ app.get("/room/:id", checkHoctapAuth, async (req, res) => { // Make it async if 
       return res.status(403).render("errorPage", {
         message: "Bạn đã bị chặn khỏi phòng live này.",
         projectUrl: room.glitchProjectUrl,
-        user: userMakingRequest
+        user: userMakingRequest,
       });
     }
 
-    const isCurrentUserHost = room.ownerid.toString() === userMakingRequest.userId.toString();
+    const isCurrentUserHost =
+      room.ownerid.toString() === userMakingRequest.userId.toString();
 
     // Default initial states for whiteboard (can be overridden by actual room state later)
     let initialWhiteboardVisibleState = false;
@@ -349,12 +354,15 @@ app.get("/room/:id", checkHoctapAuth, async (req, res) => { // Make it async if 
     // from a database or your live-hoctap-9a3 service here.
     // For now, we use the `room.isWhiteboardActive` and a default for viewers.
     if (room) {
-        initialWhiteboardVisibleState = room.isWhiteboardActive || false;
-        // Default viewer permission (can be more dynamic based on room settings)
-        const viewerSettings = room.viewersList.find(v => v.username === userMakingRequest.username);
-        initialDrawPermissionForViewer = viewerSettings ? viewerSettings.canDraw : false;
+      initialWhiteboardVisibleState = room.isWhiteboardActive || false;
+      // Default viewer permission (can be more dynamic based on room settings)
+      const viewerSettings = room.viewersList.find(
+        (v) => v.username === userMakingRequest.username
+      );
+      initialDrawPermissionForViewer = viewerSettings
+        ? viewerSettings.canDraw
+        : false;
     }
-
 
     const templateData = {
       title: `Live: ${room.title}`,
@@ -373,26 +381,37 @@ app.get("/room/:id", checkHoctapAuth, async (req, res) => { // Make it async if 
 
       // --- FIX: Define and Pass these variables ---
       initialWhiteboardGlobalState: initialWhiteboardVisibleState,
-      initialViewerDrawPermission: isCurrentUserHost ? true : initialDrawPermissionForViewer, // Host can always draw initially
+      initialViewerDrawPermission: isCurrentUserHost
+        ? true
+        : initialDrawPermissionForViewer, // Host can always draw initially
     };
 
     if (isCurrentUserHost) {
       // Streamer specific logic from original server.js
       room.isLive = true;
-      if (room.hostSocketId && room.hostSocketId !== userMakingRequest.socketId) {
+      if (
+        room.hostSocketId &&
+        room.hostSocketId !== userMakingRequest.socketId
+      ) {
         const oldHostSocket = io.sockets.sockets.get(room.hostSocketId);
         if (oldHostSocket) {
-          oldHostSocket.emit("forceEndStream", "Phiên live của bạn đã được bắt đầu từ một thiết bị/tab khác.");
+          oldHostSocket.emit(
+            "forceEndStream",
+            "Phiên live của bạn đã được bắt đầu từ một thiết bị/tab khác."
+          );
           oldHostSocket.disconnect(true);
         }
       }
-      console.log(`Host ${userMakingRequest.username} is accessing their room ${room.id}.`);
+      console.log(
+        `Host ${userMakingRequest.username} is accessing their room ${room.id}.`
+      );
       res.render("streamer", templateData); // Render streamer.ejs for host
     } else {
-      console.log(`Viewer ${userMakingRequest.username} is joining room ${room.id}.`);
+      console.log(
+        `Viewer ${userMakingRequest.username} is joining room ${room.id}.`
+      );
       res.render("liveRoom", templateData); // Render liveRoom.ejs for viewer
     }
-
   } catch (error) {
     console.error("Error in /room/:id route:", error);
     // req.flash not available
@@ -509,19 +528,28 @@ io.on("connection", (socket) => {
 
       // Send current quiz state to new/rejoining viewer
       if (room.quiz.isActive && room.quiz.currentQuestion) {
-        socket.emit("quiz:newQuestion", {
-          questionId: room.quiz.currentQuestion.id,
-          text: room.quiz.currentQuestion.text,
-          options: room.quiz.currentQuestion.options,
+        socket.emit("quiz:visibilityChanged", {
+          isVisible: room.quiz.isGloballyVisible,
+          questionId: room.quiz.currentQuestionId,
         });
-        // If answer was already shown for current question, send that too
-        if (room.quiz.showCorrectAnswer) {
-          socket.emit("quiz:correctAnswer", {
+        if (room.quiz.isGloballyVisible) {
+          // Only send question if globally visible
+          socket.emit("quiz:newQuestion", {
             questionId: room.quiz.currentQuestion.id,
-            correctAnswerIndex: room.quiz.currentQuestion.correctAnswerIndex,
-            results: room.quiz.results[room.quiz.currentQuestion.id] || {},
+            text: room.quiz.currentQuestion.text,
+            options: room.quiz.currentQuestion.options,
           });
+          if (room.quiz.showCorrectAnswer) {
+            socket.emit("quiz:correctAnswer", {
+              /* ... */
+            });
+          }
         }
+      } else {
+        socket.emit("quiz:visibilityChanged", {
+          isVisible: false,
+          questionId: null,
+        }); // Ensure it's off
       }
       if (room.hostSocketId) {
         io.to(room.hostSocketId).emit("updateViewersList", {
@@ -681,7 +709,8 @@ io.on("connection", (socket) => {
     }
   });
 
-  socket.on("endRoom", async ({ roomId }) => { // Make the handler async
+  socket.on("endRoom", async ({ roomId }) => {
+    // Make the handler async
     const room = findRoom(roomId);
     if (room && socket.id === room.hostSocketId) {
       console.log(`Host ${socket.username} is ending room ${roomId}.`);
@@ -693,13 +722,15 @@ io.on("connection", (socket) => {
       try {
         const socketsInRoom = await io.in(roomId).allSockets(); // Get all socket IDs in the room
         if (socketsInRoom) {
-          socketsInRoom.forEach(socketIdInRoom => {
+          socketsInRoom.forEach((socketIdInRoom) => {
             const clientSocket = io.sockets.sockets.get(socketIdInRoom);
             if (clientSocket) {
               // Optionally, you can send a final "you are being disconnected" message
               // clientSocket.emit("forceDisconnect", "Phòng đã kết thúc, bạn sẽ bị ngắt kết nối.");
               clientSocket.disconnect(true); // true for 'closeConnection'
-              console.log(`Disconnected socket ${socketIdInRoom} from ended room ${roomId}.`);
+              console.log(
+                `Disconnected socket ${socketIdInRoom} from ended room ${roomId}.`
+              );
             }
           });
         }
@@ -709,13 +740,21 @@ io.on("connection", (socket) => {
 
       // 3. Remove the room from the active list
       liveRooms = liveRooms.filter((r) => r.id !== roomId);
-      console.log(`✅ Room ${roomId} was ended and removed by host ${socket.username}.`);
-
+      console.log(
+        `✅ Room ${roomId} was ended and removed by host ${socket.username}.`
+      );
     } else if (room) {
-      console.warn(`Attempt to end room ${roomId} by non-host ${socket.username} (Socket ID: ${socket.id}). Host is ${room.hostSocketId}`);
-      socket.emit("errorMessage", "Chỉ chủ phòng mới có thể kết thúc buổi live.");
+      console.warn(
+        `Attempt to end room ${roomId} by non-host ${socket.username} (Socket ID: ${socket.id}). Host is ${room.hostSocketId}`
+      );
+      socket.emit(
+        "errorMessage",
+        "Chỉ chủ phòng mới có thể kết thúc buổi live."
+      );
     } else {
-      console.warn(`Attempt to end non-existent room ${roomId} by ${socket.username}`);
+      console.warn(
+        `Attempt to end non-existent room ${roomId} by ${socket.username}`
+      );
       socket.emit("errorMessage", "Phòng không tồn tại.");
     }
   });
@@ -938,6 +977,7 @@ io.on("connection", (socket) => {
           },
           showCorrectAnswer: false,
         };
+        room.quiz.isGloballyVisible = true;
         io.to(roomId).emit("quiz:newQuestion", {
           questionId,
           text: questionText,
@@ -954,6 +994,28 @@ io.on("connection", (socket) => {
       }
     }
   );
+
+  socket.on("quiz:toggleVisibility", ({ roomId, isVisible }) => {
+    const room = findRoom(roomId);
+    if (room && socket.username === room.owner) {
+      if (room.quiz.isActive && room.quiz.currentQuestionId) {
+        // Only toggle if a quiz is active
+        room.quiz.isGloballyVisible = isVisible;
+        io.to(roomId).emit("quiz:visibilityChanged", {
+          isVisible: room.quiz.isGloballyVisible,
+          questionId: room.quiz.currentQuestionId,
+        });
+        console.log(
+          `Quiz global visibility for room ${roomId} (QID: ${room.quiz.currentQuestionId}) set to ${room.quiz.isGloballyVisible} by host.`
+        );
+      } else {
+        socket.emit(
+          "quiz:error",
+          "Không có trắc nghiệm nào đang hoạt động để thay đổi hiển thị."
+        );
+      }
+    }
+  });
 
   socket.on("quiz:submitAnswer", ({ roomId, questionId, answerIndex }) => {
     const room = findRoom(roomId);
@@ -1040,6 +1102,7 @@ io.on("connection", (socket) => {
       room.quiz.currentQuestion = null;
       room.quiz.showCorrectAnswer = false;
       // Responses and results for old questions are kept, new ones will use new QID.
+      room.quiz.isGloballyVisible = false;
       io.to(roomId).emit("quiz:clearCurrent"); // Tell clients to clear current Q display
       console.log(`Quiz cleared for next question setup in room ${roomId}`);
     }
@@ -1056,6 +1119,7 @@ io.on("connection", (socket) => {
         results: {},
         showCorrectAnswer: false,
       }; // Full reset
+      room.quiz.isGloballyVisible = false;
       io.to(roomId).emit("quiz:ended");
       console.log(`Quiz ended in room ${roomId}`);
     }
