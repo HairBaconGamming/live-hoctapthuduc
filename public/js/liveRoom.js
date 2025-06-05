@@ -2127,4 +2127,17 @@ document.addEventListener("DOMContentLoaded", () => {
     if (peer) peer.destroy();
     if (sharedWhiteboardInstance) sharedWhiteboardInstance.destroy();
   });
+  function clearTokenFromURL() {
+        const url = new URL(window.location.href);
+        if (url.searchParams.has('token')) {
+            url.searchParams.delete('token');
+            // Replace the current history state with the new URL without the token
+            // The 'null' for state and '' for title are common defaults
+            window.history.replaceState(null, '', url.pathname + url.search + url.hash);
+            console.log("Token removed from URL for viewer.");
+        }
+    }
+
+    // --- Call it early after DOM is ready ---
+    clearTokenFromURL(); // Call this immediately
 }); // End DOMContentLoaded

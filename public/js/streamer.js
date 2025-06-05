@@ -42,6 +42,7 @@ document.addEventListener("DOMContentLoaded", () => {
     shareScreenBtn: document.getElementById("shareScreenBtnV2"),
     liveCamBtn: document.getElementById("liveCamBtnV2"),
     toggleMicBtn: document.getElementById("toggleMicBtnV2"),
+    shareLiveBtn: document.getElementById("shareLiveBtn"),
     endStreamBtn: document.getElementById("endStreamBtnV2"),
     viewersListBtn: document.getElementById("viewersListBtnV2"),
     bannedListBtn: document.getElementById("bannedListBtnV2"),
@@ -2450,6 +2451,56 @@ document.addEventListener("DOMContentLoaded", () => {
       playButtonFeedback(elements.toggleMicBtn);
       toggleMicrophone();
     });
+    elements.shareLiveBtn?.addEventListener("click", async () => {
+        if (!streamerConfig || !streamerConfig.roomId) {
+            showAlert("Không thể lấy thông tin phòng để chia sẻ.", "error");
+            return;
+        }
+        playButtonFeedback(elements.shareLiveBtn);
+
+        // Construct the shareable URL.
+        // Option 1: Direct room URL. Authentication will be handled when the user visits.
+        // The glitchProjectUrl should already be like "https://your-project.glitch.me"
+        const roomUrl = `${streamerConfig.glitchProjectUrl}/room/${streamerConfig.roomId}`;
+
+        // Option 2: Using the /live/joinLive/:roomId pattern you provided.
+        // This implies server-side handling for this route.
+        // const joinLiveUrl = `${streamerConfig.glitchProjectUrl}/live/joinLive/${streamerConfig.roomId}`;
+        // For this example, let's use Option 1 (direct room URL) as it requires no new server route.
+        // If you want Option 2, use joinLiveUrl instead of roomUrl below.
+
+        const shareUrl = roomUrl; // Change to joinLiveUrl if you implement that server route
+
+        try {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                await navigator.clipboard.writeText(shareUrl);
+                showAlert("Đã sao chép link vào clipboard!", "success", 2500);
+            } else {
+                // Fallback for older browsers or insecure contexts (http)
+                const textArea = document.createElement("textarea");
+                textArea.value = shareUrl;
+                textArea.style.position = "fixed"; // Prevent scrolling to bottom
+                textArea.style.opacity = "0";
+                document.body.appendChild(textArea);
+                textArea.focus();
+                textArea.select();
+                try {
+                    document.execCommand('copy');
+                    showAlert("Đã sao chép link vào clipboard! (fallback)", "success", 2500);
+                } catch (err) {
+                    showAlert("Không thể sao chép link. Vui lòng sao chép thủ công.", "error", 3000);
+                    console.error('Fallback copy failed:', err);
+                    // Optionally, show the link in a prompt for manual copy
+                    prompt("Sao chép link này:", shareUrl);
+                }
+                document.body.removeChild(textArea);
+            }
+        } catch (err) {
+            showAlert("Lỗi khi sao chép link.", "error");
+            console.error('Could not copy text: ', err);
+             prompt("Sao chép link này:", shareUrl); // Fallback prompt
+        }
+    });
     elements.endStreamBtn?.addEventListener("click", async () => {
       if (!socket) {
         console.error("Socket not connected.");
@@ -2719,4 +2770,17 @@ document.addEventListener("DOMContentLoaded", () => {
   // START INITIALIZATION
   // ==================================
   initializeStreamer();
+  function clearTokenFromURL() {
+        const url = new URL(window.location.href);
+        if (url.searchParams.has('token')) {
+            url.searchParams.delete('token');
+            // Replace the current history state with the new URL without the token
+            // The 'null' for state and '' for title are common defaults
+            window.history.replaceState(null, '', url.pathname + url.search + url.hash);
+            console.log("Token removed from URL for viewer.");
+        }
+    }
+
+    // --- Call it early after DOM is ready ---
+    clearTokenFromURL(); // Call this immediately
 }); // End DOMContentLoaded

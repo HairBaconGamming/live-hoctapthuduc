@@ -249,9 +249,12 @@ app.post("/api/createStream", (req, res) => {
           { urls: "stun:stun2.l.google.com:19302" },
           { urls: "stun:stun.services.mozilla.com" },
           {
-            urls: "turn:relay1.expressturn.com:3480", // Or turn: or turns:
-            username: "efENPNJI04ST2ENN3C",
-            credential: "udPrjk4AqDfSh8SY",
+            urls: "stun:relay1.expressturn.com:3480",
+          },
+          {
+            urls: "turn:relay1.expressturn.com:3480?transport=tcp",
+            username: "000000002064475907",
+            credential: "SoqhLiljuT/aNW9D2Rzy49YWM/I=",
           },
           // You can add more public STUN servers
         ],
