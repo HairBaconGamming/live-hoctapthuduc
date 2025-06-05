@@ -706,38 +706,53 @@ io.on("connection", (socket) => {
   socket.on("endRoom", async ({ roomId }) => {
     // Make the handler async
     const room = findRoom(roomId);
-    if (room && socket.id === room.hostSocketId) {
+
+    if (!room) {
+      console.warn(
+        `Attempt to end non-existent room ${roomId} by ${
+          socket.username || socket.id
+        }`
+      );
+      socket.emit("errorMessage", "Phòng không tồn tại hoặc đã kết thúc.");
+      return;
+    }
+
+    if (socket.id === room.hostSocketId) {
       console.log(`Host ${socket.username} is ending room ${roomId}.`);
 
-      // 1. Notify all clients in the room that it's ending
+      // 1. Immediately notify all clients in the room that it's ending.
+      // This allows their UIs to update promptly.
       io.to(roomId).emit("roomEnded", "Buổi live đã được chủ phòng kết thúc.");
+      console.log(`Emitted 'roomEnded' to room ${roomId}`);
 
-      // 2. Iterate over sockets in the room and disconnect them
+      // 2. Proactively disconnect all sockets from the room on the server-side.
       try {
         const socketsInRoom = await io.in(roomId).allSockets(); // Get all socket IDs in the room
         if (socketsInRoom) {
           socketsInRoom.forEach((socketIdInRoom) => {
             const clientSocket = io.sockets.sockets.get(socketIdInRoom);
             if (clientSocket) {
-              // Optionally, you can send a final "you are being disconnected" message
-              // clientSocket.emit("forceDisconnect", "Phòng đã kết thúc, bạn sẽ bị ngắt kết nối.");
+              // clientSocket.emit("forceDisconnect", "Phòng đã kết thúc, bạn sẽ bị ngắt kết nối."); // Optional final message before disconnect
               clientSocket.disconnect(true); // true for 'closeConnection'
               console.log(
-                `Disconnected socket ${socketIdInRoom} from ended room ${roomId}.`
+                `Server forcefully disconnected socket ${socketIdInRoom} from ended room ${roomId}.`
               );
             }
           });
         }
       } catch (e) {
-        console.error(`Error disconnecting sockets from room ${roomId}:`, e);
+        console.error(
+          `Error during server-side disconnection of sockets from room ${roomId}:`,
+          e
+        );
       }
 
-      // 3. Remove the room from the active list
+      // 3. Remove the room from the active list.
       liveRooms = liveRooms.filter((r) => r.id !== roomId);
       console.log(
-        `✅ Room ${roomId} was ended and removed by host ${socket.username}.`
+        `✅ Room ${roomId} (Owner: ${room.owner}) has been removed from liveRooms.`
       );
-    } else if (room) {
+    } else {
       console.warn(
         `Attempt to end room ${roomId} by non-host ${socket.username} (Socket ID: ${socket.id}). Host is ${room.hostSocketId}`
       );
@@ -745,11 +760,6 @@ io.on("connection", (socket) => {
         "errorMessage",
         "Chỉ chủ phòng mới có thể kết thúc buổi live."
       );
-    } else {
-      console.warn(
-        `Attempt to end non-existent room ${roomId} by ${socket.username}`
-      );
-      socket.emit("errorMessage", "Phòng không tồn tại.");
     }
   });
 
@@ -1128,37 +1138,51 @@ io.on("connection", (socket) => {
 
   // Handle client disconnect
   socket.on("disconnecting", () => {
-    console.log(
-      `Client disconnecting: ${socket.id}, Username: ${socket.username}, Room: ${socket.roomId}`
-    );
-    const currentRoomId = socket.roomId; // Get room before leaving
+    const currentRoomId = socket.roomId;
     if (currentRoomId) {
-      const room = findRoom(currentRoomId);
+      const room = findRoom(currentRoomId); // Check if room still exists
       if (room) {
+        // If room still exists, it means 'endRoom' wasn't called by this host for this room yet
         if (socket.id === room.hostSocketId) {
-          // Host disconnected
           console.log(
-            `Host ${socket.username} disconnected from room ${currentRoomId}. Ending room.`
+            `Host ${socket.username} (Socket: ${socket.id}) disconnected abruptly from room ${currentRoomId}. Ending room for all.`
           );
-          io.to(currentRoomId).emit("roomEnded", "Chủ phòng đã ngắt kết nối.");
+          io.to(currentRoomId).emit(
+            "roomEnded",
+            "Chủ phòng đã ngắt kết nối đột ngột."
+          );
+
+          // Proactively disconnect other viewers
+          io.in(currentRoomId)
+            .allSockets()
+            .then((socketsInRoom) => {
+              socketsInRoom.forEach((socketIdInRoom) => {
+                if (socketIdInRoom !== socket.id) {
+                  // Don't try to disconnect self again
+                  const clientSocket = io.sockets.sockets.get(socketIdInRoom);
+                  if (clientSocket) clientSocket.disconnect(true);
+                }
+              });
+            });
           liveRooms = liveRooms.filter((r) => r.id !== currentRoomId);
+          console.log(
+            `Room ${currentRoomId} removed due to host abrupt disconnect.`
+          );
         } else {
           // Viewer disconnected
           room.viewersList = room.viewersList.filter(
             (v) => v.username !== socket.username
           );
-          room.viewers = Math.max(0, room.viewersList.length);
+          room.viewers = Math.max(0, room.viewersList.length); // Recalculate
           io.to(currentRoomId).emit("updateViewers", room.viewers);
-          io.to(currentRoomId).emit(
-            "viewerLeft",
-            `${socket.username} đã thoát phòng.`
-          );
+          socket
+            .to(currentRoomId)
+            .emit("viewerLeft", `${socket.username} đã thoát phòng.`); // Use socket.to to not send to self
           if (room.hostSocketId) {
             io.to(room.hostSocketId).emit("updateViewersList", {
               viewers: room.viewersList,
             });
             if (socket.peerId) {
-              // If viewer had a peerId
               io.to(room.hostSocketId).emit("viewerDisconnected", {
                 viewerId: socket.peerId,
                 username: socket.username,
@@ -1169,7 +1193,15 @@ io.on("connection", (socket) => {
             `Viewer ${socket.username} disconnected from room ${currentRoomId}. Remaining viewers: ${room.viewers}`
           );
         }
+      } else {
+        console.log(
+          `Client ${socket.id} (User: ${socket.username}) disconnecting, but their room ${currentRoomId} no longer exists (likely already ended).`
+        );
       }
+    } else {
+      console.log(
+        `Client ${socket.id} (User: ${socket.username}) disconnecting, was not in a tracked room.`
+      );
     }
   });
   socket.on("disconnect", () => {

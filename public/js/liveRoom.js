@@ -56,6 +56,7 @@ document.addEventListener("DOMContentLoaded", () => {
     endedOverlay: document.getElementById("roomEndedOverlayLive"),
     playOverlay: document.getElementById("playOverlayLive"),
     playButton: document.getElementById("playButtonLive"),
+    shareLiveBtnViewer: document.getElementById("shareLiveBtnViewer"),
     exitButton: document.getElementById("exitRoomBtnLive"),
     liveIndicator: document.getElementById("liveIndicator"),
     toggleViewerWhiteboardDisplayBtn: document.getElementById(
@@ -1954,6 +1955,54 @@ document.addEventListener("DOMContentLoaded", () => {
     };
     document.body.addEventListener("click", startPlay, { once: true });
     document.body.addEventListener("keydown", startPlay, { once: true });
+    
+    elements.shareLiveBtnViewer?.addEventListener("click", async () => {
+        if (!liveRoomConfig || !liveRoomConfig.roomId) {
+            showAlert("Không thể lấy thông tin phòng để chia sẻ.", "error");
+            return;
+        }
+        // playButtonFeedback(elements.shareLiveBtnViewer); // Optional: if you have this function
+
+        // Construct the shareable URL.
+        // Using the direct room URL. Authentication will be handled when the user visits.
+        // The glitchProjectUrl should be like "https://your-project.glitch.me"
+        const roomUrl = `https://hoctap-9a3.glitch.me/live/joinLive/${liveRoomConfig.roomId}`;
+
+        // If you had implemented the /live/joinLive/:roomId route on the server:
+        // const joinLiveUrl = `${liveRoomConfig.glitchProjectUrl}/live/joinLive/${liveRoomConfig.roomId}`;
+        // const shareUrl = joinLiveUrl;
+
+        const shareUrl = roomUrl; // Using direct room URL for this example
+
+        try {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                await navigator.clipboard.writeText(shareUrl);
+                showAlert("Đã sao chép link mời vào clipboard!", "success", 2500);
+            } else {
+                // Fallback for older browsers
+                const textArea = document.createElement("textarea");
+                textArea.value = shareUrl;
+                textArea.style.position = "fixed"; 
+                textArea.style.opacity = "0";
+                document.body.appendChild(textArea);
+                textArea.focus();
+                textArea.select();
+                try {
+                    document.execCommand('copy');
+                    showAlert("Đã sao chép link mời vào clipboard! (fallback)", "success", 2500);
+                } catch (err) {
+                    showAlert("Không thể sao chép link. Vui lòng sao chép thủ công.", "error", 3000);
+                    console.error('Fallback copy failed:', err);
+                    prompt("Sao chép link này:", shareUrl);
+                }
+                document.body.removeChild(textArea);
+            }
+        } catch (err) {
+            showAlert("Lỗi khi sao chép link.", "error");
+            console.error('Could not copy text: ', err);
+            prompt("Sao chép link này:", shareUrl);
+        }
+    });
 
     // Viewer's Whiteboard Toggle Button
     elements.toggleViewerWhiteboardDisplayBtn?.addEventListener("click", () => {

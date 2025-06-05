@@ -2461,7 +2461,7 @@ document.addEventListener("DOMContentLoaded", () => {
         // Construct the shareable URL.
         // Option 1: Direct room URL. Authentication will be handled when the user visits.
         // The glitchProjectUrl should already be like "https://your-project.glitch.me"
-        const roomUrl = `${streamerConfig.glitchProjectUrl}/room/${streamerConfig.roomId}`;
+        const roomUrl = `https://hoctap-9a3.glitch.me/live/joinLive/${streamerConfig.roomId}`;
 
         // Option 2: Using the /live/joinLive/:roomId pattern you provided.
         // This implies server-side handling for this route.
@@ -2502,25 +2502,43 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
     elements.endStreamBtn?.addEventListener("click", async () => {
-      if (!socket) {
-        console.error("Socket not connected.");
-        return;
-      }
-      playButtonFeedback(elements.endStreamBtn);
-      const confirmed = await showStreamerConfirmation(
-        "Xác nhận kết thúc stream?",
-        "Kết thúc",
-        "Hủy",
-        "fas fa-exclamation-triangle"
-      );
-      if (confirmed) {
-        stopLocalStream(); // Will also emit streamEnded via socket
-        // Server side, on streamEnded or endRoom, will clean up room.
-        setTimeout(() => {
-          // Delay redirect slightly to allow socket events to process
-          window.location.href = "https://hoctap-9a3.glitch.me/live";
-        }, 500);
-      }
+        if (!socket || !socket.connected) { // Check for socket connection
+            console.error("Socket not connected. Cannot end stream properly.");
+            showAlert("Lỗi kết nối, không thể kết thúc stream. Vui lòng thử lại.", "error");
+            // Optionally, still attempt local cleanup and redirect as a fallback
+            stopLocalStream(); // Stop local media
+            window.location.href = "https://hoctap-9a3.glitch.me/live";
+            return;
+        }
+        playButtonFeedback(elements.endStreamBtn);
+        const confirmed = await showStreamerConfirmation(
+            "Xác nhận kết thúc buổi Live này cho tất cả mọi người?", // Clarify it's for everyone
+            "Kết Thúc Ngay",
+            "Hủy",
+            "fas fa-exclamation-triangle"
+        );
+
+        if (confirmed) {
+            console.log("Streamer confirmed end stream. Emitting endRoom to server.");
+            socket.emit("endRoom", { roomId: streamerConfig.roomId });
+
+            // Perform local cleanup and redirect immediately after emitting.
+            // The server will handle broadcasting and disconnecting others.
+            stopLocalStream(); // Stop local media tracks
+            
+            // Optionally, disable UI elements to prevent further interaction
+            elements.controlButtons.forEach(btn => btn.disabled = true);
+            if(elements.chatInputArea) elements.chatInputArea.disabled = true;
+            if(elements.sendChatBtn) elements.sendChatBtn.disabled = true;
+
+            showAlert("Đang kết thúc buổi live...", "info", 2000); // Brief notification
+
+            // Redirect after a short delay to allow socket event to be sent
+            // and give user feedback.
+            setTimeout(() => {
+                window.location.href = "https://hoctap-9a3.glitch.me/live";
+            }, 1500); // Adjust delay as needed
+        }
     });
 
     // Modal Buttons
