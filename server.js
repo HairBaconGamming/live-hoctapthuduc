@@ -87,27 +87,26 @@ app.use(
         "default-src": ["'self'"],
         "script-src": [
           "'self'",
-          "'unsafe-inline'", // Try to remove this if possible by refactoring inline scripts
-          "'unsafe-eval'", // Needed by some libs like older GSAP, Marked, or PeerJS in some configs. Investigate removal.
+          "'unsafe-inline'",
+          "'unsafe-eval'",
           "https://cdn.jsdelivr.net",
           "https://cdnjs.cloudflare.com",
           "https://unpkg.com",
-          "https://gc.kis.v2.scr.kaspersky-labs.com", // Kaspersky protection
-          "wss://gc.kis.v2.scr.kaspersky-labs.com", // Kaspersky WebSocket
-          // Add your Glitch project URL if serving scripts from there via CDN/hotlinking
+          "https://gc.kis.v2.scr.kaspersky-labs.com",
+          "wss://gc.kis.v2.scr.kaspersky-labs.com",
           `https://${process.env.PROJECT_DOMAIN}.glitch.me`,
         ],
         "style-src": [
           "'self'",
-          "'unsafe-inline'", // For inline styles, try to move to CSS files
+          "'unsafe-inline'",
           "https://fonts.googleapis.com",
           "https://cdnjs.cloudflare.com",
           "https://cdn.jsdelivr.net",
         ],
         "img-src": [
           "'self'",
-          "blob:", // For PeerJS video streams, object URLs
-          "data:", // For inline images, SVGs, html2canvas output
+          "blob:",
+          "data:",
           "https://cdn.glitch.global",
           "https://gc.kis.v2.scr.kaspersky-labs.com",
         ],
@@ -118,31 +117,23 @@ app.use(
           "https://cdn.jsdelivr.net",
         ],
         "connect-src": [
-          // IMPORTANT for Socket.IO and PeerJS
-          "'self'",
-          `ws://${(req) => req.headers.host}`, // Allow WebSocket connections to current host
-          `wss://${(req) => req.headers.host}`, // Allow secure WebSocket connections
+          "'self'", // For HTTP/HTTPS to same origin
+          `ws://${process.env.PROJECT_DOMAIN}.glitch.me`, // WebSocket to your Glitch project
+          `wss://${process.env.PROJECT_DOMAIN}.glitch.me`, // Secure WebSocket to your Glitch project
           "https://*.google-analytics.com",
           "https://*.analytics.google.com",
           "https://*.googletagmanager.com",
-          // If PeerJS server is external or on a different port in dev:
-          // "your-peerjs-server-host.com",
-          // "wss://your-peerjs-server-host.com",
-          // For Glitch, usually same host:
-          `wss://${process.env.PROJECT_DOMAIN}.glitch.me`,
           "https://gc.kis.v2.scr.kaspersky-labs.com",
           "wss://gc.kis.v2.scr.kaspersky-labs.com",
+          // If you have an external PeerJS TURN server, add its domain here too
+          // e.g., "your-turn-server.com", "wss://your-turn-server.com"
+          "relay1.expressturn.com", // For the expressturn.com TURN server
         ],
-        "frame-src": [
-          "'self'", // For iframes you host
-          "blob:", // For object URLs if iframes use them
-          "data:", // For data URIs in iframes
-          // Add specific trusted domains if you embed external iframes
-        ],
-        "media-src": ["'self'", "blob:", "data:"], // For video/audio elements
-        "worker-src": ["'self'", "blob:"], // If using web workers
-        "object-src": ["'none'"], // Generally good to disable Flash/Java applets
-        "frame-ancestors": ["'self'"], // Prevents clickjacking if not embedding elsewhere
+        "frame-src": ["'self'", "blob:", "data:"],
+        "media-src": ["'self'", "blob:", "data:"],
+        "worker-src": ["'self'", "blob:"],
+        "object-src": ["'none'"],
+        "frame-ancestors": ["'self'"],
       },
     },
   })
