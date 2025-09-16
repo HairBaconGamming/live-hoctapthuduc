@@ -260,7 +260,7 @@ app.post("/api/createStream", (req, res) => {
         ],
       },
     },
-    glitchProjectUrl: `https://${process.env.PROJECT_DOMAIN}.glitch.me`, // For redirects
+    glitchProjectUrl: `https://hoctapthuduc.onrender.com`, // For redirects
   };
   liveRooms.push(newRoom);
   console.log("✅ Room created:", {
@@ -324,7 +324,7 @@ app.get("/room/:id", checkHoctapAuth, async (req, res) => {
       return res.status(404).render("errorPage", {
         // Assuming you have an errorPage.ejs
         message: "Phòng live không tồn tại hoặc đã kết thúc.",
-        projectUrl: `https://${process.env.PROJECT_DOMAIN}.glitch.me`,
+        projectUrl: `https://hoctapthuduc.onrender.com`,
         user: userMakingRequest, // Pass user if your error page uses it
       });
     }
