@@ -1237,7 +1237,7 @@ app.get("/", (req, res) => {
   // Simple landing page or redirect to your main app page
   // res.send("Live Streaming App. Go to /live (example) to see rooms or create one.");
   // For Glitch, redirect to the live room list page
-  res.redirect(`https://hoctapthuduc.onrender.comlive`);
+  res.redirect(`https://hoctapthuduc.onrender.com/live`);
 });
 
 app.get("/live", (req, res) => {
