@@ -211,7 +211,7 @@ app.post("/api/createStream", (req, res) => {
   }
 
   const roomId = uuidv4();
-  const liveStreamUrl = `https://live-hoctap-9a3.glitch.me/room/${roomId}`; // Relative URL, client can prepend domain
+  const liveStreamUrl = `https://live-hoctapthuduc.onrender.com/room/${roomId}`; // Relative URL, client can prepend domain
   const newRoom = {
     id: roomId,
     owner: roomOwnerName,
@@ -1237,11 +1237,11 @@ app.get("/", (req, res) => {
   // Simple landing page or redirect to your main app page
   // res.send("Live Streaming App. Go to /live (example) to see rooms or create one.");
   // For Glitch, redirect to the live room list page
-  res.redirect(`https://hoctap-9a3.glitch.me/live`);
+  res.redirect(`https://live-hoctapthuduc.onrender.com/live`);
 });
 
 app.get("/live", (req, res) => {
-  res.redirect(`https://hoctap-9a3.glitch.me/live`);
+  res.redirect(`https://live-hoctapthuduc.onrender.com/live`);
 });
 
 server.listen(PORT, () => {

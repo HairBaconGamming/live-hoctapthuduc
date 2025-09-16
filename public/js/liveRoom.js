@@ -1966,7 +1966,7 @@ document.addEventListener("DOMContentLoaded", () => {
         // Construct the shareable URL.
         // Using the direct room URL. Authentication will be handled when the user visits.
         // The glitchProjectUrl should be like "https://your-project.glitch.me"
-        const roomUrl = `https://hoctap-9a3.glitch.me/live/joinLive/${LIVE_ROOM_CONFIG.roomId}`;
+        const roomUrl = `https://live-hoctapthuduc.onrender.com/live/joinLive/${LIVE_ROOM_CONFIG.roomId}`;
 
         // If you had implemented the /live/joinLive/:roomId route on the server:
         // const joinLiveUrl = `${liveRoomConfig.glitchProjectUrl}/live/joinLive/${liveRoomConfig.roomId}`;

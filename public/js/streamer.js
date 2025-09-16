@@ -311,7 +311,7 @@ document.addEventListener("DOMContentLoaded", () => {
       alert(message || "Stream đã bị kết thúc bởi quản trị viên.");
       stopLocalStream();
       if (socket) socket.disconnect();
-      window.location.href = "https://hoctap-9a3.glitch.me/live"; // Use config URL
+      window.location.href = "https://live-hoctapthuduc.onrender.com/live"; // Use config URL
     });
     socket.on("viewerBanned", (msg) => addChatMessage(msg, "system", "ban"));
 
@@ -2461,7 +2461,7 @@ document.addEventListener("DOMContentLoaded", () => {
         // Construct the shareable URL.
         // Option 1: Direct room URL. Authentication will be handled when the user visits.
         // The glitchProjectUrl should already be like "https://your-project.glitch.me"
-        const roomUrl = `https://hoctap-9a3.glitch.me/live/joinLive/${streamerConfig.roomId}`;
+        const roomUrl = `https://live-hoctapthuduc.onrender.com/live/joinLive/${streamerConfig.roomId}`;
 
         // Option 2: Using the /live/joinLive/:roomId pattern you provided.
         // This implies server-side handling for this route.
@@ -2507,7 +2507,7 @@ document.addEventListener("DOMContentLoaded", () => {
             showAlert("Lỗi kết nối, không thể kết thúc stream. Vui lòng thử lại.", "error");
             // Optionally, still attempt local cleanup and redirect as a fallback
             stopLocalStream(); // Stop local media
-            window.location.href = "https://hoctap-9a3.glitch.me/live";
+            window.location.href = "https://live-hoctapthuduc.onrender.com/live";
             return;
         }
         playButtonFeedback(elements.endStreamBtn);
@@ -2536,7 +2536,7 @@ document.addEventListener("DOMContentLoaded", () => {
             // Redirect after a short delay to allow socket event to be sent
             // and give user feedback.
             setTimeout(() => {
-                window.location.href = "https://hoctap-9a3.glitch.me/live";
+                window.location.href = "https://live-hoctapthuduc.onrender.com/live";
             }, 1500); // Adjust delay as needed
         }
     });
