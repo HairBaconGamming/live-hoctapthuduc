@@ -94,7 +94,7 @@ app.use(
           "https://unpkg.com",
           "https://gc.kis.v2.scr.kaspersky-labs.com",
           "wss://gc.kis.v2.scr.kaspersky-labs.com",
-          `https://${process.env.PROJECT_DOMAIN}.glitch.me`,
+          `https://${process.env.PROJECT_DOMAIN}`,
         ],
         "style-src": [
           "'self'",
@@ -118,8 +118,8 @@ app.use(
         ],
         "connect-src": [
           "'self'", // For HTTP/HTTPS to same origin
-          `ws://${process.env.PROJECT_DOMAIN}.glitch.me`, // WebSocket to your Glitch project
-          `wss://${process.env.PROJECT_DOMAIN}.glitch.me`, // Secure WebSocket to your Glitch project
+          `ws://${process.env.PROJECT_DOMAIN}`, // WebSocket to your Glitch project
+          `wss://${process.env.PROJECT_DOMAIN}`, // Secure WebSocket to your Glitch project
           "https://*.google-analytics.com",
           "https://*.analytics.google.com",
           "https://*.googletagmanager.com",
@@ -237,7 +237,7 @@ app.post("/api/createStream", (req, res) => {
     hostSocketId: null, // To track the current host's socket
     // peerJS server config for clients
     peerConfig: {
-      host: process.env.PROJECT_DOMAIN + ".glitch.me", // Glitch domain
+      host: process.env.PROJECT_DOMAIN, // Glitch domain
       port: 443, // Glitch uses 443 for WSS
       path: "/peerjs/myapp", // Match ExpressPeerServer path
       secure: true,
