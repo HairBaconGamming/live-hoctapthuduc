@@ -16,7 +16,7 @@ const server = http.createServer(app);
 // PeerJS Server
 const peerServer = ExpressPeerServer(server, {
   debug: process.env.NODE_ENV !== "production", // More debug info in dev
-  path: "/myapp", // Consistent path
+  path: "/", // Consistent path
   allow_discovery: true, // Allow peers to discover each other if needed (usually not for simple 1-to-many stream)
   generateClientId: () => {
     // More robust client ID generation if needed
@@ -118,8 +118,10 @@ app.use(
         ],
         "connect-src": [
           "'self'", // For HTTP/HTTPS to same origin
-          `ws://${process.env.PROJECT_DOMAIN}`, // WebSocket to your Glitch project
-          `wss://${process.env.PROJECT_DOMAIN}`, // Secure WebSocket to your Glitch project
+          "ws://localhost:*",
+          "wss://localhost:*",
+          "wss://live-hoctapthuduc.onrender.com",
+          "https://live-hoctapthuduc.onrender.com",
           "https://*.google-analytics.com",
           "https://*.analytics.google.com",
           "https://*.googletagmanager.com",
@@ -239,7 +241,7 @@ app.post("/api/createStream", (req, res) => {
     peerConfig: {
       host: process.env.PROJECT_DOMAIN, // Glitch domain
       port: 443, // Glitch uses 443 for WSS
-      path: "/peerjs/myapp", // Match ExpressPeerServer path
+      path: "/peerjs", // Match ExpressPeerServer path
       secure: true,
       debug: process.env.NODE_ENV !== "production" ? 2 : 0, // 0: none, 1: Errors, 2: Self+Errors, 3: All
       config: {
