@@ -13,24 +13,32 @@ const helmet = require("helmet"); // For security headers
 const app = express();
 const server = http.createServer(app);
 
-// PeerJS Server
+// FIX START: Lỗi 1 - Cấu hình lại ExpressPeerServer để tránh lặp đường dẫn /peerjs/peerjs
+// Loại bỏ tùy chọn `path: "/"` để thư viện sử dụng mặc định, tương thích hơn với client.
 const peerServer = ExpressPeerServer(server, {
-  debug: process.env.NODE_ENV !== "production", // More debug info in dev
-  path: "/", // Consistent path
-  allow_discovery: true, // Allow peers to discover each other if needed (usually not for simple 1-to-many stream)
+  debug: process.env.NODE_ENV !== "production",
+  allow_discovery: true,
   generateClientId: () => {
-    // More robust client ID generation if needed
     return uuidv4();
   },
 });
-app.use("/peerjs", peerServer); // Mount PeerJS server
+app.use("/peerjs", peerServer);
+// FIX END: Lỗi 1
 
+// FIX START: Lỗi 2 - Cấu hình Socket.IO CORS và các tùy chọn khác để hoạt động tốt hơn sau proxy
 const io = socketIO(server, {
   cors: {
-    origin: "*", // Configure appropriately for production
+    origin: [
+        `https://hoctapthuduc.onrender.com`,
+        `https://live-hoctapthuduc.onrender.com`,
+        "http://localhost:3001" // Thêm cho môi trường dev local nếu cần
+    ],
     methods: ["GET", "POST"],
   },
+  transports: ['websocket', 'polling'], // Ưu tiên websocket
+  pingTimeout: 60000, // Tăng thời gian chờ để giữ kết nối ổn định hơn
 });
+// FIX END: Lỗi 2
 
 const PORT = process.env.PORT || 3001;
 const JWT_SECRET =
