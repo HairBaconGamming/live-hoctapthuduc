@@ -117,19 +117,22 @@ app.use(
           "https://cdn.jsdelivr.net",
         ],
         "connect-src": [
-          "'self'", // For HTTP/HTTPS to same origin
+          "'self'",
           "ws://localhost:*",
           "wss://localhost:*",
-          "wss://live-hoctapthuduc.onrender.com",
-          "https://live-hoctapthuduc.onrender.com",
+          // START: FIX LỖI CSP
+          `https://${process.env.PROJECT_DOMAIN}`,     // Cho phép kết nối HTTP/HTTPS đến domain chính
+          `wss://${process.env.PROJECT_DOMAIN}`,      // Cho phép kết nối WebSocket đến domain chính
+          "https://live-hoctapthuduc.onrender.com",  // Giữ lại domain phụ cụ thể
+          "wss://live-hoctapthuduc.onrender.com",   // Giữ lại domain phụ cụ thể
+          "https://unpkg.com",                      // Cho phép tải source map của peerjs
+          // END: FIX LỖI CSP
           "https://*.google-analytics.com",
           "https://*.analytics.google.com",
           "https://*.googletagmanager.com",
           "https://gc.kis.v2.scr.kaspersky-labs.com",
           "wss://gc.kis.v2.scr.kaspersky-labs.com",
-          // If you have an external PeerJS TURN server, add its domain here too
-          // e.g., "your-turn-server.com", "wss://your-turn-server.com"
-          "relay1.expressturn.com", // For the expressturn.com TURN server
+          "relay1.expressturn.com",
         ],
         "frame-src": ["'self'", "blob:", "data:"],
         "media-src": ["'self'", "blob:", "data:"],
