@@ -24,31 +24,6 @@ app.use(cors({
   credentials: true // Cho phép gửi cookie/header xác thực nếu cần
 }));
 
-// FIX START: Lỗi 1 - Cấu hình lại ExpressPeerServer để tránh lặp đường dẫn /peerjs/peerjs
-// Loại bỏ tùy chọn `path: "/"` để thư viện sử dụng mặc định, tương thích hơn với client.
-const peerServer = ExpressPeerServer(server, {
-  debug: true,
-  path: "/", // Giữ nguyên là "/" để tránh lỗi trùng lặp đường dẫn
-  allow_discovery: true,
-  proxied: true, // <--- QUAN TRỌNG: Bắt buộc phải có trên Render/Glitch/Heroku
-  generateClientId: () => uuidv4(),
-  // Tăng giới hạn tin nhắn nếu cần (tùy chọn)
-  // pingInterval: 5000, // Mặc định client gửi ping
-});
-app.use("/peerjs", peerServer);
-// FIX END: Lỗi 1
-
-// FIX START: Lỗi 2 - Cấu hình Socket.IO CORS và các tùy chọn khác để hoạt động tốt hơn sau proxy
-const io = socketIO(server, {
-  cors: {
-    origin: "*", // Hoặc danh sách array như trên cors của express
-    methods: ["GET", "POST"],
-    credentials: true
-  },
-  transports: ['websocket', 'polling']
-});
-// FIX END: Lỗi 2
-
 const PORT = process.env.PORT || 3001;
 const JWT_SECRET =
   process.env.JWT_SECRET || "fallback_super_secret_key_for_dev_only";
@@ -154,6 +129,31 @@ app.use(
     },
   })
 );
+
+// FIX START: Lỗi 1 - Cấu hình lại ExpressPeerServer để tránh lặp đường dẫn /peerjs/peerjs
+// Loại bỏ tùy chọn `path: "/"` để thư viện sử dụng mặc định, tương thích hơn với client.
+const peerServer = ExpressPeerServer(server, {
+  debug: true,
+  path: "/", // Giữ nguyên là "/" để tránh lỗi trùng lặp đường dẫn
+  allow_discovery: true,
+  proxied: true, // <--- QUAN TRỌNG: Bắt buộc phải có trên Render/Glitch/Heroku
+  generateClientId: () => uuidv4(),
+  // Tăng giới hạn tin nhắn nếu cần (tùy chọn)
+  // pingInterval: 5000, // Mặc định client gửi ping
+});
+app.use("/peerjs", peerServer);
+// FIX END: Lỗi 1
+
+// FIX START: Lỗi 2 - Cấu hình Socket.IO CORS và các tùy chọn khác để hoạt động tốt hơn sau proxy
+const io = socketIO(server, {
+  cors: {
+    origin: "*", // Hoặc danh sách array như trên cors của express
+    methods: ["GET", "POST"],
+    credentials: true
+  },
+  transports: ['websocket', 'polling']
+});
+// FIX END: Lỗi 2
 
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true })); // For form data if needed
