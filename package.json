@@ -20,8 +20,7 @@
     "peer-server": "^1.1.2",
     "peerjs": "^1.5.3",
     "socket.io": "^4.8.1",
-    "uuid": "8.x",
-    "cors": "^2.8.5"
+    "uuid": "8.x"
   },
   "engines": {
     "node": "16.x"
