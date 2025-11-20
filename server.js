@@ -138,9 +138,6 @@ const peerServer = ExpressPeerServer(server, {
   allow_discovery: true,
   proxied: true, // <--- QUAN TRỌNG: Bắt buộc phải có trên Render/Glitch/Heroku
   generateClientId: () => uuidv4(),
-  port: 10000,
-  // Tăng giới hạn tin nhắn nếu cần (tùy chọn)
-  // pingInterval: 5000, // Mặc định client gửi ping
 });
 app.use("/peerjs", peerServer);
 // FIX END: Lỗi 1
@@ -148,7 +145,13 @@ app.use("/peerjs", peerServer);
 // FIX START: Lỗi 2 - Cấu hình Socket.IO CORS và các tùy chọn khác để hoạt động tốt hơn sau proxy
 const io = socketIO(server, {
   cors: {
-    origin: "*", // Hoặc danh sách array như trên cors của express
+    // KHÔNG ĐƯỢC DÙNG "*" NẾU DÙNG CREDENTIALS: TRUE
+    origin: [
+      "https://hoctapthuduc.onrender.com",
+      "https://live-hoctapthuduc.onrender.com",
+      "http://localhost:3000",
+      "http://localhost:3001"
+    ],
     methods: ["GET", "POST"],
     credentials: true
   },
@@ -255,7 +258,7 @@ app.post("/api/createStream", (req, res) => {
     peerConfig: {
       host: "live-hoctapthuduc.onrender.com", // Glitch domain
       port: 443, // Glitch uses 443 for WSS
-      path: "/", // Match ExpressPeerServer path
+      path: "/peerjs", // Match ExpressPeerServer path
       secure: true,
       debug: process.env.NODE_ENV !== "production" ? 2 : 0, // 0: none, 1: Errors, 2: Self+Errors, 3: All
       config: {
