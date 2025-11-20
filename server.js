@@ -16,11 +16,10 @@ const server = http.createServer(app);
 // FIX START: Lỗi 1 - Cấu hình lại ExpressPeerServer để tránh lặp đường dẫn /peerjs/peerjs
 // Loại bỏ tùy chọn `path: "/"` để thư viện sử dụng mặc định, tương thích hơn với client.
 const peerServer = ExpressPeerServer(server, {
-  debug: process.env.NODE_ENV !== "production",
+  debug: true,
+  path: "/", // QUAN TRỌNG: Đặt là '/' để tránh lỗi đường dẫn đôi (/peerjs/peerjs)
   allow_discovery: true,
-  generateClientId: () => {
-    return uuidv4();
-  },
+  generateClientId: () => uuidv4(), // Tự sinh ID để tránh trùng lặp
 });
 app.use("/peerjs", peerServer);
 // FIX END: Lỗi 1
