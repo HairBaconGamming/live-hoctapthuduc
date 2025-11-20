@@ -9,7 +9,6 @@ const socketIO = require("socket.io");
 const jwt = require("jsonwebtoken");
 const { ExpressPeerServer } = require("peer");
 const helmet = require("helmet"); // For security headers
-const cors = require("cors");
 
 const app = express();
 const server = http.createServer(app);
@@ -156,7 +155,6 @@ app.use(
   })
 );
 
-app.use(cors()); // Enable CORS for all routes
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true })); // For form data if needed
 
