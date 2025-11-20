@@ -9,9 +9,21 @@ const socketIO = require("socket.io");
 const jwt = require("jsonwebtoken");
 const { ExpressPeerServer } = require("peer");
 const helmet = require("helmet"); // For security headers
+const cors = require("cors");
 
 const app = express();
 const server = http.createServer(app);
+
+app.use(cors({
+  origin: [
+    "https://hoctapthuduc.onrender.com",      // Backend chính
+    "https://live-hoctapthuduc.onrender.com", // Frontend phụ (nếu có)
+    "http://localhost:3000",
+    "http://localhost:3001"
+  ],
+  methods: ["GET", "POST"],
+  credentials: true // Cho phép gửi cookie/header xác thực nếu cần
+}));
 
 // FIX START: Lỗi 1 - Cấu hình lại ExpressPeerServer để tránh lặp đường dẫn /peerjs/peerjs
 // Loại bỏ tùy chọn `path: "/"` để thư viện sử dụng mặc định, tương thích hơn với client.
@@ -30,15 +42,11 @@ app.use("/peerjs", peerServer);
 // FIX START: Lỗi 2 - Cấu hình Socket.IO CORS và các tùy chọn khác để hoạt động tốt hơn sau proxy
 const io = socketIO(server, {
   cors: {
-    origin: [
-        `https://hoctapthuduc.onrender.com`,
-        `https://live-hoctapthuduc.onrender.com`,
-        "http://localhost:3001" // Thêm cho môi trường dev local nếu cần
-    ],
+    origin: "*", // Hoặc danh sách array như trên cors của express
     methods: ["GET", "POST"],
+    credentials: true
   },
-  transports: ['websocket', 'polling'], // Ưu tiên websocket
-  pingTimeout: 60000, // Tăng thời gian chờ để giữ kết nối ổn định hơn
+  transports: ['websocket', 'polling']
 });
 // FIX END: Lỗi 2
 
@@ -128,21 +136,15 @@ app.use(
         ],
         "connect-src": [
           "'self'",
-          "ws://localhost:*",
-          "wss://localhost:*",
-          // START: FIX LỖI CSP
-          `https://${process.env.PROJECT_DOMAIN}`,     // Cho phép kết nối HTTP/HTTPS đến domain chính
-          `wss://${process.env.PROJECT_DOMAIN}`,      // Cho phép kết nối WebSocket đến domain chính
-          "https://live-hoctapthuduc.onrender.com",  // Giữ lại domain phụ cụ thể
-          "wss://live-hoctapthuduc.onrender.com",   // Giữ lại domain phụ cụ thể
-          "https://unpkg.com",                      // Cho phép tải source map của peerjs
-          // END: FIX LỖI CSP
+          "ws://localhost:*", "wss://localhost:*",
+          "https://hoctapthuduc.onrender.com",      // Cho phép connect HTTP về server chính
+          "wss://hoctapthuduc.onrender.com",        // Cho phép connect WS về server chính
+          "https://live-hoctapthuduc.onrender.com", // Cho phép connect từ live-
+          "wss://live-hoctapthuduc.onrender.com",
+          "https://unpkg.com",                      // PeerJS CDN
           "https://*.google-analytics.com",
-          "https://*.analytics.google.com",
-          "https://*.googletagmanager.com",
-          "https://gc.kis.v2.scr.kaspersky-labs.com",
-          "wss://gc.kis.v2.scr.kaspersky-labs.com",
-          "relay1.expressturn.com",
+          "https://turn.expressturn.com",           // Nếu dùng TURN server ngoài
+          "relay1.expressturn.com"
         ],
         "frame-src": ["'self'", "blob:", "data:"],
         "media-src": ["'self'", "blob:", "data:"],
