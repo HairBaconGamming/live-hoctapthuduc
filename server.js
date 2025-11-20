@@ -254,7 +254,7 @@ app.post("/api/createStream", (req, res) => {
     peerConfig: {
       host: process.env.PROJECT_DOMAIN, // Glitch domain
       port: 443, // Glitch uses 443 for WSS
-      path: "/peerjs", // Match ExpressPeerServer path
+      path: "/", // Match ExpressPeerServer path
       secure: true,
       debug: process.env.NODE_ENV !== "production" ? 2 : 0, // 0: none, 1: Errors, 2: Self+Errors, 3: All
       config: {
