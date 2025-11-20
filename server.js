@@ -134,10 +134,11 @@ app.use(
 // Loại bỏ tùy chọn `path: "/"` để thư viện sử dụng mặc định, tương thích hơn với client.
 const peerServer = ExpressPeerServer(server, {
   debug: true,
-  path: "/", // Giữ nguyên là "/" để tránh lỗi trùng lặp đường dẫn
+  path: "/myapp", // Giữ nguyên là "/" để tránh lỗi trùng lặp đường dẫn
   allow_discovery: true,
   proxied: true, // <--- QUAN TRỌNG: Bắt buộc phải có trên Render/Glitch/Heroku
   generateClientId: () => uuidv4(),
+  port: 10000,
   // Tăng giới hạn tin nhắn nếu cần (tùy chọn)
   // pingInterval: 5000, // Mặc định client gửi ping
 });
@@ -252,9 +253,9 @@ app.post("/api/createStream", (req, res) => {
     hostSocketId: null, // To track the current host's socket
     // peerJS server config for clients
     peerConfig: {
-      host: process.env.PROJECT_DOMAIN, // Glitch domain
+      host: "live-hoctapthuduc.onrender.com", // Glitch domain
       port: 443, // Glitch uses 443 for WSS
-      path: "/", // Match ExpressPeerServer path
+      path: "/myapp", // Match ExpressPeerServer path
       secure: true,
       debug: process.env.NODE_ENV !== "production" ? 2 : 0, // 0: none, 1: Errors, 2: Self+Errors, 3: All
       config: {
