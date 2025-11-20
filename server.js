@@ -17,9 +17,12 @@ const server = http.createServer(app);
 // Loại bỏ tùy chọn `path: "/"` để thư viện sử dụng mặc định, tương thích hơn với client.
 const peerServer = ExpressPeerServer(server, {
   debug: true,
-  path: "/", // QUAN TRỌNG: Đặt là '/' để tránh lỗi đường dẫn đôi (/peerjs/peerjs)
+  path: "/", // Giữ nguyên là "/" để tránh lỗi trùng lặp đường dẫn
   allow_discovery: true,
-  generateClientId: () => uuidv4(), // Tự sinh ID để tránh trùng lặp
+  proxied: true, // <--- QUAN TRỌNG: Bắt buộc phải có trên Render/Glitch/Heroku
+  generateClientId: () => uuidv4(),
+  // Tăng giới hạn tin nhắn nếu cần (tùy chọn)
+  // pingInterval: 5000, // Mặc định client gửi ping
 });
 app.use("/peerjs", peerServer);
 // FIX END: Lỗi 1
